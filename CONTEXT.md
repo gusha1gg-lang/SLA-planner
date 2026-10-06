@@ -36,7 +36,10 @@
 
 ## 3. Что уже сделано (история)
 
-### Синхронизация Zabbix ↔ сайт (главное изменение) — ЗАКОММИЧЕНО (3f577ca)
+### Синхронизация Zabbix ↔ сайт (главное изменение) — ЗАКОММИЧЕНО И ЗАПУШЕНО
+
+> Коммиты `3f577ca` (sync) и `c225d54` (docs: CONTEXT.md) запушены в origin
+> (`sla-planner-zabbix-integration-ebdcf`). Ветка на сервере и локально синхронизированы.
 
 1. **Backend `app/services/sync.py`** — полностью переписан:
    - `sla_service_tags()` / `sla_tag_values()` — хелперы для тегов;
@@ -76,7 +79,7 @@
 - [x] **Закоммитить изменения** в ветку `sla-planner-zabbix-integration-ebdcf` — коммит `3f577ca`.
 - [x] **Создан в Zabbix SLA «ERP»** (slaid=6) с тегами `service: 1С` и `service: SAP` — услуги 1С/SAP приходят в форму «Новая плановая работа».
 - [x] **End-to-end push в Zabbix:** плановая работа ERP/1С → `POST /api/works/1/push` → в Zabbix создан `excluded_downtime "SLA Planner #1"` (проверено `sla.get`, работа удалена, артефакт в Zabbix прибран).
-- [ ] (опционально) закоммитить `CONTEXT.md`.
+- [x] **`CONTEXT.md` закоммичен** (`c225d54`) и запушен в origin.
 
 ---
 
