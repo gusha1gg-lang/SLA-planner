@@ -101,6 +101,7 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
 - **Имя окна в Zabbix:** push теперь пишет `name = work.title` (раньше `downtime_marker` = `SLA Planner #<id>`) и перед добавлением удаляет устаревшую запись со старым маркером (идемпотентный re-push). На живых данных: работа «Обновление» → в SLA 1С `excluded_downtime "Обновление"` вместо `SLA Planner #1`.
 - **Автосинк правок planned-работ:** `PUT /api/works/{id}` у работы со статусом `planned` теперь сам прокатывает изменения в Zabbix (через `_reconcile_zabbix_window`): удаляет старое окно (старый заголовок + маркер, при переносе на другой SLA — убирает и оттуда) и добавляет новое с актуальным заголовком/периодом. При сбое Zabbix — 502 и rollback (и БД, и Zabbix остаются в старом состоянии). Проверено на живых данных: PUT «Обновление beta» → Zabbix обновился → PUT обратно.
 - Тесты: +3 (`test_update_work`, `test_push_uses_work_title_as_downtime_name`, `test_update_planned_work_resyncs_zabbix`) → pytest 15/15, tsc чистый.
+- Запушено в origin: `b2b4aa7` (c7ded78..b2b4aa7, 5 коммитов) — по разрешению пользователя «всегда пуш, если считаешь нужным».
 
 ---
 
