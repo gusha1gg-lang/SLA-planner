@@ -59,14 +59,14 @@
 Причина: API отдавал `service_tags` как объекты Zabbix, а фильтр в форме делал `selectedSla.service_tags?.includes(tag.value)` по строкам. После нормализации к `string[]` услуги появляются в выпадающем списке.
 
 ### Создано в Zabbix (живые объекты)
-- **Услуги:** `1С` (serviceid=4), `SAP` (serviceid=5), `Test Service 1` (serviceid=3).
+- **Услуги:** `1С` (serviceid=4), `SAP` (serviceid=5), `Test Service 1` (serviceid=3), `СКУД` (serviceid=6), `EWM` (serviceid=7), `MES` (serviceid=8).
   У каждой: тег `service: <имя>` (= что забирает SLA Planner) + `problem_tags: service=<имя>` (= проблемы хостов скатываются в услугу).
 - **Хосты:** `1c-app-01`, `1c-db-01` (тег `service: 1С`), `sap-app-01`, `sap-db-01` (тег `service: SAP`).
-- **SLA:** `Test SLA v3` (slaid=5, `service_tags: ["Test Service 1"]`), `ERP` (slaid=6, `service_tags: ["SAP"]`, period=0 / 24x7), `1С` (slaid=7, `service_tags: ["1С"]`, period=0 / 24x7).
+- **SLA:** `Test SLA v3` (slaid=5, `service_tags: ["Test Service 1"]`), `ERP` (slaid=6, `service_tags: ["СКУД", "EWM", "MES"]`, period=0 / 24x7), `1С` (slaid=7, `service_tags: ["1С"]`, period=0 / 24x7), `SAP` (slaid=8, `service_tags: ["SAP"]`, period=0 / 24x7).
 - Важно про Zabbix 7.0: **прямой связи «услуга ↔ хост» в API нет** (нет параметров `hosts`/`selectHosts`). Связь только через теги: хост с тегом → проблема наследует теги → `problem_tags` услуги матчит их.
 
 ### Проверено
-- Полный синк: `POST /api/sync/full` → `{"slas":3,"services":3,"links":3}`; связи SLA↔услуги без дублей: Test SLA v3→Test Service 1, ERP→SAP, 1С→1С.
+- Полный синк: `POST /api/sync/full` → `{"slas":4,"services":6,"links":6}`; связи без дублей: Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, 1С→1С, SAP→SAP.
 - Prune работает (фейковые SLA/услуга/связь удалились при синке).
 - End-to-end push: работа ERP/1С → push → в Zabbix у ERP (slaid=6) создан `excluded_downtime "SLA Planner #1"`; работа удалена, downtime в Zabbix прибран.
 - `npx tsc --noEmit` — чисто. `pytest` — 12/12.
@@ -89,6 +89,11 @@
 По просьбе пользователя услуга 1С получила собственный SLA «1С» (slaid=7, `service_tags: ["1С"]`),
 а из ERP тег `service: 1С` убран (ERP теперь `service_tags: ["SAP"]`). Итог без дублей:
 Test SLA v3→Test Service 1, ERP→SAP, «1С»→1С. `sync/full` → `{"slas":3,"services":3,"links":3}`.
+
+### Расширение тестовой модели (СКУД / EWM / MES)
+Созданы SLA «SAP» (slaid=8) и услуги `СКУД` (6), `EWM` (7), `MES` (8). ERP переназначен:
+`service_tags: ["СКУД", "EWM", "MES"]` (SAP вышел из ERP в свой SLA). Итог:
+Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→SAP. `sync/full` → `{"slas":4,"services":6,"links":6}`.
 
 ---
 
