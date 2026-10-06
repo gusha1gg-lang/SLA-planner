@@ -99,7 +99,7 @@ class ZabbixClient:
                 response.raise_for_status()
                 data = response.json()
 
-                if "error" in 
+                if "error" in data:
                     error = data["error"]
                     msg = f"Zabbix error [{method}]: {error.get('data', error.get('message', 'Unknown'))}"
                     logger.error(msg)
