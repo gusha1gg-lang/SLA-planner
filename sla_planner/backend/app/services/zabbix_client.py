@@ -9,6 +9,7 @@ Zabbix JSON-RPC 7.0 Client
 - Связь SLA↔Service через теги (service_tags у SLA, tags у Service)
 """
 
+import asyncio
 import httpx
 import logging
 from typing import Any, Optional
@@ -18,14 +19,20 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
+class ZabbixError(Exception):
+    """Ошибка взаимодействия с Zabbix API."""
+    pass
+
+
 class ZabbixClient:
-    """Async Zabbix JSON-RPC 7.0 client."""
+    """Async Zabbix JSON-RPC 7.0 client с retry."""
 
     def __init__(self):
         self.api_url = settings.ZABBIX_API_URL
         self.token = settings.ZABBIX_API_TOKEN
         self.read_only = settings.ZABBIX_READ_ONLY
         self._request_id = 0
+        self._client: Optional[httpx.AsyncClient] = None
 
     def _next_id(self) -> int:
         self._request_id += 1
@@ -37,10 +44,32 @@ class ZabbixClient:
             "Authorization": f"Bearer {self.token}",
         }
 
-    async def _call(self, method: str, params: dict | None = None) -> Any:
-        """Вызов JSON-RPC метода."""
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Получить или создать HTTP-клиент."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                timeout=httpx.Timeout(30.0, connect=10.0),
+                limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+            )
+        return self._client
+
+    async def close(self):
+        """Закрыть HTTP-клиент."""
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
+
+    async def _call(self, method: str, params: dict | None = None, retries: int = 3) -> Any:
+        """
+        Вызов JSON-RPC метода с retry.
+        
+        Retry логика:
+        - 3 попытки по умолчанию
+        - Exponential backoff: 1s, 2s, 4s
+        - Retry только на сетевые ошибки и 5xx
+        """
         if not self.api_url or not self.token:
-            raise ValueError("Zabbix API URL и токен не настроены")
+            raise ZabbixError("Zabbix API URL и токен не настроены. Проверьте .env")
 
         payload = {
             "jsonrpc": "2.0",
@@ -49,22 +78,58 @@ class ZabbixClient:
             "id": self._next_id(),
         }
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                self.api_url,
-                json=payload,
-                headers=self._headers(),
-            )
-            response.raise_for_status()
-            data = response.json()
+        last_error = None
+        for attempt in range(retries):
+            try:
+                client = await self._get_client()
+                response = await client.post(
+                    self.api_url,
+                    json=payload,
+                    headers=self._headers(),
+                )
 
-        if "error" in data:
-            error = data["error"]
-            msg = f"Zabbix error: {error.get('data', error.get('message', 'Unknown'))}"
-            logger.error(msg)
-            raise ZabbixError(msg)
+                # Retry на 5xx
+                if response.status_code >= 500:
+                    raise httpx.HTTPStatusError(
+                        f"Server error: {response.status_code}",
+                        request=response.request,
+                        response=response,
+                    )
 
-        return data.get("result")
+                response.raise_for_status()
+                data = response.json()
+
+                if "error" in 
+                    error = data["error"]
+                    msg = f"Zabbix error [{method}]: {error.get('data', error.get('message', 'Unknown'))}"
+                    logger.error(msg)
+                    raise ZabbixError(msg)
+
+                return data.get("result")
+
+            except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError) as e:
+                last_error = e
+                if attempt < retries - 1:
+                    wait_time = 2 ** attempt  # 1s, 2s, 4s
+                    logger.warning(
+                        f"Zabbix API error (attempt {attempt + 1}/{retries}): {e}. "
+                        f"Retrying in {wait_time}s..."
+                    )
+                    await asyncio.sleep(wait_time)
+                    # Пересоздать клиент при сетевых ошибках
+                    await self.close()
+                else:
+                    logger.error(f"Zabbix API failed after {retries} attempts: {e}")
+
+            except ZabbixError:
+                # Бизнес-ошибки Zabbix не ретраим
+                raise
+
+            except Exception as e:
+                logger.error(f"Unexpected error calling Zabbix {method}: {e}")
+                raise ZabbixError(f"Unexpected error: {e}")
+
+        raise ZabbixError(f"Zabbix API call failed after {retries} retries: {last_error}")
 
     # ── Read methods ──
 
@@ -74,6 +139,14 @@ class ZabbixClient:
         if select_excluded_downtimes:
             params["selectExcludedDowntimes"] = "extend"  # camelCase!
         return await self._call("sla.get", params)
+
+    async def sla_get_by_id(self, slaid: str) -> dict:
+        """Получить конкретный SLA по ID."""
+        result = await self.sla_get(select_excluded_downtimes=True)
+        sla = next((s for s in result if s["slaid"] == slaid), None)
+        if not sla:
+            raise ZabbixError(f"SLA {slaid} не найден")
+        return sla
 
     async def service_get(self, select_tags: bool = True) -> list[dict]:
         """Получить дерево услуг."""
@@ -117,11 +190,7 @@ class ZabbixClient:
             raise ZabbixError("Read-only mode: нельзя добавить исключение простоя")
 
         # 1. Read
-        slas = await self.sla_get(select_excluded_downtimes=True)
-        sla = next((s for s in slas if s["slaid"] == slaid), None)
-        if not sla:
-            raise ZabbixError(f"SLA {slaid} не найден")
-
+        sla = await self.sla_get_by_id(slaid)
         existing = sla.get("excluded_downtimes", [])
 
         # 2. Modify — добавить новое окно
@@ -133,12 +202,48 @@ class ZabbixClient:
 
         # 3. Write — отправить ВЕСЬ массив
         await self.sla_update(slaid, new_downtimes)
+        logger.info(f"Added excluded downtime '{name}' to SLA {slaid}")
         return new_downtimes
 
+    async def remove_excluded_downtime(
+        self, slaid: str, downtime_name: str
+    ) -> list[dict]:
+        """
+        Удалить окно исключённого простоя из SLA по имени.
+        
+        Логика read-modify-write:
+        1. Получить текущие excluded_downtimes
+        2. Отфильтровать по имени
+        3. Отправить обновлённый массив
+        """
+        if self.read_only:
+            raise ZabbixError("Read-only mode: нельзя удалить исключение простоя")
 
-class ZabbixError(Exception):
-    """Ошибка взаимодействия с Zabbix API."""
-    pass
+        sla = await self.sla_get_by_id(slaid)
+        existing = sla.get("excluded_downtimes", [])
+
+        # Фильтруем — оставляем всё, кроме удаляемого
+        new_downtimes = [d for d in existing if d.get("name") != downtime_name]
+
+        if len(new_downtimes) == len(existing):
+            logger.warning(f"Downtime '{downtime_name}' not found in SLA {slaid}")
+            return existing
+
+        await self.sla_update(slaid, new_downtimes)
+        logger.info(f"Removed excluded downtime '{downtime_name}' from SLA {slaid}")
+        return new_downtimes
+
+    # ── Health check ──
+
+    async def ping(self) -> bool:
+        """Проверить доступность Zabbix API."""
+        try:
+            # Простой read-запрос
+            await self._call("sla.get", {"output": ["slaid"], "limit": 1})
+            return True
+        except Exception as e:
+            logger.error(f"Zabbix ping failed: {e}")
+            return False
 
 
 # Singleton

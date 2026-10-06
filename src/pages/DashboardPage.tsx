@@ -2,7 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { SLA, Service, PlannedWork } from '../types';
 
-export default function DashboardPage() {
+interface DashboardPageProps {
+  onNavigate: (page: string, params?: Record<string, string>) => void;
+}
+
+export default function DashboardPage({ onNavigate }: DashboardPageProps) {
   const [slas, setSlas] = useState<SLA[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [works, setWorks] = useState<PlannedWork[]>([]);
@@ -148,7 +152,8 @@ export default function DashboardPage() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
           {slas.map(sla => (
-            <div key={sla.id} className="border border-gray-200 rounded-lg p-4">
+            <div key={sla.id} onClick={() => onNavigate('sla-detail', { id: sla.zabbix_slaid })}
+              className="border border-gray-200 rounded-lg p-4 cursor-pointer hover:border-blue-300 hover:shadow-md transition">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold text-gray-900">{sla.name}</h3>
                 <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">ID: {sla.zabbix_slaid}</span>

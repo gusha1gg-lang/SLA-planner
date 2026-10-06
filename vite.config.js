@@ -11,5 +11,16 @@ export default defineConfig({
     hmr: {
       port: 3000,
     },
+    // Proxy API requests to FastAPI backend
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/health': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
   },
 });
