@@ -244,15 +244,19 @@ export default function WorksPage() {
           services={services}
           onClose={() => setShowForm(false)}
           onSave={async (data) => {
-            if (editingWork) {
-              await api.updatePlannedWork(editingWork.id, data);
-              showToast('success', 'Плановая работа обновлена');
-            } else {
-              await api.createPlannedWork(data);
-              showToast('success', 'Плановая работа создана');
+            try {
+              if (editingWork) {
+                await api.updatePlannedWork(editingWork.id, data);
+                showToast('success', 'Плановая работа обновлена');
+              } else {
+                await api.createPlannedWork(data);
+                showToast('success', 'Плановая работа создана');
+              }
+              setShowForm(false);
+              await loadData();
+            } catch (err: any) {
+              showToast('error', err?.message || 'Ошибка сохранения работы');
             }
-            setShowForm(false);
-            await loadData();
           }}
         />
       )}
@@ -321,18 +325,21 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    await onSave({
-      title, description,
-      sla_id: parseInt(slaId), service_id: parseInt(serviceId),
-      started_at: start.toISOString(), ended_at: end.toISOString(),
-      downtime_period_from: Math.floor(start.getTime() / 1000),
-      downtime_period_to: Math.floor(end.getTime() / 1000),
-      sla_name: slas.find(s => s.id === parseInt(slaId))?.name,
-      service_name: filteredServices.find(s => s.id === parseInt(serviceId))?.name,
-    });
-    setSaving(false);
+    try {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      await onSave({
+        title, description,
+        sla_id: parseInt(slaId), service_id: parseInt(serviceId),
+        started_at: start.toISOString(), ended_at: end.toISOString(),
+        downtime_period_from: Math.floor(start.getTime() / 1000),
+        downtime_period_to: Math.floor(end.getTime() / 1000),
+        sla_name: slas.find(s => s.id === parseInt(slaId))?.name,
+        service_name: filteredServices.find(s => s.id === parseInt(serviceId))?.name,
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

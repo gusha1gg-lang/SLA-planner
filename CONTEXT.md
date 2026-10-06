@@ -69,7 +69,7 @@
 - Полный синк: `POST /api/sync/full` → `{"slas":4,"services":6,"links":6}`; связи без дублей: Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, 1С→1С, SAP→SAP.
 - Prune работает (фейковые SLA/услуга/связь удалились при синке).
 - End-to-end push: работа ERP/1С → push → в Zabbix у ERP (slaid=6) создан `excluded_downtime "SLA Planner #1"`; работа удалена, downtime в Zabbix прибран.
-- `npx tsc --noEmit` — чисто. `pytest` — 12/12.
+- `npx tsc --noEmit` — чисто. `pytest` — 14/14.
 - **Ловушка:** `get_db` коммитит ПОСЛЕ формирования ответа (teardown dependency). Сразу следующий запрос (push/GET) может на доли секунды видеть старое состояние (404 Work not found / висящая удалённая работа) — это гонка, не баг.
 
 ### Моки убраны полностью (живые данные только) — не закоммичено
@@ -94,6 +94,12 @@ Test SLA v3→Test Service 1, ERP→SAP, «1С»→1С. `sync/full` → `{"slas"
 Созданы SLA «SAP» (slaid=8) и услуги `СКУД` (6), `EWM` (7), `MES` (8). ERP переназначен:
 `service_tags: ["СКУД", "EWM", "MES"]` (SAP вышел из ERP в свой SLA). Итог:
 Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→SAP. `sync/full` → `{"slas":4,"services":6,"links":6}`.
+
+### Фикс: редактирование работы + имя окна в Zabbix = заголовок
+Жалоба: «в Zabbix пишется SLA Planner #1, а надо заголовок работы» и «не могу изменить работу (не сохраняется)».
+- **Несохранение редактирования:** фронтенд слал `PUT /api/works/{id}`, такого роута на бэкенде не было (405), ошибка молча проглатывалась. Добавлен `PUT /{work_id}` в `app/routers/planned_works.py` (admin/planner; обновляет title/description/sla_id/service_id, пересчитывает `downtime_period_from/to` по новым датам; аудит `update`). В `WorksPage` onSave обёрнут в try/catch с error-тостом (показывает ошибку вместо «висения» формы).
+- **Имя окна в Zabbix:** push теперь пишет `name = work.title` (раньше `downtime_marker` = `SLA Planner #<id>`) и перед добавлением удаляет устаревшую запись со старым маркером (идемпотентный re-push). На живых данных: работа «Обновление» → в SLA 1С `excluded_downtime "Обновление"` вместо `SLA Planner #1`.
+- Тесты: +2 (`test_update_work`, `test_push_uses_work_title_as_downtime_name`) → pytest 14/14, tsc чистый.
 
 ---
 

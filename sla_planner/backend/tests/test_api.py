@@ -146,6 +146,101 @@ async def test_list_works(auth_headers):
     assert isinstance(response.json(), list)
 
 
+async def _seed_sla_service():
+    """Insert one SLA + Service row so planned works can be created."""
+    from app.models import SLA, Service
+
+    async with async_session() as session:
+        session.add(SLA(id=1, zabbix_slaid="1", name="ERP", slo=99.5, service_tags='["SAP"]'))
+        session.add(Service(id=1, zabbix_serviceid="1", name="SAP", tags='[{"tag":"service","value":"SAP"}]'))
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_update_work(auth_headers):
+    """PUT /api/works/{id} должен сохранять изменения (регрессия: редактирование не сохранялось)."""
+    await _seed_sla_service()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/works/", headers=auth_headers, json={
+            "title": "ТО базы",
+            "description": "Плановое ТО",
+            "sla_id": 1,
+            "service_id": 1,
+            "started_at": "2026-10-07T02:30:00.000Z",
+            "ended_at": "2026-10-07T06:30:00.000Z",
+        })
+        assert resp.status_code == 201, resp.text
+        work_id = resp.json()["id"]
+
+        resp = await client.put(f"/api/works/{work_id}", headers=auth_headers, json={
+            "title": "ТО базы v2",
+            "description": "Обновлённое описание",
+            "sla_id": 1,
+            "service_id": 1,
+            "started_at": "2026-10-08T03:00:00.000Z",
+            "ended_at": "2026-10-08T07:00:00.000Z",
+        })
+        assert resp.status_code == 200, resp.text
+        updated = resp.json()
+        assert updated["title"] == "ТО базы v2"
+        assert updated["description"] == "Обновлённое описание"
+        # период простоя пересчитан по новым датам
+        from datetime import datetime, timezone
+        expected_from = str(int(datetime(2026, 10, 8, 3, 0, tzinfo=timezone.utc).timestamp()))
+        assert updated["downtime_period_from"] == expected_from
+
+
+@pytest.mark.asyncio
+async def test_push_uses_work_title_as_downtime_name(auth_headers, monkeypatch):
+    """Push должен писать в Zabbix имя окна = заголовок работы (не маркер SLA Planner #id)."""
+    from datetime import datetime, timezone
+    from app.services.zabbix_client import zabbix_client
+
+    await _seed_sla_service()
+
+    captured = {}
+
+    async def fake_remove(slaid, downtime_name):
+        captured["removed_name"] = downtime_name
+
+    async def fake_add(slaid, name, period_from, period_to):
+        captured["slaid"] = slaid
+        captured["name"] = name
+        captured["period_from"] = period_from
+        captured["period_to"] = period_to
+
+    monkeypatch.setattr(zabbix_client, "remove_excluded_downtime", fake_remove)
+    monkeypatch.setattr(zabbix_client, "add_excluded_downtime", fake_add)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/works/", headers=auth_headers, json={
+            "title": "ТО базы",
+            "description": "",
+            "sla_id": 1,
+            "service_id": 1,
+            "started_at": "2026-10-07T02:30:00.000Z",
+            "ended_at": "2026-10-07T06:30:00.000Z",
+        })
+        assert resp.status_code == 201, resp.text
+        work_id = resp.json()["id"]
+
+        resp = await client.post(f"/api/works/{work_id}/push", headers=auth_headers)
+        assert resp.status_code == 200, resp.text
+
+        assert captured["name"] == "ТО базы"
+        assert captured["removed_name"] == f"SLA Planner #{work_id}"
+        assert captured["slaid"] == "1"
+        assert captured["period_from"] == str(int(datetime(2026, 10, 7, 2, 30, tzinfo=timezone.utc).timestamp()))
+        assert captured["period_to"] == str(int(datetime(2026, 10, 7, 6, 30, tzinfo=timezone.utc).timestamp()))
+
+        # статус работы стал "planned"
+        works = (await client.get("/api/works/", headers=auth_headers)).json()
+        assert works[0]["status"] == "planned"
+
+
 @pytest.mark.asyncio
 async def test_audit_logs_admin_only(auth_headers):
     """Test audit logs require admin role."""

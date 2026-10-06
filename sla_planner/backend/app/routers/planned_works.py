@@ -78,6 +78,60 @@ async def create_work(
     return work_to_dict(work)
 
 
+@router.put("/{work_id}")
+async def update_work(
+    work_id: int,
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Обновить плановую работу (сохраняет изменения)."""
+    if current_user.role not in ("admin", "planner"):
+        raise HTTPException(status_code=403, detail="Only admin/planner can update works")
+
+    result = await db.execute(select(PlannedWork).where(PlannedWork.id == work_id))
+    work = result.scalar_one_or_none()
+    if not work:
+        raise HTTPException(status_code=404, detail="Work not found")
+
+    if data.get("title"):
+        work.title = data["title"]
+    if "description" in data:
+        work.description = data.get("description", "")
+
+    sla_id = data.get("sla_id")
+    service_id = data.get("service_id")
+    if sla_id is not None:
+        work.sla_id = sla_id
+    if service_id is not None:
+        work.service_id = service_id
+
+    # Пересчитываем период простоя, если изменились даты
+    started_at = data.get("started_at")
+    ended_at = data.get("ended_at")
+    if started_at:
+        start_dt = datetime.fromisoformat(started_at)
+        work.started_at = start_dt
+        work.downtime_period_from = str(int(start_dt.timestamp()))
+    if ended_at:
+        end_dt = datetime.fromisoformat(ended_at)
+        work.ended_at = end_dt
+        work.downtime_period_to = str(int(end_dt.timestamp()))
+
+    work.updated_by = current_user.id
+
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action="update",
+        entity_type="planned_work",
+        entity_id=work.id,
+        payload=json.dumps({"title": work.title}),
+        result="ok",
+    ))
+
+    return work_to_dict(work)
+
+
 @router.post("/{work_id}/push")
 async def push_to_zabbix(
     work_id: int,
@@ -107,9 +161,15 @@ async def push_to_zabbix(
         raise HTTPException(status_code=404, detail="SLA not found")
     
     try:
+        # Убираем устаревшую запись со старым маркером (если была) — идемпотентный re-push
+        await zabbix_client.remove_excluded_downtime(
+            slaid=sla.zabbix_slaid,
+            downtime_name=work.downtime_marker,
+        )
+        # Имя окна в Zabbix = заголовок работы, чтобы было видно, что это за работа
         await zabbix_client.add_excluded_downtime(
             slaid=sla.zabbix_slaid,
-            name=work.downtime_marker,
+            name=work.title,
             period_from=work.downtime_period_from,
             period_to=work.downtime_period_to,
         )
