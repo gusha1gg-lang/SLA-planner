@@ -30,7 +30,10 @@ export default function SLADetailPage({ slaId, onBack }: SLADetailPageProps) {
       }
       setSla(currentSla);
 
-      const allServices = await api.getServices();
+      const [allServices, downtimes] = await Promise.all([
+        api.getServices(),
+        api.getSLAExcludedDowntimes(currentSla.zabbix_slaid),
+      ]);
       // Фильтруем услуги, связанные с этим SLA (через теги)
       const relatedServices = allServices.filter(svc => {
         return svc.tags.some(tag => 
@@ -39,14 +42,19 @@ export default function SLADetailPage({ slaId, onBack }: SLADetailPageProps) {
         );
       });
       setServices(relatedServices);
-
-      // Mock excluded downtimes (в реальности — из Zabbix через sla.get)
-      setExcludedDowntimes([
-        { name: 'SLA Planner #1', period_from: '1710540000', period_to: '1710554400' },
-        { name: 'SLA Planner #2', period_from: '1712012400', period_to: '1712034000' },
-      ]);
+      setExcludedDowntimes(downtimes);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRemoveDowntime = async (name: string) => {
+    if (!sla || !window.confirm(`Удалить исключение простоя «${name}»?`)) return;
+    try {
+      await api.removeSLADowntime(sla.zabbix_slaid, name);
+      setExcludedDowntimes(await api.getSLAExcludedDowntimes(sla.zabbix_slaid));
+    } catch (err: any) {
+      alert('Ошибка удаления: ' + err.message);
     }
   };
 
@@ -147,7 +155,8 @@ export default function SLADetailPage({ slaId, onBack }: SLADetailPageProps) {
                     <td className="px-5 py-3 text-gray-600">{calculateDuration(dt.period_from, dt.period_to)}</td>
                     {hasRole(['admin']) && (
                       <td className="px-5 py-3">
-                        <button className="text-red-500 hover:text-red-700" title="Удалить">
+                        <button onClick={() => handleRemoveDowntime(dt.name)}
+                          className="text-red-500 hover:text-red-700" title="Удалить">
                           <i className="fas fa-trash"></i>
                         </button>
                       </td>
@@ -188,8 +197,9 @@ export default function SLADetailPage({ slaId, onBack }: SLADetailPageProps) {
         <AddDowntimeModal
           slaId={sla.zabbix_slaid}
           onClose={() => setShowAddForm(false)}
-          onAdd={(downtime) => {
-            setExcludedDowntimes([...excludedDowntimes, downtime]);
+          onAdd={async (downtime) => {
+            await api.addSLAExcludedDowntime(sla.zabbix_slaid, downtime);
+            setExcludedDowntimes(await api.getSLAExcludedDowntimes(sla.zabbix_slaid));
             setShowAddForm(false);
           }}
         />
@@ -201,7 +211,7 @@ export default function SLADetailPage({ slaId, onBack }: SLADetailPageProps) {
 function AddDowntimeModal({ slaId, onClose, onAdd }: {
   slaId: string;
   onClose: () => void;
-  onAdd: (downtime: ExcludedDowntime) => void;
+  onAdd: (downtime: ExcludedDowntime) => Promise<void>;
 }) {
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -211,21 +221,22 @@ function AddDowntimeModal({ slaId, onClose, onAdd }: {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    const downtime: ExcludedDowntime = {
-      name: name || `SLA Planner #manual`,
-      period_from: Math.floor(start.getTime() / 1000).toString(),
-      period_to: Math.floor(end.getTime() / 1000).toString(),
-    };
+    try {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
 
-    // В реальности — вызов API для push в Zabbix
-    // await api.addExcludedDowntime(slaId, downtime);
-    
-    onAdd(downtime);
-    setSaving(false);
+      const downtime: ExcludedDowntime = {
+        name: name || `SLA Planner #manual`,
+        period_from: Math.floor(start.getTime() / 1000).toString(),
+        period_to: Math.floor(end.getTime() / 1000).toString(),
+      };
+
+      await onAdd(downtime);
+    } catch (err: any) {
+      alert('Ошибка: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

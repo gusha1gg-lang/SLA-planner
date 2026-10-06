@@ -1,6 +1,7 @@
 """SLA router — list, sync from Zabbix."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,8 +11,15 @@ from app.models.user import User
 from app.routers.auth import get_current_user
 from app.models.sla_service_link import SlaServiceLink
 from app.services.sync import sync_slas, sync_sla_service_links, sla_service_tags
+from app.services.zabbix_client import zabbix_client, ZabbixError
 
 router = APIRouter()
+
+
+class ExcludedDowntimeIn(BaseModel):
+    name: str
+    period_from: str
+    period_to: str
 
 
 @router.get("/")
@@ -57,3 +65,55 @@ async def sync(
     count = await sync_slas(db)
     links = await sync_sla_service_links(db)
     return {"synced": count, "links": links}
+
+
+# ── Живые Excluded Downtimes из Zabbix (только реальные данные) ──
+
+@router.get("/{zabbix_slaid}/excluded-downtimes")
+async def sla_excluded_downtimes(
+    zabbix_slaid: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Исключения простоя SLA прямо из Zabbix (sla.get + selectExcludedDowntimes)."""
+    try:
+        sla = await zabbix_client.sla_get_by_id(zabbix_slaid)
+    except ZabbixError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    return sla.get("excluded_downtimes", [])
+
+
+@router.post("/{zabbix_slaid}/excluded-downtimes")
+async def sla_add_excluded_downtime(
+    zabbix_slaid: str,
+    data: ExcludedDowntimeIn,
+    current_user: User = Depends(get_current_user),
+):
+    """Добавить окно исключения простоя в Zabbix (read-modify-write)."""
+    if current_user.role not in ("admin", "planner"):
+        raise HTTPException(status_code=403, detail="Only admin/planner can add downtimes")
+    try:
+        updated = await zabbix_client.add_excluded_downtime(
+            slaid=zabbix_slaid,
+            name=data.name,
+            period_from=data.period_from,
+            period_to=data.period_to,
+        )
+    except ZabbixError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    return updated
+
+
+@router.delete("/{zabbix_slaid}/excluded-downtimes/{downtime_name}")
+async def sla_remove_excluded_downtime(
+    zabbix_slaid: str,
+    downtime_name: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Удалить окно исключения простоя из Zabbix по имени."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admin can remove downtimes")
+    try:
+        updated = await zabbix_client.remove_excluded_downtime(zabbix_slaid, downtime_name)
+    except ZabbixError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    return updated

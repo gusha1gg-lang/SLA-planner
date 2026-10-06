@@ -1,10 +1,9 @@
 /**
  * Real API client — connects to FastAPI backend via Vite proxy.
- * Falls back to mock data if backend is unavailable.
+ * Работает ТОЛЬКО с живыми данными: мок/seed-данные запрещены.
  */
 
-import { SLA, Service, PlannedWork, AuditLogEntry, User } from '../types';
-import { mockSLAs, mockServices, mockPlannedWorks, mockAuditLogs, mockUsers, slaServiceLinks } from './mockData';
+import { SLA, Service, PlannedWork, AuditLogEntry, User, ExcludedDowntime } from '../types';
 
 const API_BASE = '/api';
 
@@ -58,15 +57,6 @@ class RealApiClient {
     return this.request<{ synced: number }>('/sla/sync', { method: 'POST' });
   }
 
-  // Services
-  async getServices(): Promise<Service[]> {
-    return this.request<Service[]>('/services/');
-  }
-
-  async syncServicesFromZabbix(): Promise<{ synced: number }> {
-    return this.request<{ synced: number }>('/services/sync', { method: 'POST' });
-  }
-
   async getSLAServiceLinks(): Promise<{ sla_id: number; service_id: number }[]> {
     return this.request<{ sla_id: number; service_id: number }[]>('/sla/service-links');
   }
@@ -75,6 +65,37 @@ class RealApiClient {
     return this.request<{ slas: number; services: number; links: number }>('/sync/full', {
       method: 'POST',
     });
+  }
+
+  // Excluded downtimes (живые данные из Zabbix)
+  async getSLAExcludedDowntimes(zabbixSlaid: string): Promise<ExcludedDowntime[]> {
+    return this.request<ExcludedDowntime[]>(`/sla/${zabbixSlaid}/excluded-downtimes`);
+  }
+
+  async addSLAExcludedDowntime(
+    zabbixSlaid: string,
+    data: { name: string; period_from: string; period_to: string }
+  ): Promise<ExcludedDowntime[]> {
+    return this.request<ExcludedDowntime[]>(`/sla/${zabbixSlaid}/excluded-downtimes`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async removeSLADowntime(zabbixSlaid: string, name: string): Promise<ExcludedDowntime[]> {
+    return this.request<ExcludedDowntime[]>(
+      `/sla/${zabbixSlaid}/excluded-downtimes/${encodeURIComponent(name)}`,
+      { method: 'DELETE' }
+    );
+  }
+
+  // Services
+  async getServices(): Promise<Service[]> {
+    return this.request<Service[]>('/services/');
+  }
+
+  async syncServicesFromZabbix(): Promise<{ synced: number }> {
+    return this.request<{ synced: number }>('/services/sync', { method: 'POST' });
   }
 
   // Planned Works
@@ -131,157 +152,79 @@ class RealApiClient {
 export const realApi = new RealApiClient();
 
 /**
- * Smart API client — uses real backend when token exists, falls back to mock otherwise.
+ * API client — всегда ходит в реальный бэкенд (живые данные).
+ * Мок-фолбэки удалены по требованию проекта.
  */
-let mockWorks = [...mockPlannedWorks];
-let nextMockId = mockWorks.length + 1;
-
-// Check if we have a real token (not mock)
-const hasRealToken = () => {
-  const token = localStorage.getItem('sla_token');
-  return token && token !== 'mock-token' && token !== 'mock-jwt-token';
-};
-
 export const api = {
   async login(username: string, password: string): Promise<{ token: string; user: User }> {
-    try {
-      const result = await realApi.login(username, password);
-      return result;
-    } catch {
-      // Fallback to mock
-      const user = mockUsers.find(u => u.username === username);
-      if (!user) throw new Error('Неверный логин или пароль');
-      if (password.length < 3) throw new Error('Неверный логин или пароль');
-      return { token: 'mock-jwt-token', user };
-    }
+    return await realApi.login(username, password);
   },
 
   async getSLAs(): Promise<SLA[]> {
-    if (hasRealToken()) {
-      return await realApi.getSLAs();
-    }
-    return [...mockSLAs];
+    return await realApi.getSLAs();
   },
 
   async syncSLAsFromZabbix(): Promise<{ synced: number }> {
-    if (hasRealToken()) {
-      return await realApi.syncSLAsFromZabbix();
-    }
-    await new Promise(r => setTimeout(r, 1000));
-    return { synced: mockSLAs.length };
+    return await realApi.syncSLAsFromZabbix();
   },
 
   async getServices(): Promise<Service[]> {
-    if (hasRealToken()) {
-      return await realApi.getServices();
-    }
-    return [...mockServices];
+    return await realApi.getServices();
   },
 
   async syncServicesFromZabbix(): Promise<{ synced: number }> {
-    if (hasRealToken()) {
-      return await realApi.syncServicesFromZabbix();
-    }
-    await new Promise(r => setTimeout(r, 1000));
-    return { synced: mockServices.length };
+    return await realApi.syncServicesFromZabbix();
   },
 
   async getSLAServiceLinks(): Promise<{ sla_id: number; service_id: number }[]> {
-    if (hasRealToken()) {
-      return await realApi.getSLAServiceLinks();
-    }
-    return slaServiceLinks;
+    return await realApi.getSLAServiceLinks();
   },
 
   async syncFull(): Promise<{ slas: number; services: number; links: number }> {
-    if (hasRealToken()) {
-      return await realApi.syncFull();
-    }
-    await new Promise(r => setTimeout(r, 1000));
-    return { slas: mockSLAs.length, services: mockServices.length, links: slaServiceLinks.length };
+    return await realApi.syncFull();
+  },
+
+  async getSLAExcludedDowntimes(zabbixSlaid: string): Promise<ExcludedDowntime[]> {
+    return await realApi.getSLAExcludedDowntimes(zabbixSlaid);
+  },
+
+  async addSLAExcludedDowntime(
+    zabbixSlaid: string,
+    data: { name: string; period_from: string; period_to: string }
+  ): Promise<ExcludedDowntime[]> {
+    return await realApi.addSLAExcludedDowntime(zabbixSlaid, data);
+  },
+
+  async removeSLADowntime(zabbixSlaid: string, name: string): Promise<ExcludedDowntime[]> {
+    return await realApi.removeSLADowntime(zabbixSlaid, name);
   },
 
   async getPlannedWorks(): Promise<PlannedWork[]> {
-    if (hasRealToken()) {
-      return await realApi.getPlannedWorks();
-    }
-    return [...mockWorks];
+    return await realApi.getPlannedWorks();
   },
 
   async createPlannedWork(data: Partial<PlannedWork>): Promise<PlannedWork> {
-    if (hasRealToken()) {
-      return await realApi.createPlannedWork(data);
-    }
-    // Mock fallback
-    await new Promise(r => setTimeout(r, 500));
-    const work: PlannedWork = {
-      id: nextMockId++,
-      title: data.title || '',
-      description: data.description || '',
-      service_id: data.service_id || 0,
-      sla_id: data.sla_id || 0,
-      started_at: data.started_at || '',
-      ended_at: data.ended_at || '',
-      status: 'draft',
-      downtime_marker: `SLA Planner #${nextMockId - 1}`,
-      downtime_period_from: data.downtime_period_from || 0,
-      downtime_period_to: data.downtime_period_to || 0,
-      created_by: 1,
-      updated_by: 1,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      service_name: data.service_name,
-      sla_name: data.sla_name,
-    };
-    mockWorks.push(work);
-    return work;
+    return await realApi.createPlannedWork(data);
   },
 
   async updatePlannedWork(id: number, data: Partial<PlannedWork>): Promise<PlannedWork> {
-    if (hasRealToken()) {
-      return await realApi.updatePlannedWork(id, data);
-    }
-    await new Promise(r => setTimeout(r, 500));
-    const idx = mockWorks.findIndex(w => w.id === id);
-    if (idx === -1) throw new Error('Not found');
-    mockWorks[idx] = { ...mockWorks[idx], ...data, updated_at: new Date().toISOString() };
-    return mockWorks[idx];
+    return await realApi.updatePlannedWork(id, data);
   },
 
   async pushToZabbix(id: number): Promise<{ success: boolean; error?: string }> {
-    if (hasRealToken()) {
-      return await realApi.pushToZabbix(id);
-    }
-    await new Promise(r => setTimeout(r, 1500));
-    if (Math.random() > 0.1) {
-      const idx = mockWorks.findIndex(w => w.id === id);
-      if (idx !== -1) mockWorks[idx].status = 'planned';
-      return { success: true };
-    }
-    return { success: false, error: 'Mock: Zabbix connection timeout' };
+    return await realApi.pushToZabbix(id);
   },
 
   async deletePlannedWork(id: number): Promise<void> {
-    if (hasRealToken()) {
-      await realApi.deletePlannedWork(id);
-      return;
-    }
-    await new Promise(r => setTimeout(r, 300));
-    mockWorks = mockWorks.filter(w => w.id !== id);
+    return await realApi.deletePlannedWork(id);
   },
 
   async getAuditLogs(): Promise<AuditLogEntry[]> {
-    if (hasRealToken()) {
-      return await realApi.getAuditLogs();
-    }
-    return [...mockAuditLogs];
+    return await realApi.getAuditLogs();
   },
 
   async getUsers(): Promise<User[]> {
-    if (hasRealToken()) {
-      return await realApi.getUsers();
-    }
-    return [...mockUsers];
+    return await realApi.getUsers();
   },
 
   async health(): Promise<{ status: string; version: string; zabbix_connected?: boolean }> {

@@ -57,7 +57,7 @@ export default function LoginPage() {
               value={password}
               onChange={e => setPassword(e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              placeholder="Любой пароль (3+ символов)"
+              placeholder="Пароль"
               required
             />
           </div>
@@ -72,11 +72,11 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <p className="text-xs text-gray-500 font-medium mb-2">Демо-аккаунты:</p>
+          <p className="text-xs text-gray-500 font-medium mb-2">Доступные аккаунты:</p>
           <div className="text-xs text-gray-600 space-y-1">
-            <p><span className="font-mono bg-gray-200 px-1.5 py-0.5 rounded">admin</span> — полный доступ</p>
-            <p><span className="font-mono bg-gray-200 px-1.5 py-0.5 rounded">planner</span> — создание работ</p>
-            <p><span className="font-mono bg-gray-200 px-1.5 py-0.5 rounded">viewer</span> — только просмотр</p>
+            <p><span className="font-mono bg-gray-200 px-1.5 py-0.5 rounded">admin</span> / <span className="font-mono bg-gray-200 px-1.5 py-0.5 rounded">admin123</span> — полный доступ</p>
+            <p><span className="font-mono bg-gray-200 px-1.5 py-0.5 rounded">planner</span> / <span className="font-mono bg-gray-200 px-1.5 py-0.5 rounded">planner123</span> — создание работ</p>
+            <p><span className="font-mono bg-gray-200 px-1.5 py-0.5 rounded">viewer</span> / <span className="font-mono bg-gray-200 px-1.5 py-0.5 rounded">viewer123</span> — только просмотр</p>
           </div>
         </div>
       </div>

@@ -72,6 +72,19 @@
 - `npx tsc --noEmit` — чисто. `pytest` — 12/12.
 - **Ловушка:** `get_db` коммитит ПОСЛЕ формирования ответа (teardown dependency). Сразу следующий запрос (push/GET) может на доли секунды видеть старое состояние (404 Work not found / висящая удалённая работа) — это гонка, не баг.
 
+### Моки убраны полностью (живые данные только) — не закоммичено
+Причина: на сайте «пропадала» услуга 1С. Оказалось, фронтенд имел mock-фолбэк:
+при `sla_token='mock-token'/'mock-jwt-token'` в localStorage (сессия от момента, когда
+бэкенд был выключен) все страницы отдавали мок-данные (без 1С и без ERP).
+
+Сделано:
+- Удалён `src/api/mockData.ts`; `realClient.ts` больше не содержит фолбэков — `api.*` всегда ходит в реальный бэкенд.
+- `AuthContext` не логинится в mock; при старте вычищает устаревшие mock-токены (такая сессия → страница логина).
+- Новые живые endpoints: `GET/POST /api/sla/{slaid}/excluded-downtimes`, `DELETE /api/sla/{slaid}/excluded-downtimes/{name}` (через Zabbix, роли: POST — admin/planner, DELETE — admin).
+- `SLADetailPage`: исключения простоя теперь из Zabbix (были захардкожены); добавление/удаление работают через API.
+- `LoginPage`: подсказки реальных паролей (admin123 / planner123 / viewer123).
+- Проверено: tsc чистый, pytest 12/12, endpoints: GET→[], POST add→есть, DELETE→[]; viewer на POST = 403, planner на DELETE = 403.
+
 ---
 
 ## 4. Что надо сделать (TODO)
@@ -98,6 +111,7 @@
 6. Uvicorn идёт с `--reload` (бэкенд подхватывает правки сам), vite hot-reload тоже.
 7. Лог OpenCode: `~/.local/share/opencode/log/opencode.log`.
 8. Для ручных вызовов Zabbix API удобно писать скрипты на `venv/bin/python` с `urllib` (примеры были в истории).
+9. **Фронтенд без моков:** если в localStorage залёг `mock-token`/`mock-jwt-token`, AuthContext вычистит его при старте — будет страница логина. Без доступного бэкенда сайт не работает (это норма, а не баг).
 
 ---
 

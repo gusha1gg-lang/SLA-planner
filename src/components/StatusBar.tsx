@@ -38,7 +38,7 @@ export default function StatusBar({ onSync }: StatusBarProps) {
       }));
 
       // Проверяем Zabbix через бэкенд
-      if (token && token !== 'mock-token') {
+      if (token) {
         try {
           const response = await fetch('/api/zabbix/status');
           if (response.ok) {
