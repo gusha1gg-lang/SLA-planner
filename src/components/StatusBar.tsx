@@ -7,7 +7,7 @@ interface StatusBarProps {
 }
 
 export default function StatusBar({ onSync }: StatusBarProps) {
-  const { hasRole } = useAuth();
+  const { hasRole, token } = useAuth();
   const [status, setStatus] = useState<{
     backend: 'ok' | 'error' | 'loading';
     zabbix: 'connected' | 'disconnected' | 'unknown';
@@ -24,9 +24,9 @@ export default function StatusBar({ onSync }: StatusBarProps) {
 
   useEffect(() => {
     checkStatus();
-    const interval = setInterval(checkStatus, 30000); // Check every 30s
+    const interval = setInterval(checkStatus, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [token]);
 
   const checkStatus = async () => {
     try {
@@ -35,10 +35,24 @@ export default function StatusBar({ onSync }: StatusBarProps) {
         ...prev,
         backend: 'ok',
         version: health.version || '0.1.0',
-        // In mock mode, we assume Zabbix is disconnected
-        zabbix: 'disconnected',
-        readOnly: true,
       }));
+
+      // Проверяем Zabbix через бэкенд
+      if (token && token !== 'mock-token') {
+        try {
+          const response = await fetch('/api/zabbix/status');
+          if (response.ok) {
+            const zabbixData = await response.json();
+            setStatus(prev => ({
+              ...prev,
+              zabbix: zabbixData.connected ? 'connected' : 'disconnected',
+              readOnly: zabbixData.read_only,
+            }));
+          }
+        } catch {
+          setStatus(prev => ({ ...prev, zabbix: 'unknown' }));
+        }
+      }
     } catch {
       setStatus(prev => ({ ...prev, backend: 'error' }));
     }

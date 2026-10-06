@@ -121,10 +121,16 @@ class RealApiClient {
 export const realApi = new RealApiClient();
 
 /**
- * Smart API client — tries real backend first, falls back to mock.
+ * Smart API client — uses real backend when token exists, falls back to mock otherwise.
  */
 let mockWorks = [...mockPlannedWorks];
 let nextMockId = mockWorks.length + 1;
+
+// Check if we have a real token (not mock)
+const hasRealToken = () => {
+  const token = localStorage.getItem('sla_token');
+  return token && token !== 'mock-token' && token !== 'mock-jwt-token';
+};
 
 export const api = {
   async login(username: string, password: string): Promise<{ token: string; user: User }> {
@@ -141,37 +147,33 @@ export const api = {
   },
 
   async getSLAs(): Promise<SLA[]> {
-    try {
+    if (hasRealToken()) {
       return await realApi.getSLAs();
-    } catch {
-      return [...mockSLAs];
     }
+    return [...mockSLAs];
   },
 
   async syncSLAsFromZabbix(): Promise<{ synced: number }> {
-    try {
+    if (hasRealToken()) {
       return await realApi.syncSLAsFromZabbix();
-    } catch {
-      await new Promise(r => setTimeout(r, 1000));
-      return { synced: mockSLAs.length };
     }
+    await new Promise(r => setTimeout(r, 1000));
+    return { synced: mockSLAs.length };
   },
 
   async getServices(): Promise<Service[]> {
-    try {
+    if (hasRealToken()) {
       return await realApi.getServices();
-    } catch {
-      return [...mockServices];
     }
+    return [...mockServices];
   },
 
   async syncServicesFromZabbix(): Promise<{ synced: number }> {
-    try {
+    if (hasRealToken()) {
       return await realApi.syncServicesFromZabbix();
-    } catch {
-      await new Promise(r => setTimeout(r, 1000));
-      return { synced: mockServices.length };
     }
+    await new Promise(r => setTimeout(r, 1000));
+    return { synced: mockServices.length };
   },
 
   async getSLAServiceLinks(): Promise<{ sla_id: number; service_id: number }[]> {
@@ -179,99 +181,94 @@ export const api = {
   },
 
   async getPlannedWorks(): Promise<PlannedWork[]> {
-    try {
+    if (hasRealToken()) {
       return await realApi.getPlannedWorks();
-    } catch {
-      return [...mockWorks];
     }
+    return [...mockWorks];
   },
 
   async createPlannedWork(data: Partial<PlannedWork>): Promise<PlannedWork> {
-    try {
+    if (hasRealToken()) {
       return await realApi.createPlannedWork(data);
-    } catch {
-      // Mock fallback
-      await new Promise(r => setTimeout(r, 500));
-      const work: PlannedWork = {
-        id: nextMockId++,
-        title: data.title || '',
-        description: data.description || '',
-        service_id: data.service_id || 0,
-        sla_id: data.sla_id || 0,
-        started_at: data.started_at || '',
-        ended_at: data.ended_at || '',
-        status: 'draft',
-        downtime_marker: `SLA Planner #${nextMockId - 1}`,
-        downtime_period_from: data.downtime_period_from || 0,
-        downtime_period_to: data.downtime_period_to || 0,
-        created_by: 1,
-        updated_by: 1,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        service_name: data.service_name,
-        sla_name: data.sla_name,
-      };
-      mockWorks.push(work);
-      return work;
     }
+    // Mock fallback
+    await new Promise(r => setTimeout(r, 500));
+    const work: PlannedWork = {
+      id: nextMockId++,
+      title: data.title || '',
+      description: data.description || '',
+      service_id: data.service_id || 0,
+      sla_id: data.sla_id || 0,
+      started_at: data.started_at || '',
+      ended_at: data.ended_at || '',
+      status: 'draft',
+      downtime_marker: `SLA Planner #${nextMockId - 1}`,
+      downtime_period_from: data.downtime_period_from || 0,
+      downtime_period_to: data.downtime_period_to || 0,
+      created_by: 1,
+      updated_by: 1,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      service_name: data.service_name,
+      sla_name: data.sla_name,
+    };
+    mockWorks.push(work);
+    return work;
   },
 
   async updatePlannedWork(id: number, data: Partial<PlannedWork>): Promise<PlannedWork> {
-    try {
+    if (hasRealToken()) {
       return await realApi.updatePlannedWork(id, data);
-    } catch {
-      await new Promise(r => setTimeout(r, 500));
-      const idx = mockWorks.findIndex(w => w.id === id);
-      if (idx === -1) throw new Error('Not found');
-      mockWorks[idx] = { ...mockWorks[idx], ...data, updated_at: new Date().toISOString() };
-      return mockWorks[idx];
     }
+    await new Promise(r => setTimeout(r, 500));
+    const idx = mockWorks.findIndex(w => w.id === id);
+    if (idx === -1) throw new Error('Not found');
+    mockWorks[idx] = { ...mockWorks[idx], ...data, updated_at: new Date().toISOString() };
+    return mockWorks[idx];
   },
 
   async pushToZabbix(id: number): Promise<{ success: boolean; error?: string }> {
-    try {
+    if (hasRealToken()) {
       return await realApi.pushToZabbix(id);
-    } catch {
-      await new Promise(r => setTimeout(r, 1500));
-      if (Math.random() > 0.1) {
-        const idx = mockWorks.findIndex(w => w.id === id);
-        if (idx !== -1) mockWorks[idx].status = 'planned';
-        return { success: true };
-      }
-      return { success: false, error: 'Mock: Zabbix connection timeout' };
     }
+    await new Promise(r => setTimeout(r, 1500));
+    if (Math.random() > 0.1) {
+      const idx = mockWorks.findIndex(w => w.id === id);
+      if (idx !== -1) mockWorks[idx].status = 'planned';
+      return { success: true };
+    }
+    return { success: false, error: 'Mock: Zabbix connection timeout' };
   },
 
   async deletePlannedWork(id: number): Promise<void> {
-    try {
+    if (hasRealToken()) {
       await realApi.deletePlannedWork(id);
-    } catch {
-      await new Promise(r => setTimeout(r, 300));
-      mockWorks = mockWorks.filter(w => w.id !== id);
+      return;
     }
+    await new Promise(r => setTimeout(r, 300));
+    mockWorks = mockWorks.filter(w => w.id !== id);
   },
 
   async getAuditLogs(): Promise<AuditLogEntry[]> {
-    try {
+    if (hasRealToken()) {
       return await realApi.getAuditLogs();
-    } catch {
-      return [...mockAuditLogs];
     }
+    return [...mockAuditLogs];
   },
 
   async getUsers(): Promise<User[]> {
-    try {
+    if (hasRealToken()) {
       return await realApi.getUsers();
-    } catch {
-      return [...mockUsers];
     }
+    return [...mockUsers];
   },
 
-  async health(): Promise<{ status: string; version: string }> {
+  async health(): Promise<{ status: string; version: string; zabbix_connected?: boolean }> {
     try {
-      return await realApi.health();
+      const result = await realApi.health();
+      return { ...result, zabbix_connected: true };
     } catch {
-      return { status: 'ok', version: '0.1.0' };
+      return { status: 'offline', version: '0.1.0', zabbix_connected: false };
     }
   },
 };

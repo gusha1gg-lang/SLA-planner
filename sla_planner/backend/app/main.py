@@ -54,6 +54,25 @@ async def version():
     }
 
 
+@app.get("/api/zabbix/status")
+async def zabbix_status():
+    """Проверить подключение к Zabbix."""
+    from app.services.zabbix_client import zabbix_client
+    try:
+        is_connected = await zabbix_client.ping()
+        return {
+            "connected": is_connected,
+            "read_only": settings.ZABBIX_READ_ONLY,
+            "api_url": settings.ZABBIX_API_URL,
+        }
+    except Exception as e:
+        return {
+            "connected": False,
+            "read_only": settings.ZABBIX_READ_ONLY,
+            "error": str(e),
+        }
+
+
 # ── Routers ──
 from app.routers import auth, sla, services, planned_works, audit, users
 
