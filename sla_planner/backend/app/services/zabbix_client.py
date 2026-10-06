@@ -134,8 +134,11 @@ class ZabbixClient:
     # ── Read methods ──
 
     async def sla_get(self, select_excluded_downtimes: bool = True) -> list[dict]:
-        """Получить все SLA."""
-        params: dict[str, Any] = {"output": "extend"}
+        """Получить все SLA (включая service_tags для связи с услугами)."""
+        params: dict[str, Any] = {
+            "output": "extend",
+            "selectServiceTags": "extend",  # теги для связи SLA↔Service
+        }
         if select_excluded_downtimes:
             params["selectExcludedDowntimes"] = "extend"  # camelCase!
         return await self._call("sla.get", params)

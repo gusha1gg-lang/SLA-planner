@@ -67,6 +67,16 @@ class RealApiClient {
     return this.request<{ synced: number }>('/services/sync', { method: 'POST' });
   }
 
+  async getSLAServiceLinks(): Promise<{ sla_id: number; service_id: number }[]> {
+    return this.request<{ sla_id: number; service_id: number }[]>('/sla/service-links');
+  }
+
+  async syncFull(): Promise<{ slas: number; services: number; links: number }> {
+    return this.request<{ slas: number; services: number; links: number }>('/sync/full', {
+      method: 'POST',
+    });
+  }
+
   // Planned Works
   async getPlannedWorks(): Promise<PlannedWork[]> {
     return this.request<PlannedWork[]>('/works/');
@@ -177,7 +187,18 @@ export const api = {
   },
 
   async getSLAServiceLinks(): Promise<{ sla_id: number; service_id: number }[]> {
+    if (hasRealToken()) {
+      return await realApi.getSLAServiceLinks();
+    }
     return slaServiceLinks;
+  },
+
+  async syncFull(): Promise<{ slas: number; services: number; links: number }> {
+    if (hasRealToken()) {
+      return await realApi.syncFull();
+    }
+    await new Promise(r => setTimeout(r, 1000));
+    return { slas: mockSLAs.length, services: mockServices.length, links: slaServiceLinks.length };
   },
 
   async getPlannedWorks(): Promise<PlannedWork[]> {

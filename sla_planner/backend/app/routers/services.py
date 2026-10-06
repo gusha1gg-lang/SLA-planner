@@ -9,7 +9,7 @@ from app.database import get_db
 from app.models.service import Service
 from app.models.user import User
 from app.routers.auth import get_current_user
-from app.services.sync import sync_services
+from app.services.sync import sync_services, sync_sla_service_links
 
 router = APIRouter()
 
@@ -40,10 +40,11 @@ async def sync(
     db = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Синхронизировать услуги из Zabbix."""
+    """Синхронизировать услуги из Zabbix (+ пересобрать связи)."""
     if current_user.role != "admin":
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Only admin can sync")
     
     count = await sync_services(db)
-    return {"synced": count}
+    links = await sync_sla_service_links(db)
+    return {"synced": count, "links": links}

@@ -62,8 +62,7 @@ export default function StatusBar({ onSync }: StatusBarProps) {
     if (!hasRole(['admin'])) return;
     setSyncing(true);
     try {
-      await api.syncSLAsFromZabbix();
-      await api.syncServicesFromZabbix();
+      await api.syncFull();
       setLastSync(new Date().toLocaleTimeString('ru-RU'));
       onSync?.();
     } catch (err) {
