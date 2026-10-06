@@ -3,8 +3,14 @@ import { api } from '../api/client';
 import { SLA, Service } from '../types';
 import { DataSet } from 'vis-data';
 import { Network, Options } from 'vis-network';
+import { useToast } from '../context/ToastContext';
 
-export default function GraphPage() {
+interface GraphPageProps {
+  onNavigate?: (page: string, params?: Record<string, string>) => void;
+}
+
+export default function GraphPage({ onNavigate }: GraphPageProps) {
+  const { showToast } = useToast();
   const [slas, setSlas] = useState<SLA[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [links, setLinks] = useState<{ sla_id: number; service_id: number }[]>([]);
@@ -116,6 +122,21 @@ export default function GraphPage() {
     }
 
     networkRef.current = new Network(containerRef.current, { nodes, edges }, options);
+
+    // Add click handler for nodes
+    networkRef.current.on('click', (params: any) => {
+      if (params.nodes.length > 0) {
+        const nodeId = params.nodes[0];
+        if (nodeId.startsWith('sla-')) {
+          const slaId = nodeId.replace('sla-', '');
+          const sla = slas.find(s => s.id.toString() === slaId);
+          if (sla && onNavigate) {
+            onNavigate('sla-detail', { id: sla.zabbix_slaid });
+            showToast('info', `Открыт SLA: ${sla.name}`);
+          }
+        }
+      }
+    });
   };
 
   if (loading) {

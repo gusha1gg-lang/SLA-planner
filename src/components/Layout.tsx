@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import StatusBar from './StatusBar';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -78,8 +79,11 @@ export default function Layout({ children, currentPage, onNavigate }: LayoutProp
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 ml-64 p-6">
-        {children}
+      <main className="flex-1 ml-64">
+        <StatusBar />
+        <div className="p-6">
+          {children}
+        </div>
       </main>
     </div>
   );

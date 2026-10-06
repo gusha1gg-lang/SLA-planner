@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { SLA, Service, PlannedWork } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 interface DashboardPageProps {
   onNavigate: (page: string, params?: Record<string, string>) => void;
 }
 
 export default function DashboardPage({ onNavigate }: DashboardPageProps) {
+  const { hasRole } = useAuth();
+  const { showToast } = useToast();
   const [slas, setSlas] = useState<SLA[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [works, setWorks] = useState<PlannedWork[]>([]);

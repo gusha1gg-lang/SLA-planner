@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { SLA, PlannedWork } from '../types';
+import { useToast } from '../context/ToastContext';
 
 export default function ReportPage() {
+  const { showToast } = useToast();
   const [slas, setSlas] = useState<SLA[]>([]);
   const [works, setWorks] = useState<PlannedWork[]>([]);
   const [loading, setLoading] = useState(true);
@@ -14,6 +16,34 @@ export default function ReportPage() {
       const [s, w] = await Promise.all([api.getSLAs(), api.getPlannedWorks()]);
       setSlas(s); setWorks(w);
     } finally { setLoading(false); }
+  };
+
+  const exportToCSV = () => {
+    const headers = ['SLA', 'SLO', 'Работ', 'Завершено', 'Простой (ч)', 'Исключений'];
+    const rows = slas.map(sla => {
+      const slaWorks = works.filter(w => w.sla_id === sla.id);
+      const slaDone = slaWorks.filter(w => w.status === 'done');
+      const slaDowntime = slaWorks.reduce((acc, w) => {
+        const start = new Date(w.started_at).getTime();
+        const end = new Date(w.ended_at).getTime();
+        return acc + (end - start) / (1000 * 60 * 60);
+      }, 0);
+      const excluded = slaWorks.filter(w => w.status === 'planned' || w.status === 'done').length;
+      return [sla.name, sla.slo, slaWorks.length, slaDone.length, slaDowntime.toFixed(1), excluded];
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `sla-report-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    
+    showToast('success', 'Отчёт экспортирован в CSV');
   };
 
   if (loading) {
@@ -31,9 +61,18 @@ export default function ReportPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">SLA-отчёт</h1>
-        <p className="text-gray-500 mt-1">Статистика доступности и исключений простоя</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">SLA-отчёт</h1>
+          <p className="text-gray-500 mt-1">Статистика доступности и исключений простоя</p>
+        </div>
+        <button
+          onClick={exportToCSV}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+        >
+          <i className="fas fa-file-csv"></i>
+          Экспорт CSV
+        </button>
       </div>
 
       {/* Summary */}

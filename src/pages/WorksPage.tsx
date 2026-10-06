@@ -2,8 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { SLA, Service, PlannedWork, WorkStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import ConfirmModal from '../components/ConfirmModal';
+import Pagination from '../components/Pagination';
 
 export default function WorksPage() {
+  const { showToast } = useToast();
   const { hasRole } = useAuth();
   const [works, setWorks] = useState<PlannedWork[]>([]);
   const [slas, setSlas] = useState<SLA[]>([]);
@@ -13,6 +17,9 @@ export default function WorksPage() {
   const [editingWork, setEditingWork] = useState<PlannedWork | null>(null);
   const [filter, setFilter] = useState<WorkStatus | 'all'>('all');
   const [view, setView] = useState<'table' | 'calendar'>('table');
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; workId: number | null }>({ isOpen: false, workId: null });
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => { loadData(); }, []);
 
@@ -34,6 +41,8 @@ export default function WorksPage() {
   };
 
   const filteredWorks = filter === 'all' ? works : works.filter(w => w.status === filter);
+  const totalPages = Math.ceil(filteredWorks.length / itemsPerPage);
+  const paginatedWorks = filteredWorks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handlePushToZabbix = async (id: number) => {
     const result = await api.pushToZabbix(id);
@@ -45,9 +54,16 @@ export default function WorksPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Удалить плановую работу?')) return;
-    await api.deletePlannedWork(id);
-    await loadData();
+    setDeleteModal({ isOpen: true, workId: id });
+  };
+
+  const confirmDelete = async () => {
+    if (deleteModal.workId) {
+      await api.deletePlannedWork(deleteModal.workId);
+      showToast('success', 'Плановая работа удалена');
+      await loadData();
+    }
+    setDeleteModal({ isOpen: false, workId: null });
   };
 
   // Calendar helpers
@@ -122,7 +138,7 @@ export default function WorksPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredWorks.map(work => (
+              {paginatedWorks.map(work => (
                 <tr key={work.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-900">{work.title}</div>
@@ -165,11 +181,18 @@ export default function WorksPage() {
                   </td>
                 </tr>
               ))}
-              {filteredWorks.length === 0 && (
+              {paginatedWorks.length === 0 && (
                 <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Нет плановых работ</td></tr>
               )}
             </tbody>
           </table>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={filteredWorks.length}
+            itemsPerPage={itemsPerPage}
+          />
         </div>
       ) : (
         /* Calendar View */
@@ -223,14 +246,28 @@ export default function WorksPage() {
           onSave={async (data) => {
             if (editingWork) {
               await api.updatePlannedWork(editingWork.id, data);
+              showToast('success', 'Плановая работа обновлена');
             } else {
               await api.createPlannedWork(data);
+              showToast('success', 'Плановая работа создана');
             }
             setShowForm(false);
             await loadData();
           }}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Удалить плановую работу?"
+        message="Это действие нельзя отменить. Все связанные данные будут удалены."
+        confirmText="Удалить"
+        cancelText="Отмена"
+        type="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteModal({ isOpen: false, workId: null })}
+      />
     </div>
   );
 }

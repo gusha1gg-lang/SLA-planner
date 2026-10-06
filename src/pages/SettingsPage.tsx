@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useToast } from '../context/ToastContext';
 
 export default function SettingsPage() {
+  const { showToast } = useToast();
   const [zabbixUrl, setZabbixUrl] = useState('https://zabbix.example.com/api_jsonrpc.php');
   const [zabbixToken, setZabbixToken] = useState('');
   const [readOnly, setReadOnly] = useState(true);
@@ -9,7 +11,16 @@ export default function SettingsPage() {
 
   const handleSave = () => {
     setSaved(true);
+    showToast('success', 'Настройки сохранены');
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleTestConnection = async () => {
+    showToast('info', 'Проверка подключения к Zabbix...');
+    // В реальности — вызов API для проверки
+    setTimeout(() => {
+      showToast('warning', 'Zabbix не подключен (демо-режим)');
+    }, 1500);
   };
 
   return (
@@ -44,7 +55,7 @@ export default function SettingsPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm" />
             <p className="text-xs text-gray-400 mt-1">Используется в заголовке Authorization: Bearer</p>
           </div>
-          <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+          <button onClick={handleTestConnection} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
             <i className="fas fa-plug mr-2"></i>Проверить подключение
           </button>
         </div>
