@@ -1,5 +1,6 @@
 """SLA router — list, sync from Zabbix."""
 
+import json
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +28,7 @@ async def list_slas(
         "name": s.name,
         "slo": s.slo,
         "schedule_type": s.schedule_type,
+        "service_tags": json.loads(s.service_tags) if s.service_tags else [],
         "synced_at": s.synced_at.isoformat() if s.synced_at else None,
     } for s in slas]
 

@@ -11,6 +11,7 @@ class SLABase(BaseModel):
     slo: float
     schedule_type: str = "24x7"
     schedule_json: Optional[str] = None
+    service_tags: Optional[List[str]] = None
 
 
 class SLAResponse(SLABase):

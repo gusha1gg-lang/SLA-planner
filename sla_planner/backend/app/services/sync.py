@@ -28,16 +28,22 @@ async def sync_slas(db: AsyncSession) -> int:
         )
         existing = result.scalar_one_or_none()
 
+        # Сохраняем service_tags как JSON
+        service_tags = zslA.get("service_tags", [])
+        service_tags_json = json.dumps(service_tags) if service_tags else None
+
         if existing:
             existing.name = zslA["name"]
             existing.slo = float(zslA["slo"])
             existing.schedule_type = zslA.get("period", "24x7")
+            existing.service_tags = service_tags_json
         else:
             db.add(SLA(
                 zabbix_slaid=zslA["slaid"],
                 name=zslA["name"],
                 slo=float(zslA["slo"]),
                 schedule_type=zslA.get("period", "24x7"),
+                service_tags=service_tags_json,
             ))
         count += 1
 

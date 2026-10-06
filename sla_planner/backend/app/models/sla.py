@@ -13,4 +13,5 @@ class SLA(Base):
     slo = Column(Float, nullable=False)
     schedule_type = Column(String(20), default="24x7")  # 24x7 | custom
     schedule_json = Column(Text, nullable=True)  # JSON для custom schedule
+    service_tags = Column(Text, nullable=True)  # JSON array of service tags
     synced_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

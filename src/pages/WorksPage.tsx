@@ -286,6 +286,37 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
   const [startDate, setStartDate] = useState(work?.started_at ? new Date(work.started_at).toISOString().slice(0, 16) : '');
   const [endDate, setEndDate] = useState(work?.ended_at ? new Date(work.ended_at).toISOString().slice(0, 16) : '');
   const [saving, setSaving] = useState(false);
+  const [filteredServices, setFilteredServices] = useState<Service[]>([]);
+
+  // Фильтрация услуг по выбранному SLA
+  useEffect(() => {
+    if (!slaId) {
+      setFilteredServices([]);
+      setServiceId('');
+      return;
+    }
+
+    const selectedSla = slas.find(s => s.id === parseInt(slaId));
+    if (!selectedSla || !selectedSla.service_tags || selectedSla.service_tags.length === 0) {
+      setFilteredServices([]);
+      setServiceId('');
+      return;
+    }
+
+    // Фильтруем услуги: оставляем только те, у которых теги совпадают с service_tags SLA
+    const filtered = services.filter(service => {
+      return service.tags.some(tag => 
+        tag.tag === 'service' && selectedSla.service_tags?.includes(tag.value)
+      );
+    });
+
+    setFilteredServices(filtered);
+    
+    // Если выбранная услуга больше не в списке, сбрасываем выбор
+    if (serviceId && !filtered.find(s => s.id === parseInt(serviceId))) {
+      setServiceId('');
+    }
+  }, [slaId, slas, services]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -299,7 +330,7 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
       downtime_period_from: Math.floor(start.getTime() / 1000),
       downtime_period_to: Math.floor(end.getTime() / 1000),
       sla_name: slas.find(s => s.id === parseInt(slaId))?.name,
-      service_name: services.find(s => s.id === parseInt(serviceId))?.name,
+      service_name: filteredServices.find(s => s.id === parseInt(serviceId))?.name,
     });
     setSaving(false);
   };
@@ -334,12 +365,32 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Услуга *</label>
-              <select value={serviceId} onChange={e => setServiceId(e.target.value)} required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                <option value="">Выберите услугу</option>
-                {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Услуга *
+                {slaId && filteredServices.length > 0 && (
+                  <span className="text-xs text-gray-500 ml-2">({filteredServices.length} доступно)</span>
+                )}
+              </label>
+              <select 
+                value={serviceId} 
+                onChange={e => setServiceId(e.target.value)} 
+                required
+                disabled={!slaId}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+              >
+                <option value="">
+                  {!slaId ? 'Сначала выберите SLA' : 
+                   filteredServices.length === 0 ? 'Нет услуг для этого SLA' : 
+                   'Выберите услугу'}
+                </option>
+                {filteredServices.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
+              {slaId && filteredServices.length === 0 && (
+                <p className="text-xs text-orange-600 mt-1">
+                  <i className="fas fa-exclamation-triangle mr-1"></i>
+                  Для выбранного SLA нет услуг. Синхронизируйте услуги из Zabbix.
+                </p>
+              )}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
