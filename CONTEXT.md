@@ -62,11 +62,11 @@
 - **Услуги:** `1С` (serviceid=4), `SAP` (serviceid=5), `Test Service 1` (serviceid=3).
   У каждой: тег `service: <имя>` (= что забирает SLA Planner) + `problem_tags: service=<имя>` (= проблемы хостов скатываются в услугу).
 - **Хосты:** `1c-app-01`, `1c-db-01` (тег `service: 1С`), `sap-app-01`, `sap-db-01` (тег `service: SAP`).
-- **SLA:** `Test SLA v3` (slaid=5, `service_tags: ["Test Service 1"]`), `ERP` (slaid=6, `service_tags: ["1С", "SAP"]`, period=0 / 24x7).
+- **SLA:** `Test SLA v3` (slaid=5, `service_tags: ["Test Service 1"]`), `ERP` (slaid=6, `service_tags: ["SAP"]`, period=0 / 24x7), `1С` (slaid=7, `service_tags: ["1С"]`, period=0 / 24x7).
 - Важно про Zabbix 7.0: **прямой связи «услуга ↔ хост» в API нет** (нет параметров `hosts`/`selectHosts`). Связь только через теги: хост с тегом → проблема наследует теги → `problem_tags` услуги матчит их.
 
 ### Проверено
-- Полный синк: `POST /api/sync/full` → `{"slas":2,"services":3,"links":3}`; ERP связан с 1С и SAP (`service-links`: sla2→svc2, sla2→svc3).
+- Полный синк: `POST /api/sync/full` → `{"slas":3,"services":3,"links":3}`; связи SLA↔услуги без дублей: Test SLA v3→Test Service 1, ERP→SAP, 1С→1С.
 - Prune работает (фейковые SLA/услуга/связь удалились при синке).
 - End-to-end push: работа ERP/1С → push → в Zabbix у ERP (slaid=6) создан `excluded_downtime "SLA Planner #1"`; работа удалена, downtime в Zabbix прибран.
 - `npx tsc --noEmit` — чисто. `pytest` — 12/12.
@@ -84,6 +84,11 @@
 - `SLADetailPage`: исключения простоя теперь из Zabbix (были захардкожены); добавление/удаление работают через API.
 - `LoginPage`: подсказки реальных паролей (admin123 / planner123 / viewer123).
 - Проверено: tsc чистый, pytest 12/12, endpoints: GET→[], POST add→есть, DELETE→[]; viewer на POST = 403, planner на DELETE = 403.
+
+### SLA «1С» — привязка «каждый сервис → свой SLA»
+По просьбе пользователя услуга 1С получила собственный SLA «1С» (slaid=7, `service_tags: ["1С"]`),
+а из ERP тег `service: 1С` убран (ERP теперь `service_tags: ["SAP"]`). Итог без дублей:
+Test SLA v3→Test Service 1, ERP→SAP, «1С»→1С. `sync/full` → `{"slas":3,"services":3,"links":3}`.
 
 ---
 
