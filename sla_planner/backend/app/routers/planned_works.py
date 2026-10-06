@@ -78,6 +78,30 @@ async def create_work(
     return work_to_dict(work)
 
 
+async def _reconcile_zabbix_window(work: PlannedWork, sla: SLA, stale_names: list[str] | None = None) -> None:
+    """Идемпотентно синхронизировать окно работы в Zabbix.
+
+    Удаляет устаревшие записи (маркер `SLA Planner #<id>` + переданные имена,
+    например старый заголовок после переименования) и добавляет актуальное окно
+    с текущим заголовком работы.
+    """
+    await zabbix_client.remove_excluded_downtime(
+        slaid=sla.zabbix_slaid,
+        downtime_name=work.downtime_marker,
+    )
+    for stale in stale_names or []:
+        await zabbix_client.remove_excluded_downtime(
+            slaid=sla.zabbix_slaid,
+            downtime_name=stale,
+        )
+    await zabbix_client.add_excluded_downtime(
+        slaid=sla.zabbix_slaid,
+        name=work.title,
+        period_from=work.downtime_period_from,
+        period_to=work.downtime_period_to,
+    )
+
+
 @router.put("/{work_id}")
 async def update_work(
     work_id: int,
@@ -85,7 +109,11 @@ async def update_work(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Обновить плановую работу (сохраняет изменения)."""
+    """Обновить плановую работу (сохраняет изменения).
+
+    Если работа уже запланирована (окно есть в Zabbix), правки автоматически
+    прокатываются в Zabbix: старое окно (старый заголовок/период) заменяется новым.
+    """
     if current_user.role not in ("admin", "planner"):
         raise HTTPException(status_code=403, detail="Only admin/planner can update works")
 
@@ -93,6 +121,9 @@ async def update_work(
     work = result.scalar_one_or_none()
     if not work:
         raise HTTPException(status_code=404, detail="Work not found")
+
+    old_title = work.title
+    old_sla_id = work.sla_id
 
     if data.get("title"):
         work.title = data["title"]
@@ -119,6 +150,41 @@ async def update_work(
         work.downtime_period_to = str(int(end_dt.timestamp()))
 
     work.updated_by = current_user.id
+
+    # Запланированная работа уже оставила окно в Zabbix — нужно его обновить
+    # (иначе в Zabbix останется старый заголовок/период).
+    if work.status == "planned":
+        sla_result = await db.execute(select(SLA).where(SLA.id == work.sla_id))
+        sla = sla_result.scalar_one_or_none()
+        if not sla:
+            raise HTTPException(status_code=404, detail="SLA not found")
+        try:
+            # Если работу перенесли на другой SLA — убираем старое окно оттуда
+            if old_sla_id != work.sla_id:
+                old_sla_result = await db.execute(select(SLA).where(SLA.id == old_sla_id))
+                old_sla = old_sla_result.scalar_one_or_none()
+                if old_sla:
+                    await zabbix_client.remove_excluded_downtime(
+                        slaid=old_sla.zabbix_slaid,
+                        downtime_name=work.downtime_marker,
+                    )
+                    await zabbix_client.remove_excluded_downtime(
+                        slaid=old_sla.zabbix_slaid,
+                        downtime_name=old_title,
+                    )
+            await _reconcile_zabbix_window(work, sla, stale_names=[old_title])
+            work.sync_error = None
+        except ZabbixError as e:
+            # При сбое get_db откатит изменения — в Zabbix и БД останется старое состояние
+            db.add(AuditLog(
+                user_id=current_user.id,
+                action="update",
+                entity_type="planned_work",
+                entity_id=work.id,
+                payload=json.dumps({"error": str(e), "title": work.title}),
+                result="error",
+            ))
+            raise HTTPException(status_code=502, detail=str(e))
 
     db.add(AuditLog(
         user_id=current_user.id,
@@ -161,18 +227,7 @@ async def push_to_zabbix(
         raise HTTPException(status_code=404, detail="SLA not found")
     
     try:
-        # Убираем устаревшую запись со старым маркером (если была) — идемпотентный re-push
-        await zabbix_client.remove_excluded_downtime(
-            slaid=sla.zabbix_slaid,
-            downtime_name=work.downtime_marker,
-        )
-        # Имя окна в Zabbix = заголовок работы, чтобы было видно, что это за работа
-        await zabbix_client.add_excluded_downtime(
-            slaid=sla.zabbix_slaid,
-            name=work.title,
-            period_from=work.downtime_period_from,
-            period_to=work.downtime_period_to,
-        )
+        await _reconcile_zabbix_window(work, sla, stale_names=[work.title])
         work.status = "planned"
         work.sync_error = None
         

@@ -201,9 +201,10 @@ async def test_push_uses_work_title_as_downtime_name(auth_headers, monkeypatch):
     await _seed_sla_service()
 
     captured = {}
+    removed = []
 
     async def fake_remove(slaid, downtime_name):
-        captured["removed_name"] = downtime_name
+        removed.append((slaid, downtime_name))
 
     async def fake_add(slaid, name, period_from, period_to):
         captured["slaid"] = slaid
@@ -231,7 +232,8 @@ async def test_push_uses_work_title_as_downtime_name(auth_headers, monkeypatch):
         assert resp.status_code == 200, resp.text
 
         assert captured["name"] == "ТО базы"
-        assert captured["removed_name"] == f"SLA Planner #{work_id}"
+        assert ("1", f"SLA Planner #{work_id}") in removed  # старый маркер убран
+        assert ("1", "ТО базы") in removed                  # дедуп при re-push
         assert captured["slaid"] == "1"
         assert captured["period_from"] == str(int(datetime(2026, 10, 7, 2, 30, tzinfo=timezone.utc).timestamp()))
         assert captured["period_to"] == str(int(datetime(2026, 10, 7, 6, 30, tzinfo=timezone.utc).timestamp()))
@@ -239,6 +241,56 @@ async def test_push_uses_work_title_as_downtime_name(auth_headers, monkeypatch):
         # статус работы стал "planned"
         works = (await client.get("/api/works/", headers=auth_headers)).json()
         assert works[0]["status"] == "planned"
+
+
+@pytest.mark.asyncio
+async def test_update_planned_work_resyncs_zabbix(auth_headers, monkeypatch):
+    """Правка planned-работы должна автоматически обновлять окно в Zabbix (старое имя -> новое)."""
+    from app.services.zabbix_client import zabbix_client
+
+    await _seed_sla_service()
+
+    removed = []
+    added = {}
+
+    async def fake_remove(slaid, downtime_name):
+        removed.append((slaid, downtime_name))
+
+    async def fake_add(slaid, name, period_from, period_to):
+        added.update(slaid=slaid, name=name, period_from=period_from, period_to=period_to)
+
+    monkeypatch.setattr(zabbix_client, "remove_excluded_downtime", fake_remove)
+    monkeypatch.setattr(zabbix_client, "add_excluded_downtime", fake_add)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/works/", headers=auth_headers, json={
+            "title": "Старое имя",
+            "description": "",
+            "sla_id": 1,
+            "service_id": 1,
+            "started_at": "2026-10-07T02:30:00.000Z",
+            "ended_at": "2026-10-07T06:30:00.000Z",
+        })
+        assert resp.status_code == 201, resp.text
+        work_id = resp.json()["id"]
+        resp = await client.post(f"/api/works/{work_id}/push", headers=auth_headers)
+        assert resp.status_code == 200, resp.text
+
+        # правка названия у запланированной работы
+        resp = await client.put(f"/api/works/{work_id}", headers=auth_headers, json={
+            "title": "Новое имя",
+            "description": "",
+            "sla_id": 1,
+            "service_id": 1,
+            "started_at": "2026-10-07T02:30:00.000Z",
+            "ended_at": "2026-10-07T06:30:00.000Z",
+        })
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["title"] == "Новое имя"
+
+        assert ("1", "Старое имя") in removed, removed  # старое окно удалено
+        assert added["name"] == "Новое имя"              # новое окно добавлено
 
 
 @pytest.mark.asyncio
