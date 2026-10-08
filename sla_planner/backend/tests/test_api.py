@@ -313,6 +313,69 @@ async def test_unauthorized_access():
 
 
 @pytest.mark.asyncio
+async def test_graph_colors_defaults(auth_headers):
+    """Graph colors default values for everyone."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/graph/colors", headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data == {"sla": "#3B82F6", "service": "#8B5CF6"}
+
+
+@pytest.mark.asyncio
+async def test_graph_colors_save_and_get(auth_headers):
+    """Admin can change SLA/service colors; they persist through GET."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        put = await client.put(
+            "/api/graph/colors",
+            headers=auth_headers,
+            json={"sla": "#FF0000", "service": "#00FF00"},
+        )
+        assert put.status_code == 200
+        assert put.json() == {"saved": True}
+
+        get = await client.get("/api/graph/colors", headers=auth_headers)
+        assert get.status_code == 200
+        assert get.json() == {"sla": "#FF0000", "service": "#00FF00"}
+
+
+@pytest.mark.asyncio
+async def test_graph_colors_requires_admin(auth_headers):
+    """Non-admin cannot change graph colors."""
+    from app.services.auth import create_access_token
+    from app.models import User
+    from app.services.auth import hash_password as _hash
+    from app.database import async_session as db_session
+
+    async with db_session() as session:
+        user = User(
+            username="plainuser",
+            password_hash=_hash("testpass"),
+            role="planner",
+            is_active=True,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+    token = create_access_token({"sub": str(user.id), "role": "planner"})
+    headers = {"Authorization": f"Bearer {token}"}
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        put = await client.put(
+            "/api/graph/colors",
+            headers=headers,
+            json={"sla": "#FF0000", "service": "#00FF00"},
+        )
+        assert put.status_code == 403
+        # цвета не изменились
+        get = await client.get("/api/graph/colors", headers=auth_headers)
+        assert get.json() == {"sla": "#3B82F6", "service": "#8B5CF6"}
+
+
+@pytest.mark.asyncio
 async def test_zabbix_client_read_only():
     """Test that Zabbix client respects read-only mode."""
     from app.services.zabbix_client import ZabbixClient, ZabbixError

@@ -35,6 +35,39 @@ interface SavedPos {
   y: number;
 }
 
+interface NodeColors {
+  sla: string;
+  service: string;
+}
+
+/** Сгенерировать цвет узла из базового: pct > 0 — светлее, pct < 0 — темнее. */
+function shade(hex: string, pct: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+  const channel = (c: number) =>
+    pct >= 0 ? clamp(c + (255 - c) * pct) : clamp(c * (1 + pct));
+  const r = channel((n >> 16) & 255);
+  const g = channel((n >> 8) & 255);
+  const b = channel(n & 255);
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+/** Цвета узла SLA (синий по умолчанию). */
+function slaNodeColor(base: string) {
+  return {
+    background: base,
+    border: shade(base, -0.18),
+    highlight: { background: shade(base, 0.15), border: base },
+  };
+}
+
+/** Цвета узла услуги: корень дерева чуть темнее базового, дети — базовый. */
+function serviceNodeColor(base: string, isRoot: boolean) {
+  return isRoot
+    ? { background: shade(base, -0.12), border: shade(base, -0.3), highlight: { background: base, border: shade(base, -0.12) } }
+    : { background: base, border: shade(base, -0.12), highlight: { background: shade(base, 0.15), border: base } };
+}
+
 /**
  * Ручная раскладка дерева без vis-network layout/physics.
  * Позиции считаем сами (листья слева направо, внутренний узел — по центру детей),
@@ -56,6 +89,10 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
   const [savedLayoutModel, setSavedLayoutModel] = useState<string>('');
   /** Режим редактирования: true = узлы можно перемещать (кнопки «Сохранить»/«Отмена»). */
   const [editMode, setEditMode] = useState(false);
+
+  /** Цвета узлов SLA и услуг (общие для всех моделей; настраивает admin). */
+  const [nodeColors, setNodeColors] = useState<NodeColors>({ sla: '#3B82F6', service: '#8B5CF6' });
+  const saveColorsTimer = useRef<number | null>(null);
 
   const editModeRef = useRef(false);
   useEffect(() => { editModeRef.current = editMode; }, [editMode]);
@@ -305,6 +342,12 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     };
   }, [editMode, scoped.model, scoped.services]);
 
+  // ── Перекраска существующего графа при загрузке/смене цветов ──
+  // (renderGraph пересоздаёт сеть только по модели/раскладке; здесь докрашиваем узлы на лету)
+  useEffect(() => {
+    applyNodeColors(nodeColors);
+  }, [nodeColors]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const loadData = async () => {
     try {
       const [s, svc, l] = await Promise.all([
@@ -317,6 +360,12 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
       setLinks(l);
     } finally {
       setLoading(false);
+    }
+    try {
+      const colors = await api.getGraphColors();
+      setNodeColors({ sla: colors.sla || '#3B82F6', service: colors.service || '#8B5CF6' });
+    } catch {
+      // нет доступа/сеть — остаёмся на дефолтных цветах
     }
   };
 
@@ -378,6 +427,40 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     setEditMode(false);
     networkRef.current?.setOptions({ interaction: { dragView: true } });
     showToast('success', `Раскладка «${scoped.model.rootName}» сброшена`);
+  };
+
+  /** Перекрасить уже созданный граф без пересоздания сети (по vis-id узла). */
+  const applyNodeColors = (colors: NodeColors) => {
+    const nodes = nodesRef.current;
+    if (!nodes) return;
+    nodes.getIds().forEach(id => {
+      const node = nodes.get(id) as any;
+      if (!node) return;
+      let color: ReturnType<typeof slaNodeColor | typeof serviceNodeColor>;
+      if (String(id).startsWith('sla-')) {
+        color = slaNodeColor(colors.sla);
+      } else if (String(id).startsWith('svc-')) {
+        color = serviceNodeColor(colors.service, node.shape === 'box');
+      } else {
+        return;
+      }
+      nodes.update({ id, color });
+    });
+  };
+
+  /** Сменить цвет типа узла: мгновенно на графе, в БД — через debounce. */
+  const handleColorChange = (type: 'sla' | 'service', value: string) => {
+    const next: NodeColors = { ...nodeColors, [type]: value };
+    setNodeColors(next);
+    applyNodeColors(next);
+    if (saveColorsTimer.current) window.clearTimeout(saveColorsTimer.current);
+    saveColorsTimer.current = window.setTimeout(async () => {
+      try {
+        await api.saveGraphColors(next);
+      } catch {
+        showToast('error', 'Не удалось сохранить цвета');
+      }
+    }, 400);
   };
 
   const renderGraph = (view: ScopedView, saved: Map<string, SavedPos>) => {
@@ -453,7 +536,7 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
           // иначе после «Сохранить» узлы становятся fixed и перестают двигаться даже в редактировании.
           fixed: false,
           shape: 'box',
-          color: { background: '#3B82F6', border: '#2563EB', highlight: { background: '#60A5FA', border: '#3B82F6' } },
+          color: slaNodeColor(nodeColors.sla),
           font: { color: '#ffffff', size: 14, face: 'Inter, sans-serif' },
           borderWidth: 2,
           shadow: true,
@@ -475,9 +558,7 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
           // fixed не ставим: см. комментарий выше (иначе после сохранения узлы «застывают»)
           fixed: false,
           shape: isRoot ? 'box' : 'ellipse',
-          color: isRoot
-            ? { background: '#7C3AED', border: '#6D28D9', highlight: { background: '#8B5CF6', border: '#7C3AED' } }
-            : { background: '#8B5CF6', border: '#7C3AED', highlight: { background: '#A78BFA', border: '#8B5CF6' } },
+          color: serviceNodeColor(nodeColors.service, isRoot),
           font: { color: '#ffffff', size: isRoot ? 13 : 11, face: 'Inter, sans-serif' },
           borderWidth: isRoot ? 3 : 2,
           shadow: true,
@@ -569,16 +650,38 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
           <h1 className="text-2xl font-bold text-gray-900">Модель здоровья</h1>
           <p className="text-gray-500 mt-1">Модели здоровья (деревья услуг) из Zabbix → SLA по тегам</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-1.5 text-sm text-gray-600">
-            <span className="w-3 h-3 rounded bg-blue-500"></span> SLA
+            <span className="w-3 h-3 rounded" style={{ background: nodeColors.sla }}></span> SLA
           </div>
           <div className="flex items-center gap-1.5 text-sm text-gray-600">
-            <span className="w-3 h-3 rounded bg-purple-700"></span> Модель (корень)
+            <span className="w-3 h-3 rounded" style={{ background: shade(nodeColors.service, -0.15) }}></span> Модель (корень)
           </div>
           <div className="flex items-center gap-1.5 text-sm text-gray-600">
-            <span className="w-3 h-3 rounded-full bg-purple-500"></span> Услуга
+            <span className="w-3 h-3 rounded-full" style={{ background: nodeColors.service }}></span> Услуга
           </div>
+          {isAdmin && (
+            <div className="flex items-center gap-3 border-l border-gray-200 pl-3">
+              <label className="flex items-center gap-1.5 text-sm text-gray-600" title="Цвет SLA — общий для всех моделей">
+                <span className="font-medium">Цвет SLA</span>
+                <input
+                  type="color"
+                  value={nodeColors.sla}
+                  onChange={e => handleColorChange('sla', e.target.value)}
+                  className="w-7 h-7 cursor-pointer rounded border border-gray-200 bg-white"
+                />
+              </label>
+              <label className="flex items-center gap-1.5 text-sm text-gray-600" title="Цвет услуг — общий для всех моделей">
+                <span className="font-medium">Цвет услуг</span>
+                <input
+                  type="color"
+                  value={nodeColors.service}
+                  onChange={e => handleColorChange('service', e.target.value)}
+                  className="w-7 h-7 cursor-pointer rounded border border-gray-200 bg-white"
+                />
+              </label>
+            </div>
+          )}
         </div>
       </div>
 

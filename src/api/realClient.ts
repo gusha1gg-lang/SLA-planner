@@ -161,6 +161,18 @@ class RealApiClient {
     );
   }
 
+  // Graph node colors (цвета узлов SLA и услуг, общие для всех)
+  async getGraphColors(): Promise<{ sla: string; service: string }> {
+    return this.request<{ sla: string; service: string }>('/graph/colors');
+  }
+
+  async saveGraphColors(colors: { sla: string; service: string }): Promise<{ saved: boolean }> {
+    return this.request<{ saved: boolean }>('/graph/colors', {
+      method: 'PUT',
+      body: JSON.stringify(colors),
+    });
+  }
+
   // Users
   async getUsers(): Promise<User[]> {
     return this.request<User[]>('/users/');
@@ -260,6 +272,14 @@ export const api = {
 
   async clearGraphPositions(model: string): Promise<{ cleared: boolean }> {
     return await realApi.clearGraphPositions(model);
+  },
+
+  async getGraphColors(): Promise<{ sla: string; service: string }> {
+    return await realApi.getGraphColors();
+  },
+
+  async saveGraphColors(colors: { sla: string; service: string }): Promise<{ saved: boolean }> {
+    return await realApi.saveGraphColors(colors);
   },
 
   async getUsers(): Promise<User[]> {
