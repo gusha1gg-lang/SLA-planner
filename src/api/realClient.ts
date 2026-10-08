@@ -137,6 +137,30 @@ class RealApiClient {
     return this.request<AuditLogEntry[]>('/audit/');
   }
 
+  // Graph layout (позиции узлов по моделям здоровья)
+  async getGraphPositions(model: string): Promise<{ node_key: string; x: number; y: number }[]> {
+    return this.request<{ node_key: string; x: number; y: number }[]>(
+      `/graph/positions?model=${encodeURIComponent(model)}`
+    );
+  }
+
+  async saveGraphPositions(
+    model: string,
+    positions: { node_key: string; x: number; y: number }[]
+  ): Promise<{ saved: number }> {
+    return this.request<{ saved: number }>('/graph/positions', {
+      method: 'PUT',
+      body: JSON.stringify({ model, positions }),
+    });
+  }
+
+  async clearGraphPositions(model: string): Promise<{ cleared: boolean }> {
+    return this.request<{ cleared: boolean }>(
+      `/graph/positions?model=${encodeURIComponent(model)}`,
+      { method: 'DELETE' }
+    );
+  }
+
   // Users
   async getUsers(): Promise<User[]> {
     return this.request<User[]>('/users/');
@@ -221,6 +245,21 @@ export const api = {
 
   async getAuditLogs(): Promise<AuditLogEntry[]> {
     return await realApi.getAuditLogs();
+  },
+
+  async getGraphPositions(model: string): Promise<{ node_key: string; x: number; y: number }[]> {
+    return await realApi.getGraphPositions(model);
+  },
+
+  async saveGraphPositions(
+    model: string,
+    positions: { node_key: string; x: number; y: number }[]
+  ): Promise<{ saved: number }> {
+    return await realApi.saveGraphPositions(model, positions);
+  },
+
+  async clearGraphPositions(model: string): Promise<{ cleared: boolean }> {
+    return await realApi.clearGraphPositions(model);
   },
 
   async getUsers(): Promise<User[]> {

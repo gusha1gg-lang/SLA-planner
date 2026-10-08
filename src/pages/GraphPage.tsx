@@ -4,6 +4,7 @@ import { SLA, Service } from '../types';
 import { DataSet } from 'vis-data';
 import { Network, Options } from 'vis-network';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 
 interface GraphPageProps {
   onNavigate?: (page: string, params?: Record<string, string>) => void;
@@ -29,15 +30,28 @@ interface ScopedView {
   depth: Map<string, number>;
 }
 
+interface SavedPos {
+  x: number;
+  y: number;
+}
+
 export default function GraphPage({ onNavigate }: GraphPageProps) {
   const { showToast } = useToast();
+  const { hasRole } = useAuth();
+  const isAdmin = hasRole(['admin']);
+
   const [slas, setSlas] = useState<SLA[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [links, setLinks] = useState<{ sla_id: number; service_id: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedModel, setSelectedModel] = useState<string>(''); // zabbix_serviceid корня
+  /** Раскладка выбранной модели: node_key → {x, y}. null = ещё грузится. */
+  const [savedLayout, setSavedLayout] = useState<Map<string, SavedPos> | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<Network | null>(null);
+  const nodesRef = useRef<DataSet<any> | null>(null);
+  const idToKeyRef = useRef<Map<string, string>>(new Map()); // vis id → node_key ("svc:.."/"sla:..")
 
   // ── Список моделей здоровья (корни + все потомки) ──
   const models = useMemo<HealthModel[]>(() => {
@@ -111,11 +125,33 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     };
   }, [models, selectedModel, slas, services, links]);
 
+  // ── Загрузка раскладки выбранной модели ──
+  const modelId = scoped.model?.rootId ?? '';
   useEffect(() => {
-    if (scoped.services.length > 0 && containerRef.current) {
-      renderGraph(scoped);
+    if (!modelId) {
+      setSavedLayout(new Map());
+      return;
     }
-  }, [scoped]);
+    let cancelled = false;
+    networkRef.current?.destroy();
+    networkRef.current = null;
+    setSavedLayout(null); // режим загрузки
+    api.getGraphPositions(modelId)
+      .then(list => {
+        if (cancelled) return;
+        setSavedLayout(new Map(list.map(p => [p.node_key, { x: p.x, y: p.y }])));
+      })
+      .catch(() => {
+        if (!cancelled) setSavedLayout(new Map());
+      });
+    return () => { cancelled = true; };
+  }, [modelId]);
+
+  useEffect(() => {
+    if (scoped.services.length > 0 && containerRef.current && savedLayout !== null) {
+      renderGraph(scoped, savedLayout);
+    }
+  }, [scoped, savedLayout]);
 
   const loadData = async () => {
     try {
@@ -132,26 +168,81 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     }
   };
 
-  const renderGraph = (view: ScopedView) => {
+  /** Зафиксировать текущую раскладку (зона ручного редактирования). */
+  const freezeIntoManualLayout = (network: Network, nodes: DataSet<any>, saved: Map<string, SavedPos>) => {
+    const current = network.getPositions() as Record<string, SavedPos>;
+    network.setOptions({
+      layout: { hierarchical: { enabled: false } },
+      physics: { enabled: false },
+    });
+    const updates: any[] = [];
+    idToKeyRef.current.forEach((key, id) => {
+      const pos = saved.get(key) || current[id];
+      if (!pos) return;
+      updates.push({ id, x: pos.x, y: pos.y, fixed: true });
+    });
+    nodes.update(updates);
+    network.redraw();
+    network.fit({ animation: false });
+  };
+
+  /** Сохранить раскладку текущей модели для всех пользователей (только admin). */
+  const persistLayout = async () => {
+    const network = networkRef.current;
+    if (!network || !scoped.model) return;
+    const current = network.getPositions() as Record<string, SavedPos>;
+    const positions: { node_key: string; x: number; y: number }[] = [];
+    idToKeyRef.current.forEach((key, id) => {
+      const pos = current[id];
+      if (pos) positions.push({ node_key: key, x: pos.x, y: pos.y });
+    });
+    try {
+      await api.saveGraphPositions(scoped.model.rootId, positions);
+      showToast('success', `Раскладка «${scoped.model.rootName}» сохранена для всех`);
+    } catch {
+      showToast('error', 'Не удалось сохранить раскладку');
+    }
+  };
+
+  const handleResetLayout = async () => {
+    if (!scoped.model) return;
+    try {
+      await api.clearGraphPositions(scoped.model.rootId);
+    } catch {
+      // не критично — локально всё равно сбрасываем
+    }
+    setSavedLayout(new Map());
+    showToast('success', `Раскладка «${scoped.model.rootName}» сброшена`);
+  };
+
+  const renderGraph = (view: ScopedView, saved: Map<string, SavedPos>) => {
     if (!containerRef.current) return;
 
+    idToKeyRef.current = new Map<string, string>();
+
     const nodes = new DataSet<any>([
-      ...view.slas.map(sla => ({
-        id: `sla-${sla.id}`,
-        label: sla.name,
-        shape: 'box',
-        color: { background: '#3B82F6', border: '#2563EB', highlight: { background: '#60A5FA', border: '#3B82F6' } },
-        font: { color: '#ffffff', size: 14, face: 'Inter, sans-serif' },
-        borderWidth: 2,
-        shadow: true,
-        margin: 12,
-        level: 0,
-      })),
+      ...view.slas.map(sla => {
+        const id = `sla-${sla.id}`;
+        idToKeyRef.current.set(id, `sla:${sla.zabbix_slaid}`);
+        return {
+          id,
+          label: sla.name,
+          shape: 'box',
+          color: { background: '#3B82F6', border: '#2563EB', highlight: { background: '#60A5FA', border: '#3B82F6' } },
+          font: { color: '#ffffff', size: 14, face: 'Inter, sans-serif' },
+          borderWidth: 2,
+          shadow: true,
+          margin: 12,
+          level: 0,
+        };
+      }),
       ...view.services.map(svc => {
         const depth = view.depth.get(svc.zabbix_serviceid) ?? 1;
         const isRoot = depth === 1;
+        const id = `svc-${svc.id}`;
+        idToKeyRef.current.set(id, `svc:${svc.zabbix_serviceid}`);
         return {
-          id: `svc-${svc.id}`,
+          id,
           label: svc.name,
           shape: isRoot ? 'box' : 'ellipse',
           color: isRoot
@@ -161,15 +252,14 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
           borderWidth: isRoot ? 3 : 2,
           shadow: true,
           margin: 10,
-          // Глубина в дереве, а не «корень/не-корень»: уровень = реальный ярус,
-          // иначе внуки встают в тот же ряд, что и дети («в боку», а не вниз).
+          // Уровень = реальный ярус дерева (корень=1, дети=2, внуки=3...)
           level: depth,
         };
       }),
     ]);
+    nodesRef.current = nodes;
 
     const edges = new DataSet<any>([
-      // SLA → Service links
       ...view.links.map(link => ({
         from: `sla-${link.sla_id}`,
         to: `svc-${link.service_id}`,
@@ -177,7 +267,6 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
         width: 2,
         arrows: { to: { enabled: true, scaleFactor: 0.5 } },
       })),
-      // Service → Service (parent)
       ...view.services
         .filter(s => s.parent_zabbix_serviceid)
         .map(s => {
@@ -196,28 +285,31 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     ]);
 
     const options: Options = {
-      physics: {
-        enabled: true,
-        barnesHut: {
-          gravitationalConstant: -3000,
-          centralGravity: 0.3,
-          springLength: 150,
-          springConstant: 0.04,
-        },
-        stabilization: { iterations: 100 },
-      },
-      interaction: {
-        hover: true,
-        tooltipDelay: 200,
-      },
       layout: {
         hierarchical: {
           enabled: true,
           direction: 'UD',
           sortMethod: 'level',
-          levelSeparation: 120,
-          nodeSpacing: 160,
+          levelSeparation: 170,
+          nodeSpacing: 240,
         },
+      },
+      physics: {
+        enabled: true,
+        barnesHut: {
+          gravitationalConstant: -4000,
+          centralGravity: 0.3,
+          springLength: 180,
+          springConstant: 0.05,
+          damping: 0.09,
+        },
+        stabilization: { iterations: 60, updateInterval: 25 },
+      },
+      interaction: {
+        hover: true,
+        tooltipDelay: 200,
+        dragNodes: true,
+        dragView: true,
       },
     };
 
@@ -225,10 +317,25 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
       networkRef.current.destroy();
     }
 
-    networkRef.current = new Network(containerRef.current, { nodes, edges }, options);
+    const network = new Network(containerRef.current, { nodes, edges }, options);
+    networkRef.current = network;
 
-    // Add click handler for nodes
-    networkRef.current.on('click', (params: any) => {
+    // Как только начальная физика сложилась — замораживаем layout в «ручной» режим
+    // (перетаскивание держится, узлы не разлетаются).
+    network.once('stabilizationIterationsDone', () => {
+      freezeIntoManualLayout(network, nodes, saved);
+    });
+
+    network.on('dragEnd', (params: any) => {
+      const id = params.nodes?.[0];
+      if (!id) return;
+      nodesRef.current?.update({ id, fixed: true });
+      if (isAdmin) {
+        persistLayout();
+      }
+    });
+
+    network.on('click', (params: any) => {
       if (params.nodes.length > 0) {
         const nodeId = params.nodes[0];
         if (nodeId.startsWith('sla-')) {
@@ -297,7 +404,23 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
                 SLA: <b className="text-gray-700">{scoped.slas.length}</b> · Услуг: <b className="text-gray-700">{scoped.services.length}</b> из {scoped.model.serviceIds.size}
               </span>
             )}
+            {isAdmin && scoped.model && (
+              <button
+                onClick={handleResetLayout}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition"
+                title="Сбросить раскладку модели к стандартной (для всех пользователей)"
+              >
+                <i className="fas fa-undo text-xs"></i>
+                Сбросить раскладку
+              </button>
+            )}
           </div>
+
+          <p className="text-xs text-gray-500">
+            <i className="fas fa-hand-pointer mr-1 text-gray-400"></i>
+            Перетаскивайте узлы мышью — раскладка для выбранной модели здоровья {isAdmin ? 'сохраняется для всех автоматически' : 'будет показана всем после сохранения её администратором'}.
+            Применится после того, как граф «замрёт» (~1 сек).
+          </p>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div ref={containerRef} className="w-full h-[600px]" />
