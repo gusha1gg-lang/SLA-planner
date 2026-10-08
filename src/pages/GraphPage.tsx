@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { SLA, Service } from '../types';
 import { DataSet } from 'vis-data';
@@ -9,24 +9,79 @@ interface GraphPageProps {
   onNavigate?: (page: string, params?: Record<string, string>) => void;
 }
 
+/**
+ * Модель здоровья = дерево услуг от корневого сервиса (услуги без родителя).
+ * В Zabbix 7.0 кнопка — «Модель здоровья» (service tree).
+ */
+interface HealthModel {
+  rootId: string;      // zabbix_serviceid корня
+  rootName: string;    // имя корня = имя модели
+  serviceIds: Set<string>; // zabbix_serviceid всех узлов дерева (корень + потомки)
+}
+
 export default function GraphPage({ onNavigate }: GraphPageProps) {
   const { showToast } = useToast();
   const [slas, setSlas] = useState<SLA[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [links, setLinks] = useState<{ sla_id: number; service_id: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedModel, setSelectedModel] = useState<string>(''); // zabbix_serviceid корня
   const containerRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<Network | null>(null);
+
+  // ── Список моделей здоровья (корни + все потомки) ──
+  const models = useMemo<HealthModel[]>(() => {
+    const childrenMap = new Map<string, string[]>();
+    for (const s of services) {
+      if (!s.parent_zabbix_serviceid) continue;
+      const list = childrenMap.get(s.parent_zabbix_serviceid) || [];
+      list.push(s.zabbix_serviceid);
+      childrenMap.set(s.parent_zabbix_serviceid, list);
+    }
+    const roots = services.filter(s => !s.parent_zabbix_serviceid);
+    const result: HealthModel[] = roots.map(r => {
+      const ids = new Set<string>();
+      const stack = [r.zabbix_serviceid];
+      while (stack.length) {
+        const id = stack.pop()!;
+        if (ids.has(id)) continue;
+        ids.add(id);
+        stack.push(...(childrenMap.get(id) || []));
+      }
+      return { rootId: r.zabbix_serviceid, rootName: r.name, serviceIds: ids };
+    });
+    return result.sort((a, b) => a.rootName.localeCompare(b.rootName, 'ru'));
+  }, [services]);
 
   useEffect(() => {
     loadData();
   }, []);
 
+  // По умолчанию — первая модель
   useEffect(() => {
-    if (slas.length > 0 && services.length > 0 && containerRef.current) {
-      renderGraph();
+    if (!selectedModel && models.length > 0) {
+      setSelectedModel(models[0].rootId);
     }
-  }, [slas, services, links]);
+  }, [models, selectedModel]);
+
+  // ── Данные выбранной модели: её дерево + SLA, связанные с ним ──
+  const scoped = useMemo(() => {
+    const model = models.find(m => m.rootId === selectedModel);
+    if (!model) {
+      return { model: null as HealthModel | null, slas: [] as SLA[], services: [] as Service[], links: [] as { sla_id: number; service_id: number }[] };
+    }
+    const svcIn = services.filter(s => model.serviceIds.has(s.zabbix_serviceid));
+    const svcById = new Map(svcIn.map(s => [s.id, s]));
+    const scopedLinks = links.filter(l => svcById.has(l.service_id));
+    const slaIds = new Set(scopedLinks.map(l => l.sla_id));
+    return { model, slas: slas.filter(s => slaIds.has(s.id)), services: svcIn, links: scopedLinks };
+  }, [models, selectedModel, slas, services, links]);
+
+  useEffect(() => {
+    if (scoped.services.length > 0 && containerRef.current) {
+      renderGraph(scoped);
+    }
+  }, [scoped]);
 
   const loadData = async () => {
     try {
@@ -43,11 +98,11 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     }
   };
 
-  const renderGraph = () => {
+  const renderGraph = (view: typeof scoped) => {
     if (!containerRef.current) return;
 
     const nodes = new DataSet<any>([
-      ...slas.map(sla => ({
+      ...view.slas.map(sla => ({
         id: `sla-${sla.id}`,
         label: sla.name,
         shape: 'box',
@@ -58,22 +113,27 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
         margin: 12,
         level: 0,
       })),
-      ...services.map(svc => ({
-        id: `svc-${svc.id}`,
-        label: svc.name,
-        shape: 'ellipse',
-        color: { background: '#8B5CF6', border: '#7C3AED', highlight: { background: '#A78BFA', border: '#8B5CF6' } },
-        font: { color: '#ffffff', size: 12, face: 'Inter, sans-serif' },
-        borderWidth: 2,
-        shadow: true,
-        margin: 10,
-        level: svc.parent_zabbix_serviceid ? 2 : 1,
-      })),
+      ...view.services.map(svc => {
+        const isRoot = !svc.parent_zabbix_serviceid;
+        return {
+          id: `svc-${svc.id}`,
+          label: svc.name,
+          shape: isRoot ? 'box' : 'ellipse',
+          color: isRoot
+            ? { background: '#7C3AED', border: '#6D28D9', highlight: { background: '#8B5CF6', border: '#7C3AED' } }
+            : { background: '#8B5CF6', border: '#7C3AED', highlight: { background: '#A78BFA', border: '#8B5CF6' } },
+          font: { color: '#ffffff', size: isRoot ? 13 : 11, face: 'Inter, sans-serif' },
+          borderWidth: isRoot ? 3 : 2,
+          shadow: true,
+          margin: 10,
+          level: isRoot ? 1 : 2,
+        };
+      }),
     ]);
 
     const edges = new DataSet<any>([
       // SLA → Service links
-      ...links.map(link => ({
+      ...view.links.map(link => ({
         from: `sla-${link.sla_id}`,
         to: `svc-${link.service_id}`,
         color: { color: '#94A3B8', highlight: '#3B82F6' },
@@ -81,14 +141,21 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
         arrows: { to: { enabled: true, scaleFactor: 0.5 } },
       })),
       // Service → Service (parent)
-      ...services.filter(s => s.parent_zabbix_serviceid).map(s => ({
-        from: `svc-${services.find(p => p.zabbix_serviceid === s.parent_zabbix_serviceid)?.id}`,
-        to: `svc-${s.id}`,
-        color: { color: '#CBD5E1', highlight: '#8B5CF6' },
-        width: 1.5,
-        dashes: true,
-        arrows: { to: { enabled: true, scaleFactor: 0.4 } },
-      })),
+      ...view.services
+        .filter(s => s.parent_zabbix_serviceid)
+        .map(s => {
+          const parent = view.services.find(p => p.zabbix_serviceid === s.parent_zabbix_serviceid);
+          if (!parent) return null;
+          return {
+            from: `svc-${parent.id}`,
+            to: `svc-${s.id}`,
+            color: { color: '#CBD5E1', highlight: '#8B5CF6' },
+            width: 1.5,
+            dashes: true,
+            arrows: { to: { enabled: true, scaleFactor: 0.4 } },
+          };
+        })
+        .filter(Boolean),
     ]);
 
     const options: Options = {
@@ -143,54 +210,99 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     return <div className="flex items-center justify-center h-64"><i className="fas fa-spinner fa-spin text-3xl text-blue-600"></i></div>;
   }
 
+  const noData = services.length === 0;
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Граф SLA и услуг</h1>
-          <p className="text-gray-500 mt-1">Визуализация связей SLA → Услуги (через теги)</p>
+          <p className="text-gray-500 mt-1">Модели здоровья (деревья услуг) из Zabbix → SLA по тегам</p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5 text-sm text-gray-600">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-sm text-gray-600">
             <span className="w-3 h-3 rounded bg-blue-500"></span> SLA
-          </span>
-          <span className="flex items-center gap-1.5 text-sm text-gray-600">
+          </div>
+          <div className="flex items-center gap-1.5 text-sm text-gray-600">
+            <span className="w-3 h-3 rounded bg-purple-700"></span> Модель (корень)
+          </div>
+          <div className="flex items-center gap-1.5 text-sm text-gray-600">
             <span className="w-3 h-3 rounded-full bg-purple-500"></span> Услуга
-          </span>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div ref={containerRef} className="w-full h-[600px]" />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h3 className="font-semibold text-gray-900 mb-3">SLA ({slas.length})</h3>
-          <div className="space-y-2">
-            {slas.map(sla => (
-              <div key={sla.id} className="flex items-center justify-between text-sm">
-                <span className="text-gray-700">{sla.name}</span>
-                <span className="text-gray-400 font-mono text-xs">slaid={sla.zabbix_slaid}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h3 className="font-semibold text-gray-900 mb-3">Услуги ({services.length})</h3>
-          <div className="space-y-2">
-            {services.map(svc => (
-              <div key={svc.id} className="flex items-center justify-between text-sm">
-                <span className="text-gray-700">
-                  {svc.parent_zabbix_serviceid && <i className="fas fa-level-up-alt text-gray-300 mr-2 text-xs"></i>}
-                  {svc.name}
-                </span>
-                <span className="text-gray-400 font-mono text-xs">id={svc.zabbix_serviceid}</span>
-              </div>
-            ))}
           </div>
         </div>
       </div>
+
+      {noData ? (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 text-center">
+          <i className="fas fa-project-diagram text-4xl text-gray-300 mb-3"></i>
+          <p className="text-gray-500">Данных пока нет.</p>
+          <p className="text-gray-400 text-sm mt-1">Нажмите «Синхр. с Zabbix» (правая кнопка вверху, нужна роль admin), чтобы загрузить SLA и услуги.</p>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="text-sm font-medium text-gray-700">
+              Модель здоровья:
+            </label>
+            <select
+              value={selectedModel}
+              onChange={e => setSelectedModel(e.target.value)}
+              className="border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-xl"
+            >
+              {models.map(m => (
+                <option key={m.rootId} value={m.rootId}>
+                  {m.rootName} ({m.serviceIds.size})
+                </option>
+              ))}
+            </select>
+            {scoped.model && (
+              <span className="text-sm text-gray-500">
+                SLA: <b className="text-gray-700">{scoped.slas.length}</b> · Услуг: <b className="text-gray-700">{scoped.services.length}</b> из {scoped.model.serviceIds.size}
+              </span>
+            )}
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div ref={containerRef} className="w-full h-[600px]" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+              <h3 className="font-semibold text-gray-900 mb-3">SLA ({scoped.slas.length})</h3>
+              {scoped.slas.length === 0 ? (
+                <p className="text-gray-400 text-sm">К этой модели не привязан ни один SLA</p>
+              ) : (
+                <div className="space-y-2">
+                  {scoped.slas.map(sla => (
+                    <div key={sla.id} className="flex items-center justify-between text-sm">
+                      <span className="text-gray-700">{sla.name}</span>
+                      <span className="text-gray-400 font-mono text-xs">slaid={sla.zabbix_slaid}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+              <h3 className="font-semibold text-gray-900 mb-3">Услуги ({scoped.services.length})</h3>
+              <div className="space-y-2">
+                {scoped.services.map(svc => (
+                  <div key={svc.id} className="flex items-center justify-between text-sm">
+                    <span className="text-gray-700">
+                      {svc.parent_zabbix_serviceid ? (
+                        <i className="fas fa-level-up-alt text-gray-300 mr-2 text-xs"></i>
+                      ) : (
+                        <i className="fas fa-th-large text-purple-700 mr-2 text-xs"></i>
+                      )}
+                      {svc.name}
+                    </span>
+                    <span className="text-gray-400 font-mono text-xs">id={svc.zabbix_serviceid}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
