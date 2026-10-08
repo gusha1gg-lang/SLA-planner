@@ -6,9 +6,10 @@ interface LayoutProps {
   children: React.ReactNode;
   currentPage: string;
   onNavigate: (page: string) => void;
+  onSync?: () => void;
 }
 
-export default function Layout({ children, currentPage, onNavigate }: LayoutProps) {
+export default function Layout({ children, currentPage, onNavigate, onSync }: LayoutProps) {
   const { user, logout, hasRole } = useAuth();
 
   const navItems = [
@@ -80,7 +81,7 @@ export default function Layout({ children, currentPage, onNavigate }: LayoutProp
 
       {/* Main content */}
       <main className="flex-1 ml-64">
-        <StatusBar />
+        <StatusBar onSync={onSync} />
         <div className="p-6">
           {children}
         </div>

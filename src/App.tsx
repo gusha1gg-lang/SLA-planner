@@ -41,7 +41,11 @@ function AppContent() {
   };
 
   return (
-    <Layout currentPage={currentPage} onNavigate={(page) => navigateTo(page)}>
+    <Layout
+      currentPage={currentPage}
+      onNavigate={(page) => navigateTo(page)}
+      onSync={() => window.location.reload()}
+    >
       {renderPage()}
     </Layout>
   );
