@@ -52,6 +52,8 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
   const [selectedModel, setSelectedModel] = useState<string>(''); // zabbix_serviceid корня
   /** Раскладка выбранной модели: node_key → {x, y}. null = ещё грузится. */
   const [savedLayout, setSavedLayout] = useState<Map<string, SavedPos> | null>(null);
+  /** Режим редактирования: true = узлы можно перемещать (кнопки «Сохранить»/«Отмена»). */
+  const [editMode, setEditMode] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<Network | null>(null);
@@ -141,6 +143,7 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     networkRef.current?.destroy();
     networkRef.current = null;
     setSavedLayout(null); // режим загрузки
+    setEditMode(false);   // смена модели выходит из режима редактирования
     api.getGraphPositions(modelId)
       .then(list => {
         if (cancelled) return;
@@ -174,9 +177,9 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
   };
 
   /** Сохранить раскладку текущей модели для всех пользователей (только admin). */
-  const persistLayout = async () => {
+  const persistLayout = async (): Promise<boolean> => {
     const network = networkRef.current;
-    if (!network || !scoped.model) return;
+    if (!network || !scoped.model) return false;
     const current = network.getPositions() as Record<string, SavedPos>;
     const positions: { node_key: string; x: number; y: number }[] = [];
     idToKeyRef.current.forEach((key, id) => {
@@ -185,9 +188,35 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     });
     try {
       await api.saveGraphPositions(scoped.model.rootId, positions);
+      // фиксируем в памяти как «последнее сохранённое» (из «Отмены» вернёмся сюда)
+      setSavedLayout(new Map(positions.map(p => [p.node_key, { x: p.x, y: p.y }])));
       showToast('success', `Раскладка «${scoped.model.rootName}» сохранена для всех`);
+      return true;
     } catch {
       showToast('error', 'Не удалось сохранить раскладку');
+      return false;
+    }
+  };
+
+  const handleEnterEdit = () => {
+    setEditMode(true);
+    networkRef.current?.setOptions({ interaction: { dragNodes: true } });
+  };
+
+  const handleSaveLayout = async () => {
+    const ok = await persistLayout();
+    if (ok) {
+      setEditMode(false);
+      networkRef.current?.setOptions({ interaction: { dragNodes: false } });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditMode(false);
+    networkRef.current?.setOptions({ interaction: { dragNodes: false } });
+    // возвращаем сохранённую раскладку (отбрасываем несохранённые движения)
+    if (savedLayout !== null && scoped.services.length > 0 && containerRef.current) {
+      renderGraph(scoped, savedLayout);
     }
   };
 
@@ -199,6 +228,8 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
       // не критично — локально всё равно сбрасываем
     }
     setSavedLayout(new Map());
+    setEditMode(false);
+    networkRef.current?.setOptions({ interaction: { dragNodes: false } });
     showToast('success', `Раскладка «${scoped.model.rootName}» сброшена`);
   };
 
@@ -332,7 +363,8 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     ]);
 
     // Физика выключена, иерархический layout не используется:
-    // позиции заданы явно, поэтому перетаскивание работает сразу и держится.
+    // позиции заданы явно. Перетаскивание узлов доступно только в режиме
+    // редактирования (кнопка «Редактировать граф»), иначе граф заморожен.
     const options: Options = {
       physics: { enabled: false },
       layout: { improvedLayout: false },
@@ -340,7 +372,7 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
       interaction: {
         hover: true,
         tooltipDelay: 200,
-        dragNodes: true,
+        dragNodes: editMode,
         dragView: true,
       },
     };
@@ -352,15 +384,6 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     const network = new Network(containerRef.current, { nodes, edges }, options);
     networkRef.current = network;
     network.fit({ animation: false });
-
-    network.on('dragEnd', (params: any) => {
-      const id = params.nodes?.[0];
-      if (!id) return;
-      nodesRef.current?.update({ id, fixed: true });
-      if (isAdmin) {
-        persistLayout();
-      }
-    });
 
     network.on('click', (params: any) => {
       if (params.nodes.length > 0) {
@@ -432,20 +455,65 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
               </span>
             )}
             {isAdmin && scoped.model && (
-              <button
-                onClick={handleResetLayout}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition"
-                title="Сбросить раскладку модели к стандартной (для всех пользователей)"
-              >
-                <i className="fas fa-undo text-xs"></i>
-                Сбросить раскладку
-              </button>
+              <div className="flex items-center gap-2">
+                {editMode ? (
+                  <>
+                    <button
+                      onClick={handleSaveLayout}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 transition"
+                      title="Сохранить раскладку для всех и выйти из редактирования"
+                    >
+                      <i className="fas fa-save text-xs"></i>
+                      Сохранить
+                    </button>
+                    <button
+                      onClick={handleCancelEdit}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition"
+                      title="Отменить изменения и вернуть сохранённую раскладку"
+                    >
+                      <i className="fas fa-times text-xs"></i>
+                      Отмена
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={handleEnterEdit}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+                    title="Включить перемещение узлов графа"
+                  >
+                    <i className="fas fa-pen text-xs"></i>
+                    Редактировать граф
+                  </button>
+                )}
+                <button
+                  onClick={handleResetLayout}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition"
+                  title="Сбросить раскладку модели к стандартной (для всех пользователей)"
+                >
+                  <i className="fas fa-undo text-xs"></i>
+                  Сбросить раскладку
+                </button>
+              </div>
             )}
           </div>
 
           <p className="text-xs text-gray-500">
-            <i className="fas fa-hand-pointer mr-1 text-gray-400"></i>
-            Перетаскивайте узлы мышью — раскладка для выбранной модели здоровья {isAdmin ? 'сохраняется для всех автоматически' : 'будет показана всем после сохранения её администратором'}.
+            {editMode ? (
+              <>
+                <i className="fas fa-hand-pointer mr-1 text-gray-400"></i>
+                Режим редактирования: перетащите узлы на новые места и нажмите «Сохранить» — раскладка станет общей для всех пользователей.
+              </>
+            ) : isAdmin ? (
+              <>
+                <i className="fas fa-lock mr-1 text-gray-400"></i>
+                Граф в режиме просмотра. Нажмите «Редактировать граф», чтобы перемещать узлы.
+              </>
+            ) : (
+              <>
+                <i className="fas fa-lock mr-1 text-gray-400"></i>
+                Раскладку графа может изменять только администратор.
+              </>
+            )}
           </p>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
