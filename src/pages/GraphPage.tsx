@@ -302,7 +302,9 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
           label: sla.name,
           x: savedPos ? savedPos.x : startSlaX + i * slaSpacingX,
           y: savedPos ? savedPos.y : 0,
-          fixed: !!savedPos,
+          // fixed не ставим: заморозку режима просмотра даёт interaction.dragNodes=false,
+          // иначе после «Сохранить» узлы становятся fixed и перестают двигаться даже в редактировании.
+          fixed: false,
           shape: 'box',
           color: { background: '#3B82F6', border: '#2563EB', highlight: { background: '#60A5FA', border: '#3B82F6' } },
           font: { color: '#ffffff', size: 14, face: 'Inter, sans-serif' },
@@ -323,7 +325,8 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
           label: svc.name,
           x: savedPos ? savedPos.x : posX.get(svc.zabbix_serviceid)!,
           y: savedPos ? savedPos.y : depth * spacingY,
-          fixed: !!savedPos,
+          // fixed не ставим: см. комментарий выше (иначе после сохранения узлы «застывают»)
+          fixed: false,
           shape: isRoot ? 'box' : 'ellipse',
           color: isRoot
             ? { background: '#7C3AED', border: '#6D28D9', highlight: { background: '#8B5CF6', border: '#7C3AED' } }
