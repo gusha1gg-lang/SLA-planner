@@ -130,6 +130,7 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
 7. Лог OpenCode: `~/.local/share/opencode/log/opencode.log`.
 8. Для ручных вызовов Zabbix API удобно писать скрипты на `venv/bin/python` с `urllib` (примеры были в истории).
 9. **Фронтенд без моков:** если в localStorage залёг `mock-token`/`mock-jwt-token`, AuthContext вычистит его при старте — будет страница логина. Без доступного бэкенда сайт не работает (это норма, а не баг).
+10. **После перезагрузки машины vite/uvicorn умирают** (docker-Zabbix при этом стартует сам). Поднять: `cd sla_planner/backend && venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &`, в корне репо `npm run dev &`. Логи: `/tmp/opencode/uvicorn.log`, `/tmp/opencode/vite.log`. Проверка: достпно ли `curl localhost:3000` и `curl localhost:8000/health`.
 
 ---
 
