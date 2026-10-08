@@ -35,6 +35,11 @@ interface SavedPos {
   y: number;
 }
 
+/**
+ * Ручная раскладка дерева без vis-network layout/physics.
+ * Позиции считаем сами (листья слева направо, внутренний узел — по центру детей),
+ * поэтому перетаскивание работает сразу и держится: физики нет.
+ */
 export default function GraphPage({ onNavigate }: GraphPageProps) {
   const { showToast } = useToast();
   const { hasRole } = useAuth();
@@ -168,24 +173,6 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     }
   };
 
-  /** Зафиксировать текущую раскладку (зона ручного редактирования). */
-  const freezeIntoManualLayout = (network: Network, nodes: DataSet<any>, saved: Map<string, SavedPos>) => {
-    const current = network.getPositions() as Record<string, SavedPos>;
-    network.setOptions({
-      layout: { hierarchical: { enabled: false } },
-      physics: { enabled: false },
-    });
-    const updates: any[] = [];
-    idToKeyRef.current.forEach((key, id) => {
-      const pos = saved.get(key) || current[id];
-      if (!pos) return;
-      updates.push({ id, x: pos.x, y: pos.y, fixed: true });
-    });
-    nodes.update(updates);
-    network.redraw();
-    network.fit({ animation: false });
-  };
-
   /** Сохранить раскладку текущей модели для всех пользователей (только admin). */
   const persistLayout = async () => {
     const network = networkRef.current;
@@ -218,32 +205,94 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
   const renderGraph = (view: ScopedView, saved: Map<string, SavedPos>) => {
     if (!containerRef.current) return;
 
+    const childrenMap = new Map<string, string[]>();
+    for (const s of view.services) {
+      if (!s.parent_zabbix_serviceid) continue;
+      const list = childrenMap.get(s.parent_zabbix_serviceid) || [];
+      list.push(s.zabbix_serviceid);
+      childrenMap.set(s.parent_zabbix_serviceid, list);
+    }
+
+    // Шаг по X не меньше ширины самой длинной подписи (чтобы узлы не пересекались)
+    const maxLabelLen = Math.max(
+      0,
+      ...view.slas.map(s => s.name.length),
+      ...view.services.map(s => s.name.length)
+    );
+    const spacingX = Math.max(300, maxLabelLen * 7.4 + 70);
+    const spacingY = 200;
+    const slaSpacingX = Math.max(280, maxLabelLen * 7.4 + 40);
+
+    // Классическая раскладка дерева: листья слева направо,
+    // внутренний узел — по центру своих детей.
+    const posX = new Map<string, number>();
+    let slot = 0;
+    const assignX = (zid: string): number => {
+      const kids = childrenMap.get(zid) || [];
+      if (kids.length === 0) {
+        const x = slot * spacingX;
+        slot += 1;
+        posX.set(zid, x);
+        return x;
+      }
+      const xs = kids.map(assignX);
+      const x = (Math.min(...xs) + Math.max(...xs)) / 2;
+      posX.set(zid, x);
+      return x;
+    };
+    if (view.model) assignX(view.model.rootId);
+    // защита: если какой-то узел не попал в обход (битое дерево)
+    for (const s of view.services) {
+      if (!posX.has(s.zabbix_serviceid)) {
+        posX.set(s.zabbix_serviceid, slot * spacingX);
+        slot += 1;
+      }
+    }
+
+    // Ряд SLA центрируем над деревом (y = 0), услуги — по глубине вниз
+    const svcXs = view.services.map(s => posX.get(s.zabbix_serviceid) ?? 0);
+    const minX = Math.min(...svcXs);
+    const maxX = Math.max(...svcXs);
+    const centerX = (minX + maxX) / 2;
+    const startSlaX = view.slas.length > 1
+      ? centerX - ((view.slas.length - 1) * slaSpacingX) / 2
+      : centerX;
+
     idToKeyRef.current = new Map<string, string>();
 
     const nodes = new DataSet<any>([
-      ...view.slas.map(sla => {
+      ...view.slas.map((sla, i) => {
         const id = `sla-${sla.id}`;
-        idToKeyRef.current.set(id, `sla:${sla.zabbix_slaid}`);
+        const key = `sla:${sla.zabbix_slaid}`;
+        idToKeyRef.current.set(id, key);
+        const savedPos = saved.get(key);
         return {
           id,
           label: sla.name,
+          x: savedPos ? savedPos.x : startSlaX + i * slaSpacingX,
+          y: savedPos ? savedPos.y : 0,
+          fixed: !!savedPos,
           shape: 'box',
           color: { background: '#3B82F6', border: '#2563EB', highlight: { background: '#60A5FA', border: '#3B82F6' } },
           font: { color: '#ffffff', size: 14, face: 'Inter, sans-serif' },
           borderWidth: 2,
           shadow: true,
           margin: 12,
-          level: 0,
         };
       }),
       ...view.services.map(svc => {
         const depth = view.depth.get(svc.zabbix_serviceid) ?? 1;
         const isRoot = depth === 1;
         const id = `svc-${svc.id}`;
-        idToKeyRef.current.set(id, `svc:${svc.zabbix_serviceid}`);
+        const key = `svc:${svc.zabbix_serviceid}`;
+        idToKeyRef.current.set(id, key);
+        const savedPos = saved.get(key);
         return {
           id,
           label: svc.name,
+          x: savedPos ? savedPos.x : posX.get(svc.zabbix_serviceid)!,
+          y: savedPos ? savedPos.y : depth * spacingY,
+          fixed: !!savedPos,
           shape: isRoot ? 'box' : 'ellipse',
           color: isRoot
             ? { background: '#7C3AED', border: '#6D28D9', highlight: { background: '#8B5CF6', border: '#7C3AED' } }
@@ -252,8 +301,6 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
           borderWidth: isRoot ? 3 : 2,
           shadow: true,
           margin: 10,
-          // Уровень = реальный ярус дерева (корень=1, дети=2, внуки=3...)
-          level: depth,
         };
       }),
     ]);
@@ -284,27 +331,12 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
         .filter(Boolean),
     ]);
 
+    // Физика выключена, иерархический layout не используется:
+    // позиции заданы явно, поэтому перетаскивание работает сразу и держится.
     const options: Options = {
-      layout: {
-        hierarchical: {
-          enabled: true,
-          direction: 'UD',
-          sortMethod: 'level',
-          levelSeparation: 170,
-          nodeSpacing: 240,
-        },
-      },
-      physics: {
-        enabled: true,
-        barnesHut: {
-          gravitationalConstant: -4000,
-          centralGravity: 0.3,
-          springLength: 180,
-          springConstant: 0.05,
-          damping: 0.09,
-        },
-        stabilization: { iterations: 60, updateInterval: 25 },
-      },
+      physics: { enabled: false },
+      layout: { improvedLayout: false },
+      edges: { smooth: false },
       interaction: {
         hover: true,
         tooltipDelay: 200,
@@ -319,12 +351,7 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
 
     const network = new Network(containerRef.current, { nodes, edges }, options);
     networkRef.current = network;
-
-    // Как только начальная физика сложилась — замораживаем layout в «ручной» режим
-    // (перетаскивание держится, узлы не разлетаются).
-    network.once('stabilizationIterationsDone', () => {
-      freezeIntoManualLayout(network, nodes, saved);
-    });
+    network.fit({ animation: false });
 
     network.on('dragEnd', (params: any) => {
       const id = params.nodes?.[0];
@@ -419,7 +446,6 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
           <p className="text-xs text-gray-500">
             <i className="fas fa-hand-pointer mr-1 text-gray-400"></i>
             Перетаскивайте узлы мышью — раскладка для выбранной модели здоровья {isAdmin ? 'сохраняется для всех автоматически' : 'будет показана всем после сохранения её администратором'}.
-            Применится после того, как граф «замрёт» (~1 сек).
           </p>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
