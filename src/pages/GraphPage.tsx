@@ -19,6 +19,16 @@ interface HealthModel {
   serviceIds: Set<string>; // zabbix_serviceid всех узлов дерева (корень + потомки)
 }
 
+/** Данные, отображаемые для выбранной модели здоровья. */
+interface ScopedView {
+  model: HealthModel | null;
+  slas: SLA[];
+  services: Service[];
+  links: { sla_id: number; service_id: number }[];
+  /** zabbix_serviceid → глубина в дереве (корень = 1). */
+  depth: Map<string, number>;
+}
+
 export default function GraphPage({ onNavigate }: GraphPageProps) {
   const { showToast } = useToast();
   const [slas, setSlas] = useState<SLA[]>([]);
@@ -65,16 +75,40 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
   }, [models, selectedModel]);
 
   // ── Данные выбранной модели: её дерево + SLA, связанные с ним ──
-  const scoped = useMemo(() => {
+  const scoped = useMemo<ScopedView>(() => {
     const model = models.find(m => m.rootId === selectedModel);
     if (!model) {
-      return { model: null as HealthModel | null, slas: [] as SLA[], services: [] as Service[], links: [] as { sla_id: number; service_id: number }[] };
+      return { model: null, slas: [], services: [], links: [], depth: new Map() };
     }
     const svcIn = services.filter(s => model.serviceIds.has(s.zabbix_serviceid));
     const svcById = new Map(svcIn.map(s => [s.id, s]));
+
+    // Глубина каждого узла: корень = 1, дети = 2, внуки = 3 и т.д.
+    const childrenMap = new Map<string, string[]>();
+    for (const s of svcIn) {
+      if (!s.parent_zabbix_serviceid) continue;
+      const list = childrenMap.get(s.parent_zabbix_serviceid) || [];
+      list.push(s.zabbix_serviceid);
+      childrenMap.set(s.parent_zabbix_serviceid, list);
+    }
+    const depth = new Map<string, number>();
+    const stack: Array<[string, number]> = [[model.rootId, 1]];
+    while (stack.length) {
+      const [id, d] = stack.pop()!;
+      if (depth.has(id)) continue;
+      depth.set(id, d);
+      for (const c of childrenMap.get(id) || []) stack.push([c, d + 1]);
+    }
+
     const scopedLinks = links.filter(l => svcById.has(l.service_id));
     const slaIds = new Set(scopedLinks.map(l => l.sla_id));
-    return { model, slas: slas.filter(s => slaIds.has(s.id)), services: svcIn, links: scopedLinks };
+    return {
+      model,
+      slas: slas.filter(s => slaIds.has(s.id)),
+      services: svcIn,
+      links: scopedLinks,
+      depth,
+    };
   }, [models, selectedModel, slas, services, links]);
 
   useEffect(() => {
@@ -98,7 +132,7 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     }
   };
 
-  const renderGraph = (view: typeof scoped) => {
+  const renderGraph = (view: ScopedView) => {
     if (!containerRef.current) return;
 
     const nodes = new DataSet<any>([
@@ -114,7 +148,8 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
         level: 0,
       })),
       ...view.services.map(svc => {
-        const isRoot = !svc.parent_zabbix_serviceid;
+        const depth = view.depth.get(svc.zabbix_serviceid) ?? 1;
+        const isRoot = depth === 1;
         return {
           id: `svc-${svc.id}`,
           label: svc.name,
@@ -126,7 +161,9 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
           borderWidth: isRoot ? 3 : 2,
           shadow: true,
           margin: 10,
-          level: isRoot ? 1 : 2,
+          // Глубина в дереве, а не «корень/не-корень»: уровень = реальный ярус,
+          // иначе внуки встают в тот же ряд, что и дети («в боку», а не вниз).
+          level: depth,
         };
       }),
     ]);
