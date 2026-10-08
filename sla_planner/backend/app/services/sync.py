@@ -144,18 +144,22 @@ async def sync_services(db: AsyncSession) -> int:
 
         tags_json = json.dumps(zsvc.get("tags", []))
 
+        # Zabbix 7.0: иерархия через parents[], а не parent_serviceid.
+        parents = zsvc.get("parents", []) or []
+        parent_zabbix_serviceid = str(parents[0]["serviceid"]) if parents else None
+
         if existing:
             existing.name = zsvc["name"]
             existing.algorithm = zsvc.get("algorithm", "0")
             existing.sortorder = int(zsvc.get("sortorder", 0))
             existing.status = int(zsvc.get("status", 0))
             existing.tags = tags_json
-            existing.parent_zabbix_serviceid = zsvc.get("parent_serviceid")
+            existing.parent_zabbix_serviceid = parent_zabbix_serviceid
         else:
             db.add(Service(
                 zabbix_serviceid=str(zsvc["serviceid"]),
                 name=zsvc["name"],
-                parent_zabbix_serviceid=zsvc.get("parent_serviceid"),
+                parent_zabbix_serviceid=parent_zabbix_serviceid,
                 algorithm=zsvc.get("algorithm", "0"),
                 sortorder=int(zsvc.get("sortorder", 0)),
                 status=int(zsvc.get("status", 0)),

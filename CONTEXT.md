@@ -103,6 +103,26 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
 - Тесты: +3 (`test_update_work`, `test_push_uses_work_title_as_downtime_name`, `test_update_planned_work_resyncs_zabbix`) → pytest 15/15, tsc чистый.
 - Запушено в origin: `b2b4aa7` (c7ded78..b2b4aa7, 5 коммитов) — по разрешению пользователя «всегда пуш, если считаешь нужным».
 
+### Тестовый Zabbix пересобран с прода: 67 SLA / 711 услуг (реальные данные)
+Пользователь перенёс реальную структуру с прод-Zabbix (`zabbix-app-004.d0.vsw.ru`, read-only) на
+тестовый (`localhost:8080`) скриптами в корне репо: `import_test.py` (импорт 711 услуг + 67 SLA из
+`zabbix_dump.json`, точный матч по UUID), `fix_tree_uuid.py` (дерево через `parents`, 643 связи),
+`delete_all_services.py` (чистка перед повторным импортом). `zabbix_dump.json` (1013 КБ, прод-данные)
+— в `.gitignore`, лежит локально. Файлы `export_zabbix.py`/`create_slas.py` в репо не копировались.
+
+Итог на тестовом Zabbix: **67 SLA** (service_tags: 210 пар, у 28 SLA есть excluded_downtimes),
+**711 услуг** (тег `service`), дерево **643 ребра / 68 корней**. Прода не трогать.
+
+Сайт синхронизирован: `POST /api/sync/full` → `{"slas":67,"services":711,"links":201}`.
+Старые мелкие объекты (Test SLA v3/ERP/1С/SAP, услуги 1С/SAP/СКУД/EWM/MES) и работа
+«Обновление 12321» (ссылалась на удалённый SLA) прунены — это ожидаемо. Модель БД портала
+(67 SLA / 711 услуг с деревом / many-to-many links / live excluded_downtimes) всё это поддерживает.
+
+**Фикс кода (закоммичен):** Zabbix 7.0 **не отдаёт `parent_serviceid`** — иерархия только через
+`parents`. `zabbix_client.service_get()` теперь запрашивает `selectParents`, `sync_services` берёт
+родителя из `parents[0]["serviceid"]` (раньше дерево на сайте терялось: всё parents=None).
+Проверено на живых данных: 643 ребра на сайте, 0 битых ссылок.
+
 ---
 
 ## 4. Что надо сделать (TODO)
@@ -131,6 +151,8 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
 8. Для ручных вызовов Zabbix API удобно писать скрипты на `venv/bin/python` с `urllib` (примеры были в истории).
 9. **Фронтенд без моков:** если в localStorage залёг `mock-token`/`mock-jwt-token`, AuthContext вычистит его при старте — будет страница логина. Без доступного бэкенда сайт не работает (это норма, а не баг).
 10. **После перезагрузки машины vite/uvicorn умирают** (docker-Zabbix при этом стартует сам). Поднять: `cd sla_planner/backend && venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &`, в корне репо `npm run dev &`. Логи: `/tmp/opencode/uvicorn.log`, `/tmp/opencode/vite.log`. Проверка: достпно ли `curl localhost:3000` и `curl localhost:8000/health`.
+11. **Факты Zabbix 7.0** (проверены на живом 7.0.31): `service.get` НЕ отдаёт `parent_serviceid` — только `parents`/`children` через `selectParents`/`selectChildren`; `service.update` принимает `parents: [{"serviceid":...}]` (массив объектов); `service.create` требует `name`, `algorithm`, `sortorder` (tags опционально), `uuid` задаётся явно; `sla.create` требует name/slo/period/timezone/effective_date/status/service_tags/excluded_downtimes; `sla.update` ПЕРЕЗАПИСЫВАЕТ excluded_downtimes целиком (read-modify-write, учтено в push); значения period_from/to — строки unixtime UTC; авторизация `Authorization: Bearer <token>` (поле `auth` в теле не работает); `apiinfo.version` нельзя вызывать с токеном.
+12. **Скрипты переноса (корень репо):** `import_test.py`, `fix_tree_uuid.py`, `delete_all_services.py` — закоммичены. `zabbix_dump.json` в .gitignore. Повторный `import_test.py` создаст дубли — не запускать без `delete_all_services.py`. `fix_tree.py` (старая версия, матч по имени) не коммитился — суперcedировано `fix_tree_uuid.py`.
 
 ---
 

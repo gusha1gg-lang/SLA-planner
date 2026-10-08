@@ -152,10 +152,16 @@ class ZabbixClient:
         return sla
 
     async def service_get(self, select_tags: bool = True) -> list[dict]:
-        """Получить дерево услуг."""
+        """Получить дерево услуг.
+
+        Иерархия в Zabbix 7.0 хранится в `parents`/`children` — поля
+        `parent_serviceid` у service.get НЕТ. Поэтому запрашиваем
+        selectParents, чтобы сохранить parent-child в БД портала.
+        """
         params: dict[str, Any] = {"output": "extend"}
         if select_tags:
             params["selectTags"] = "extend"
+        params["selectParents"] = "extend"
         return await self._call("service.get", params)
 
     # ── Write methods ──

@@ -33,6 +33,10 @@ Thumbs.db
 # Logs
 *.log
 
+# Prod data dump (Zabbix), kept local only
+zabbix_dump.json
+zabbix_dump.json:*
+
 # Coverage
 htmlcov/
 .coverage
