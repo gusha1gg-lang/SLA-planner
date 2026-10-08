@@ -55,6 +55,20 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
   /** Режим редактирования: true = узлы можно перемещать (кнопки «Сохранить»/«Отмена»). */
   const [editMode, setEditMode] = useState(false);
 
+  const editModeRef = useRef(false);
+  useEffect(() => { editModeRef.current = editMode; }, [editMode]);
+
+  /** Состояние собственного перетаскивания узлов (в vis оно выключено). */
+  const dragSelRef = useRef<null | {
+    groupIds: string[];
+    startPixel: { x: number; y: number };
+    startCanvas: { x: number; y: number };
+    startPos: Record<string, { x: number; y: number }>;
+    moved: boolean;
+  }>(null);
+  /** true = после реального перетаскивания — проглотить следующий click vis. */
+  const suppressClickRef = useRef(false);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<Network | null>(null);
   const nodesRef = useRef<DataSet<any> | null>(null);
@@ -161,6 +175,125 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     }
   }, [scoped, savedLayout]);
 
+  // ── Собственное перетаскивание узлов в режиме редактирования ──
+  // (в vis-network dragNodes выключен: его хит-тест для части узлов не срабатывает.
+  //  Здесь ищем узел по нашим bounding box, а двигаем через network.moveNode —
+  //  поэтому тянутся гарантированно ВСЕ узлы; услуга едет вместе со своим поддеревом.)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !editMode || !scoped.model) return;
+
+    // страховка: узлы точно не fixed (vis не двигает fixed-узлы)
+    if (nodesRef.current) {
+      const ids = nodesRef.current.getIds();
+      nodesRef.current.update(ids.map(id => ({ id, fixed: false })));
+    }
+
+    const toPixel = (e: PointerEvent) => {
+      const rect = el.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
+
+    // Хит-тест по bounding box каждого узла (переводим в пиксели контейнера)
+    const hitTest = (pixel: { x: number; y: number }): string | null => {
+      const n = networkRef.current;
+      if (!n) return null;
+      const positions = n.getPositions() as Record<string, { x: number; y: number }>;
+      let bestId: string | null = null;
+      let bestDist = Infinity;
+      for (const id in positions) {
+        let box: any;
+        try { box = n.getBoundingBox(id); } catch { continue; }
+        if (!box) continue;
+        const tl = n.canvasToDOM({ x: box.left, y: box.top });
+        const br = n.canvasToDOM({ x: box.right, y: box.bottom });
+        const pad = 6;
+        if (pixel.x >= tl.x - pad && pixel.x <= br.x + pad &&
+            pixel.y >= tl.y - pad && pixel.y <= br.y + pad) {
+          const c = n.canvasToDOM({ x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2 });
+          const d = Math.hypot(pixel.x - c.x, pixel.y - c.y);
+          if (d < bestDist) { bestDist = d; bestId = id; }
+        }
+      }
+      return bestId;
+    };
+
+    // Группа: сама услуга + её поддерево (SLA — одиночно)
+    const buildGroup = (startId: string): string[] => {
+      if (!startId.startsWith('svc-')) return [startId];
+      const childIds = new Map<string, string[]>();
+      for (const s of scoped.services) {
+        if (!s.parent_zabbix_serviceid) continue;
+        const parent = scoped.services.find(p => p.zabbix_serviceid === s.parent_zabbix_serviceid);
+        if (!parent) continue;
+        const pid = `svc-${parent.id}`;
+        const cid = `svc-${s.id}`;
+        childIds.set(pid, [...(childIds.get(pid) || []), cid]);
+      }
+      const out: string[] = [];
+      const stack = [startId];
+      while (stack.length) {
+        const id = stack.pop()!;
+        out.push(id);
+        stack.push(...(childIds.get(id) || []));
+      }
+      return out;
+    };
+
+    const onDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      const n = networkRef.current;
+      if (!n) return;
+      const id = hitTest(toPixel(e));
+      if (!id) return;
+      const groupIds = buildGroup(id);
+      const positions = n.getPositions() as Record<string, { x: number; y: number }>;
+      const startPos: Record<string, { x: number; y: number }> = {};
+      groupIds.forEach(g => { if (positions[g]) startPos[g] = { ...positions[g] }; });
+      dragSelRef.current = {
+        groupIds,
+        startPixel: toPixel(e),
+        startCanvas: n.DOMtoCanvas(toPixel(e)),
+        startPos,
+        moved: false,
+      };
+      el.style.cursor = 'grabbing';
+    };
+    const onMove = (e: PointerEvent) => {
+      const d = dragSelRef.current;
+      const n = networkRef.current;
+      if (!d || !n || d.groupIds.length === 0) return;
+      const pixel = toPixel(e);
+      if (!d.moved && Math.abs(pixel.x - d.startPixel.x) < 3 && Math.abs(pixel.y - d.startPixel.y) < 3) return;
+      d.moved = true;
+      const cur = n.DOMtoCanvas(pixel);
+      const cdx = cur.x - d.startCanvas.x;
+      const cdy = cur.y - d.startCanvas.y;
+      for (const gid of d.groupIds) {
+        const p0 = d.startPos[gid];
+        if (p0) n.moveNode(gid, p0.x + cdx, p0.y + cdy);
+      }
+    };
+    const onUp = () => {
+      if (dragSelRef.current?.moved) suppressClickRef.current = true;
+      dragSelRef.current = null;
+      el.style.cursor = 'grab';
+    };
+
+    el.style.cursor = 'grab';
+    el.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      el.style.cursor = '';
+      el.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [editMode, scoped.model, scoped.services]);
+
   const loadData = async () => {
     try {
       const [s, svc, l] = await Promise.all([
@@ -200,20 +333,21 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
 
   const handleEnterEdit = () => {
     setEditMode(true);
-    networkRef.current?.setOptions({ interaction: { dragNodes: true } });
+    // в vis узлы не таскаем сами: выключаем встроенный dragView, чтобы он не конфликтовал
+    networkRef.current?.setOptions({ interaction: { dragView: false } });
   };
 
   const handleSaveLayout = async () => {
     const ok = await persistLayout();
     if (ok) {
       setEditMode(false);
-      networkRef.current?.setOptions({ interaction: { dragNodes: false } });
+      networkRef.current?.setOptions({ interaction: { dragView: true } });
     }
   };
 
   const handleCancelEdit = () => {
     setEditMode(false);
-    networkRef.current?.setOptions({ interaction: { dragNodes: false } });
+    networkRef.current?.setOptions({ interaction: { dragView: true } });
     // возвращаем сохранённую раскладку (отбрасываем несохранённые движения)
     if (savedLayout !== null && scoped.services.length > 0 && containerRef.current) {
       renderGraph(scoped, savedLayout);
@@ -229,7 +363,7 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     }
     setSavedLayout(new Map());
     setEditMode(false);
-    networkRef.current?.setOptions({ interaction: { dragNodes: false } });
+    networkRef.current?.setOptions({ interaction: { dragView: true } });
     showToast('success', `Раскладка «${scoped.model.rootName}» сброшена`);
   };
 
@@ -365,9 +499,10 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
         .filter(Boolean),
     ]);
 
-    // Физика выключена, иерархический layout не используется:
-    // позиции заданы явно. Перетаскивание узлов доступно только в режиме
-    // редактирования (кнопка «Редактировать граф»), иначе граф заморожен.
+    // Физика выключена, иерархический layout не используется; позиции заданы явно.
+    // Перетаскивание УЗЛОВ всегда отключено в vis (пытаемся двигать сами через
+    // pointer-обработчик выше). В режиме просмотра доступно панорамирование (dragView),
+    // в режиме редактирования — свои pointer-события (пан отключён, чтобы не конфликтовать).
     const options: Options = {
       physics: { enabled: false },
       layout: { improvedLayout: false },
@@ -375,8 +510,8 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
       interaction: {
         hover: true,
         tooltipDelay: 200,
-        dragNodes: editMode,
-        dragView: true,
+        dragNodes: false,
+        dragView: !editMode,
       },
     };
 
@@ -389,12 +524,17 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     network.fit({ animation: false });
 
     network.on('click', (params: any) => {
+      // после реального перетаскивания vis может прислать click — глушим его
+      if (suppressClickRef.current) {
+        suppressClickRef.current = false;
+        return;
+      }
       if (params.nodes.length > 0) {
         const nodeId = params.nodes[0];
-        if (nodeId.startsWith('sla-')) {
+        if (nodeId.startsWith('sla-') && !editModeRef.current && onNavigate) {
           const slaId = nodeId.replace('sla-', '');
           const sla = slas.find(s => s.id.toString() === slaId);
-          if (sla && onNavigate) {
+          if (sla) {
             onNavigate('sla-detail', { id: sla.zabbix_slaid });
             showToast('info', `Открыт SLA: ${sla.name}`);
           }
@@ -504,7 +644,7 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
             {editMode ? (
               <>
                 <i className="fas fa-hand-pointer mr-1 text-gray-400"></i>
-                Режим редактирования: перетащите узлы на новые места и нажмите «Сохранить» — раскладка станет общей для всех пользователей.
+                Режим редактирования: перетащите узлы на новые места и нажмите «Сохранить» — раскладка станет общей для всех пользователей. Потянув услугу, её поддерево едет следом.
               </>
             ) : isAdmin ? (
               <>
