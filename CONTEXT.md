@@ -153,6 +153,10 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
   дефолт. Раскладка своя у каждой модели.
 - Тесты pytest 15/15 (новую таблицу create_all создаёт автоматически), tsc чистый.
 
+### UI: страница переименована «Граф SLA» → «Модель здоровья» — ЗАКОММИЧЕНО
+- Меню (`Layout.tsx`), заголовок страницы (`GraphPage.tsx`), роль viewer (`UsersPage.tsx`),
+  README — теперь «Модель здоровья». id страницы в меню остался `graph` (роутинг не менялся).
+
 ---
 
 ## 4. Что надо сделать (TODO)
@@ -183,7 +187,7 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
 10. **После перезагрузки машины vite/uvicorn умирают** (docker-Zabbix при этом стартует сам). Поднять: `cd sla_planner/backend && venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &`, в корне репо `npm run dev &`. Логи: `/tmp/opencode/uvicorn.log`, `/tmp/opencode/vite.log`. Проверка: достпно ли `curl localhost:3000` и `curl localhost:8000/health`.
 11. **Факты Zabbix 7.0** (проверены на живом 7.0.31): `service.get` НЕ отдаёт `parent_serviceid` — только `parents`/`children` через `selectParents`/`selectChildren`; `service.update` принимает `parents: [{"serviceid":...}]` (массив объектов); `service.create` требует `name`, `algorithm`, `sortorder` (tags опционально), `uuid` задаётся явно; `sla.create` требует name/slo/period/timezone/effective_date/status/service_tags/excluded_downtimes; `sla.update` ПЕРЕЗАПИСЫВАЕТ excluded_downtimes целиком (read-modify-write, учтено в push); значения period_from/to — строки unixtime UTC; авторизация `Authorization: Bearer <token>` (поле `auth` в теле не работает); `apiinfo.version` нельзя вызывать с токеном.
 12. **Скрипты переноса (корень репо):** `import_test.py`, `fix_tree_uuid.py`, `delete_all_services.py` — закоммичены. `zabbix_dump.json` в .gitignore. Повторный `import_test.py` создаст дубли — не запускать без `delete_all_services.py`. `fix_tree.py` (старая версия, матч по имени) не коммитился — суперcedировано `fix_tree_uuid.py`.
-13. **Кнопка «Синхр. с Zabbix»** после успешного синка перезагружает страницу (`onSync` → `window.location.reload()` в `App.tsx`) — граф/списки сразу актуализируются, без ручной смены страницы. Кнопка видна только admin.
+13. **Кнопка «Синхр. с Zabbix»** после успешного синка перезагружает страницу (`onSync` → `window.location.reload()` в `App.tsx`) — модель здоровья/списки сразу актуализируются, без ручной смены страницы. Кнопка видна только admin.
 14. **По просьбе пользователя БД сайта очищена** (0 SLA / 0 услуг / 0 работ / чистая аудит-лог; пользователи сохранены) — чтобы он лично проверил кнопку синка с пустого состояния. Заполнить заново: у админа нажать «Синхр. с Zabbix» (→ 67 SLA / 711 услуг / 201 связь).
 
 ---

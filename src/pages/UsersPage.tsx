@@ -24,7 +24,7 @@ export default function UsersPage() {
   const roleDescriptions: Record<string, string> = {
     admin: 'Полный доступ: управление пользователями, создание работ, синхронизация',
     planner: 'Создание и управление плановыми работами, push в Zabbix',
-    viewer: 'Только просмотр: дашборд, граф, отчёты',
+    viewer: 'Только просмотр: дашборд, модель здоровья, отчёты',
   };
 
   if (loading) {

@@ -387,7 +387,7 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Граф SLA и услуг</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Модель здоровья</h1>
           <p className="text-gray-500 mt-1">Модели здоровья (деревья услуг) из Zabbix → SLA по тегам</p>
         </div>
         <div className="flex items-center gap-3">
