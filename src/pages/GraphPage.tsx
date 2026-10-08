@@ -52,6 +52,8 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
   const [selectedModel, setSelectedModel] = useState<string>(''); // zabbix_serviceid корня
   /** Раскладка выбранной модели: node_key → {x, y}. null = ещё грузится. */
   const [savedLayout, setSavedLayout] = useState<Map<string, SavedPos> | null>(null);
+  /** rootId модели, для которой загружена/актуальна savedLayout (защита от «мигания» раскладкой чужой модели). */
+  const [savedLayoutModel, setSavedLayoutModel] = useState<string>('');
   /** Режим редактирования: true = узлы можно перемещать (кнопки «Сохранить»/«Отмена»). */
   const [editMode, setEditMode] = useState(false);
 
@@ -151,29 +153,38 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
   useEffect(() => {
     if (!modelId) {
       setSavedLayout(new Map());
+      setSavedLayoutModel('');
       return;
     }
     let cancelled = false;
     networkRef.current?.destroy();
     networkRef.current = null;
+    setSavedLayoutModel(modelId);
     setSavedLayout(null); // режим загрузки
     setEditMode(false);   // смена модели выходит из режима редактирования
     api.getGraphPositions(modelId)
       .then(list => {
         if (cancelled) return;
+        setSavedLayoutModel(modelId);
         setSavedLayout(new Map(list.map(p => [p.node_key, { x: p.x, y: p.y }])));
       })
       .catch(() => {
-        if (!cancelled) setSavedLayout(new Map());
+        if (!cancelled) {
+          setSavedLayoutModel(modelId);
+          setSavedLayout(new Map());
+        }
       });
     return () => { cancelled = true; };
   }, [modelId]);
 
   useEffect(() => {
-    if (scoped.services.length > 0 && containerRef.current && savedLayout !== null) {
+    // рендерим граф ТОЛЬКО с раскладкой, загруженной для текущей модели
+    // (иначе при переключении моделей успевал мелькнуть граф со «старой» раскладкой)
+    if (scoped.services.length > 0 && containerRef.current &&
+        savedLayout !== null && savedLayoutModel === modelId) {
       renderGraph(scoped, savedLayout);
     }
-  }, [scoped, savedLayout]);
+  }, [scoped, savedLayout, savedLayoutModel, modelId]);
 
   // ── Собственное перетаскивание узлов в режиме редактирования ──
   // (в vis-network dragNodes выключен: его хит-тест для части узлов не срабатывает.
@@ -322,6 +333,7 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     try {
       await api.saveGraphPositions(scoped.model.rootId, positions);
       // фиксируем в памяти как «последнее сохранённое» (из «Отмены» вернёмся сюда)
+      setSavedLayoutModel(scoped.model.rootId);
       setSavedLayout(new Map(positions.map(p => [p.node_key, { x: p.x, y: p.y }])));
       showToast('success', `Раскладка «${scoped.model.rootName}» сохранена для всех`);
       return true;
@@ -362,6 +374,7 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
       // не критично — локально всё равно сбрасываем
     }
     setSavedLayout(new Map());
+    setSavedLayoutModel(scoped.model.rootId);
     setEditMode(false);
     networkRef.current?.setOptions({ interaction: { dragView: true } });
     showToast('success', `Раскладка «${scoped.model.rootName}» сброшена`);
@@ -659,8 +672,16 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
             )}
           </p>
 
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="relative bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div ref={containerRef} className="w-full h-[600px]" />
+            {savedLayout === null && scoped.model && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/70">
+                <div className="flex items-center gap-2 text-gray-500 text-sm">
+                  <i className="fas fa-spinner fa-spin text-xl text-blue-600"></i>
+                  Загрузка раскладки…
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
