@@ -352,6 +352,12 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
     `_defaultBorderWidth`/`_defaultShadow` в DataSet (vis их игнорирует при отрисовке, но хранит);
     `applySelectionHighlight` снимает подсветку предыдущего узла по рефу. Смена модели через
     селектор сбрасывает выбор (а программный переключатель модели из карточки — сохраняет).
+19. **Vite может держать устаревшую трансформацию модуля** после серии быстрых правок одного файла
+    (например, `GraphPage.tsx`): по прямому URL `/src/pages/GraphPage.tsx` отдаётся СТАРАЯ версия
+    (проверить: `curl -s localhost:3000/src/pages/GraphPage.tsx | grep -c SLADetailCard`, должно быть
+    не 0; со свежим `?t=` query — новый код). Лечение: перезапустить vite (`kill <pid>` + `npm run dev`),
+    пользователю — жёсткий reload (Ctrl+Shift+R). Симптом у пользователя: «пропали/не появились
+    изменения после нажатий», хотя код на диске и typecheck/build зелёные.
 
 ---
 
