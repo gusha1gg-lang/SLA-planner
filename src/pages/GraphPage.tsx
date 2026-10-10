@@ -882,42 +882,6 @@ export default function GraphPage() {
               </p>
             </div>
           )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-              <h3 className="font-semibold text-gray-900 mb-3">SLA ({scoped.slas.length})</h3>
-              {scoped.slas.length === 0 ? (
-                <p className="text-gray-400 text-sm">К этой модели не привязан ни один SLA</p>
-              ) : (
-                <div className="space-y-2">
-                  {scoped.slas.map(sla => (
-                    <div key={sla.id} className="flex items-center justify-between text-sm">
-                      <span className="text-gray-700">{sla.name}</span>
-                      <span className="text-gray-400 font-mono text-xs">slaid={sla.zabbix_slaid}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-              <h3 className="font-semibold text-gray-900 mb-3">Услуги ({scoped.services.length})</h3>
-              <div className="space-y-2">
-                {scoped.services.map(svc => (
-                  <div key={svc.id} className="flex items-center justify-between text-sm">
-                    <span className="text-gray-700">
-                      {svc.parent_zabbix_serviceid ? (
-                        <i className="fas fa-level-up-alt text-gray-300 mr-2 text-xs"></i>
-                      ) : (
-                        <i className="fas fa-th-large text-purple-700 mr-2 text-xs"></i>
-                      )}
-                      {svc.name}
-                    </span>
-                    <span className="text-gray-400 font-mono text-xs">id={svc.zabbix_serviceid}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         </>
       )}
     </div>
