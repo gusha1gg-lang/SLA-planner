@@ -210,6 +210,8 @@ class RealApiClient {
     name: string;
     description: string;
     permissions: string[];
+    all_models: boolean;
+    model_ids: string[];
     member_ids: number[];
   }): Promise<Group> {
     return this.request<Group>('/groups/', { method: 'POST', body: JSON.stringify(data) });
@@ -217,7 +219,7 @@ class RealApiClient {
 
   async updateGroup(
     id: number,
-    data: { name: string; description: string; permissions: string[]; member_ids: number[] }
+    data: { name: string; description: string; permissions: string[]; all_models: boolean; model_ids: string[]; member_ids: number[] }
   ): Promise<Group> {
     return this.request<Group>(`/groups/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   }
@@ -362,6 +364,8 @@ export const api = {
     name: string;
     description: string;
     permissions: string[];
+    all_models: boolean;
+    model_ids: string[];
     member_ids: number[];
   }): Promise<Group> {
     return await realApi.createGroup(data);
@@ -369,7 +373,7 @@ export const api = {
 
   async updateGroup(
     id: number,
-    data: { name: string; description: string; permissions: string[]; member_ids: number[] }
+    data: { name: string; description: string; permissions: string[]; all_models: boolean; model_ids: string[]; member_ids: number[] }
   ): Promise<Group> {
     return await realApi.updateGroup(id, data);
   },

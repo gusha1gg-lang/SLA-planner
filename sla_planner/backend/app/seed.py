@@ -59,6 +59,8 @@ async def _ensure_groups(session) -> dict[str, Group]:
             name=name,
             description=description,
             permissions=json.dumps(perms, ensure_ascii=False),
+            all_models=True,  # системные группы видят все модели здоровья
+            model_ids="[]",
             is_system=True,
         )
         session.add(group)

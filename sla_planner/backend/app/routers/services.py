@@ -11,7 +11,7 @@ from app.database import get_db
 from app.models.service import Service
 from app.models.user import User
 from app.routers.auth import get_current_user
-from app.permissions import P_MODEL, P_SYNC, require_permission
+from app.permissions import P_MODEL, P_SYNC, allowed_service_ids, require_permission
 from app.services.sync import sync_services, sync_sla_service_links
 from app.services.zabbix_client import zabbix_client, ZabbixError
 
@@ -66,9 +66,13 @@ async def list_services(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Список услуг из БД."""
+    """Список услуг из БД. Видны только услуги моделей здоровья, доступных
+    пользователю по его группам (admin и группы «все модели» — все услуги)."""
+    allowed = await allowed_service_ids(current_user, db)
     result = await db.execute(select(Service).order_by(Service.name))
     services = result.scalars().all()
+    if allowed is not None:
+        services = [s for s in services if s.zabbix_serviceid in allowed]
     return [{
         "id": s.id,
         "zabbix_serviceid": s.zabbix_serviceid,
@@ -98,11 +102,16 @@ async def sync(
 @router.get("/{zabbix_serviceid}/config")
 async def service_config(
     zabbix_serviceid: str,
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission(P_MODEL)),
 ):
     """Живая конфигурация услуги из Zabbix: родители/дети, теги проблем,
     алгоритм вычисления состояния, правило распространения, вес и т.п.
-    Право: model (видно на «Модели здоровья»)."""
+    Право: model (видно на «Модели здоровья»); услуга должна быть в модели,
+    доступной пользователю по его группам."""
+    allowed = await allowed_service_ids(current_user, db)
+    if allowed is not None and zabbix_serviceid not in allowed:
+        raise HTTPException(status_code=403, detail="Нет доступа к услуге этой модели здоровья")
     try:
         s = await zabbix_client.service_config_get(zabbix_serviceid)
     except ZabbixError as e:

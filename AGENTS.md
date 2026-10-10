@@ -29,6 +29,11 @@
    **Модель прав (2026-10-10):** роли `admin` (полные права, без групп) и `user`
    (права = сумма прав его групп, как команды в Grafana). Каталог в `app/permissions.py` ↔
    `src/permissions.ts`, гейтинг `require_permission`/`require_admin`, на фронте `can(...)`.
+   **Область моделей здоровья (2026-10-10):** группа несёт `all_models` + `model_ids`
+   (root-id моделей); пользователю доступны модели = union по его группам (admin — все).
+   `GET /api/services/`, `/api/graph/positions`, `/api/services/{id}/config` фильтруются/гейтятся
+   по области; право `graph.edit` действует только на модели своей группы (`can_edit_model`).
+   На фронте — `canModel(rootId)`; UI выбора моделей в «Группах».
 3. **Логин через query params:** `POST /api/auth/login?username=...&password=...` → в ответе
    поле `access_token` (не `token`). Пользователи: `admin/admin123` (роль admin),
    `planner/planner123` (user, «Планировщики»), `viewer/viewer123` (user, «Наблюдатели»).
@@ -77,10 +82,13 @@ cd /opt/sla_planner1 && npm run dev &
 - **Кнопка «Синхр. с Zabbix»** (admin) после синка перезагружает страницу (`window.location.reload()`).
 - **Схема БД: `create_all` + Alembic вместе.** На старте `app/main.py` вызывает `init_db()`
   (`Base.metadata.create_all`) — таблицы появляются сами в dev и тестах. Alembic-миграции:
-  `001_initial`, `002_add_service_tags`, `003_graph_tables` (`alembic/env.py` берёт URL из
-  `settings.DATABASE_URL`, а не из `alembic.ini`). Запуск: `venv/bin/python -m alembic upgrade head`
-  (консольный `alembic` без `python -m` не видит пакет `app`). Dev-БД после `create_all` нужно
-  пометить `venv/bin/python -m alembic stamp head`, иначе `upgrade` упадёт на существующих таблицах.
+  `001_initial`, `002_add_service_tags`, `003_graph_tables`, `004_groups`, `005_group_models`
+  (`alembic/env.py` берёт URL из `settings.DATABASE_URL`, а не из `alembic.ini`). Запуск:
+  `venv/bin/python -m alembic upgrade head`
+  (без `python -m` не видит пакет `app`). Dev-БД после `create_all` нужно пометить
+  `venv/bin/python -m alembic stamp head`, иначе `upgrade` упадёт на существующих таблицах.
+  Важно: `create_all` НЕ добавляет колонки в уже существующие таблицы — при новых полях
+  (как `groups.all_models`) обязательно прогонять миграцию, иначе работающий сайт даст 500.
 - **Скрипты переноса в корне репо** (`import_test.py`, `fix_tree_uuid.py`, `delete_all_services.py`)
   работают с тестовым Zabbix. `import_test.py` без предварительного `delete_all_services.py`
   создаёт дубли. `zabbix_dump.json` — прод-дамп (в `.gitignore`) — в git не коммитить.
@@ -92,13 +100,17 @@ cd /opt/sla_planner1 && npm run dev &
 - `src/api/realClient.ts` — весь HTTP-слой (только реальные запросы, моков нет);
   `src/api/client.ts` — реэкспорт `realClient` (обратная совместимость).
 - `sla_planner/backend/app/routers/graph.py` — позиции (`graph_node_positions`) и цвета
-  (`graph_node_styles`) графа; `GET/PUT/DELETE /api/graph/positions?model=<rootId>` (PUT/DELETE —
-  admin), `GET/PUT /api/graph/colors` (PUT — admin).
+  (`graph_node_styles`) графа; `GET/PUT/DELETE /api/graph/positions?model=<rootId>`
+  (PUT/DELETE — право `graph.edit`, только на модели своей группы), `GET/PUT /api/graph/colors`
+  (PUT — admin).
+- `src/healthModels.ts` — `buildHealthModels(services)`: сборка моделей здоровья (корень + потомки)
+  из плоского списка услуг; используется в `GraphPage` и `GroupsPage`.
 - `sla_planner/backend/app/services/sync.py` + `zabbix_client.py` — синк Zabbix↔сайт (теги, prune, полный синк).
 - `sla_planner/backend/app/seed.py` — идемпотентный bootstrap пользователей и системных групп
-  («Планировщики»/«Наблюдатели»; мок-данных нет).
-- `sla_planner/backend/app/permissions.py` + `src/permissions.ts` — каталог прав и хелперы RBAC;
-  `app/routers/groups.py` — CRUD групп (`/api/groups`, admin-only);
-  `src/pages/GroupsPage.tsx` — страница «Группы».
+  («Планировщики»/«Наблюдатели» с `all_models=True`; мок-данных нет).
+- `sla_planner/backend/app/permissions.py` + `src/permissions.ts` — каталог прав и хелперы RBAC
+  (`model_scope`, `allowed_service_ids`, `can_access_model`, `can_edit_model`);
+  `app/routers/groups.py` — CRUD групп (`/api/groups`, admin-only, поля `all_models`/`model_ids`);
+  `src/pages/GroupsPage.tsx` — страница «Группы» (права + область моделей).
 - `sla_planner/backend/tests/test_api.py` — тесты (run см. п.2).
 - `CONTEXT.md` — память проекта: история, TODO, ловушки. **Читать в начале, обновлять в конце.**

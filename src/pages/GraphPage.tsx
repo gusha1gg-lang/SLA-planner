@@ -8,17 +8,8 @@ import { DataSet } from 'vis-data';
 import { Network, Options } from 'vis-network';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { buildHealthModels, HealthModel } from '../healthModels';
 import { PERMISSIONS } from '../permissions';
-
-/**
- * Модель здоровья = дерево услуг от корневого сервиса (услуги без родителя).
- * В Zabbix 7.0 кнопка — «Модель здоровья» (service tree).
- */
-interface HealthModel {
-  rootId: string;      // zabbix_serviceid корня
-  rootName: string;    // имя корня = имя модели
-  serviceIds: Set<string>; // zabbix_serviceid всех узлов дерева (корень + потомки)
-}
 
 /** Данные, отображаемые для выбранной модели здоровья. */
 interface ScopedView {
@@ -75,7 +66,7 @@ function serviceNodeColor(base: string, isRoot: boolean) {
  */
 export default function GraphPage() {
   const { showToast } = useToast();
-  const { can } = useAuth();
+  const { can, canModel } = useAuth();
   const canEditGraph = can(PERMISSIONS.graphEdit);
 
   const [slas, setSlas] = useState<SLA[]>([]);
@@ -119,29 +110,11 @@ export default function GraphPage() {
   const nodesRef = useRef<DataSet<any> | null>(null);
   const idToKeyRef = useRef<Map<string, string>>(new Map()); // vis id → node_key ("svc:.."/"sla:..")
 
-  // ── Список моделей здоровья (корни + все потомки) ──
-  const models = useMemo<HealthModel[]>(() => {
-    const childrenMap = new Map<string, string[]>();
-    for (const s of services) {
-      if (!s.parent_zabbix_serviceid) continue;
-      const list = childrenMap.get(s.parent_zabbix_serviceid) || [];
-      list.push(s.zabbix_serviceid);
-      childrenMap.set(s.parent_zabbix_serviceid, list);
-    }
-    const roots = services.filter(s => !s.parent_zabbix_serviceid);
-    const result: HealthModel[] = roots.map(r => {
-      const ids = new Set<string>();
-      const stack = [r.zabbix_serviceid];
-      while (stack.length) {
-        const id = stack.pop()!;
-        if (ids.has(id)) continue;
-        ids.add(id);
-        stack.push(...(childrenMap.get(id) || []));
-      }
-      return { rootId: r.zabbix_serviceid, rootName: r.name, serviceIds: ids };
-    });
-    return result.sort((a, b) => a.rootName.localeCompare(b.rootName, 'ru'));
-  }, [services]);
+  // ── Список моделей здоровья (корни + все потомки), доступных по группам пользователя ──
+  const models = useMemo<HealthModel[]>(
+    () => buildHealthModels(services).filter(m => canModel(m.rootId)),
+    [services, canModel]
+  );
 
   useEffect(() => {
     loadData();
@@ -760,6 +733,14 @@ export default function GraphPage() {
           <i className="fas fa-project-diagram text-4xl text-gray-300 mb-3"></i>
           <p className="text-gray-500">Данных пока нет.</p>
           <p className="text-gray-400 text-sm mt-1">Нажмите «Синхр. с Zabbix» (правая кнопка вверху, нужна роль admin), чтобы загрузить SLA и услуги.</p>
+        </div>
+      ) : models.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 text-center">
+          <i className="fas fa-lock text-4xl text-gray-300 mb-3"></i>
+          <p className="text-gray-500">Нет доступных моделей здоровья.</p>
+          <p className="text-gray-400 text-sm mt-1">
+            Доступ к моделям здоровья выдаётся группами. Обратитесь к администратору, чтобы вас добавили в нужную группу.
+          </p>
         </div>
       ) : (
         <>

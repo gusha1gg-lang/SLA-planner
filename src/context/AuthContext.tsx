@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useState, ReactNode } from 'react';
 import { User } from '../types';
 import { realApi } from '../api/realClient';
 
@@ -9,6 +9,8 @@ interface AuthContextType {
   logout: () => void;
   /** Есть ли право (одно или все из списка); admin — всегда true. */
   can: (permission: string | string[]) => boolean;
+  /** Доступна ли модель здоровья по области групп; admin — всегда. */
+  canModel: (rootId: string) => boolean;
   /** Полная роль без групп. */
   isAdmin: boolean;
 }
@@ -63,18 +65,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('sla_token');
   };
 
-  const can = (permission: string | string[]): boolean => {
+  const can = useCallback((permission: string | string[]): boolean => {
     if (!user) return false;
     if (user.role === 'admin') return true;
     const owned = new Set(user.permissions || []);
     const required = Array.isArray(permission) ? permission : [permission];
     return required.every(p => owned.has(p));
-  };
+  }, [user]);
 
   const isAdmin = user?.role === 'admin';
 
+  const canModel = useCallback((rootId: string): boolean => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    const scope = user.models;
+    // Сессия старого формата (без models) — считаем «все модели»; бэкенд всё равно ограничит.
+    if (!scope || scope.all) return true;
+    return scope.ids.includes(rootId);
+  }, [user]);
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, can, isAdmin }}>
+    <AuthContext.Provider value={{ user, token, login, logout, can, canModel, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );

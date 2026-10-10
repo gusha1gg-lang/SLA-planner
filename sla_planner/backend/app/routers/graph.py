@@ -21,9 +21,19 @@ from app.database import get_db
 from app.models.graph_node_position import GraphNodePosition
 from app.models.graph_node_style import GraphNodeStyle
 from app.models.user import User
-from app.permissions import P_GRAPH_EDIT, P_MODEL, require_permission
+from app.permissions import (
+    P_GRAPH_EDIT,
+    P_MODEL,
+    can_access_model,
+    can_edit_model,
+    require_permission,
+)
 
 router = APIRouter()
+
+
+def _forbidden_model() -> HTTPException:
+    return HTTPException(status_code=403, detail="Нет доступа к этой модели здоровья")
 
 
 class NodePosition(BaseModel):
@@ -64,6 +74,8 @@ async def get_positions(
     current_user: User = Depends(require_permission(P_MODEL)),
 ):
     """Раскладка модели здоровья. Общая для всех пользователей с доступом к модели."""
+    if not await can_access_model(current_user, db, model):
+        raise _forbidden_model()
     result = await db.execute(
         select(GraphNodePosition).where(GraphNodePosition.model_key == model)
     )
@@ -78,6 +90,8 @@ async def save_positions(
     current_user: User = Depends(require_permission(P_GRAPH_EDIT)),
 ):
     """Перезаписать раскладку модели целиком (право graph.edit)."""
+    if not await can_edit_model(current_user, db, data.model):
+        raise _forbidden_model()
     await db.execute(
         delete(GraphNodePosition).where(GraphNodePosition.model_key == data.model)
     )
@@ -98,6 +112,8 @@ async def clear_positions(
     current_user: User = Depends(require_permission(P_GRAPH_EDIT)),
 ):
     """Сбросить раскладку модели (право graph.edit)."""
+    if not await can_edit_model(current_user, db, model):
+        raise _forbidden_model()
     await db.execute(
         delete(GraphNodePosition).where(GraphNodePosition.model_key == model)
     )

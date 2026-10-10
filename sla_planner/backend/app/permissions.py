@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.deps import get_current_user
 from app.models.group import Group, UserGroup
+from app.models.service import Service
 from app.models.user import User
 
 # ── Страницы ──
@@ -80,21 +81,33 @@ GROUP_VIEWERS = [
 ]
 
 
-async def effective_permissions(user: User, db: AsyncSession) -> set[str]:
-    """Права пользователя: admin => все; user => сумма прав его групп."""
-    if user.role == "admin":
-        return set(ALL_PERMISSIONS)
-
+async def _load_user_groups(user: User, db: AsyncSession) -> list[Group]:
+    """Группы пользователя (объекты Group)."""
     rows = await db.execute(
         select(UserGroup.group_id).where(UserGroup.user_id == user.id)
     )
     group_ids = [row[0] for row in rows.all()]
     if not group_ids:
+        return []
+    groups = await db.execute(select(Group).where(Group.id.in_(group_ids)))
+    return list(groups.scalars().all())
+
+
+def _group_model_ids(group: Group) -> set[str]:
+    """Разрешённые модели группы из JSON-поля model_ids (приведены к строке)."""
+    try:
+        return {str(x) for x in json.loads(group.model_ids or "[]")}
+    except ValueError:
         return set()
 
-    groups = await db.execute(select(Group).where(Group.id.in_(group_ids)))
+
+async def effective_permissions(user: User, db: AsyncSession) -> set[str]:
+    """Права пользователя: admin => все; user => сумма прав его групп."""
+    if user.role == "admin":
+        return set(ALL_PERMISSIONS)
+
     perms: set[str] = set()
-    for group in groups.scalars().all():
+    for group in await _load_user_groups(user, db):
         try:
             perms.update(json.loads(group.permissions or "[]"))
         except ValueError:
@@ -104,17 +117,87 @@ async def effective_permissions(user: User, db: AsyncSession) -> set[str]:
 
 async def user_groups(user: User, db: AsyncSession) -> list[dict]:
     """Группы пользователя [{id, name}] для ответов API."""
-    rows = await db.execute(
-        select(UserGroup.group_id).where(UserGroup.user_id == user.id)
-    )
-    group_ids = [row[0] for row in rows.all()]
-    if not group_ids:
-        return []
+    groups = await _load_user_groups(user, db)
+    groups.sort(key=lambda g: g.name)
+    return [{"id": g.id, "name": g.name} for g in groups]
 
-    groups = await db.execute(
-        select(Group).where(Group.id.in_(group_ids)).order_by(Group.name)
-    )
-    return [{"id": g.id, "name": g.name} for g in groups.scalars().all()]
+
+# ── Область моделей здоровья (группа: все модели / конкретные) ──
+
+async def model_scope(user: User, db: AsyncSession) -> dict:
+    """Область моделей здоровья пользователя: {all: bool, ids: [rootId, ...]}.
+
+    admin — все модели. user — объединение областей всех его групп;
+    если хотя бы одна группа «все модели» — all=True.
+    """
+    if user.role == "admin":
+        return {"all": True, "ids": []}
+
+    all_models = False
+    ids: set[str] = set()
+    for group in await _load_user_groups(user, db):
+        if group.all_models:
+            all_models = True
+        ids.update(_group_model_ids(group))
+    return {"all": all_models, "ids": sorted(ids)}
+
+
+async def allowed_service_ids(user: User, db: AsyncSession) -> set[str] | None:
+    """Множество разрешённых zabbix_serviceid во всех моделях пользователя.
+
+    None => все услуги (admin или группа «все модели»). Иначе — корни из
+    области моделей + все их потомки (по дереву услуг).
+    """
+    scope = await model_scope(user, db)
+    if scope["all"]:
+        return None
+    roots = set(scope["ids"])
+    if not roots:
+        return set()
+
+    rows = (await db.execute(
+        select(Service.zabbix_serviceid, Service.parent_zabbix_serviceid)
+    )).all()
+    children: dict[str | None, list[str]] = {}
+    for sid, pid in rows:
+        children.setdefault(pid, []).append(sid)
+
+    result: set[str] = set()
+    stack = list(roots)
+    while stack:
+        sid = stack.pop()
+        if sid in result:
+            continue
+        result.add(sid)
+        stack.extend(children.get(sid, []))
+    return result
+
+
+async def can_access_model(user: User, db: AsyncSession, root_id: str) -> bool:
+    """Есть ли у пользователя доступ к модели здоровья (корню дерева)."""
+    if user.role == "admin":
+        return True
+    scope = await model_scope(user, db)
+    return bool(scope["all"]) or str(root_id) in set(scope["ids"])
+
+
+async def can_edit_model(user: User, db: AsyncSession, root_id: str) -> bool:
+    """Может ли пользователь редактировать граф этой модели.
+
+    Право graph.edit берётся из групп, и действует только на модели той группы
+    (или на все, если у группы all_models). admin — всегда.
+    """
+    if user.role == "admin":
+        return True
+    root = str(root_id)
+    for group in await _load_user_groups(user, db):
+        try:
+            perms = set(json.loads(group.permissions or "[]"))
+        except ValueError:
+            perms = set()
+        if P_GRAPH_EDIT in perms and (group.all_models or root in _group_model_ids(group)):
+            return True
+    return False
 
 
 def require_permission(*required: str):

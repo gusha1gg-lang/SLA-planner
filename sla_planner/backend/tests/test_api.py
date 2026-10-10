@@ -18,7 +18,7 @@ from httpx import AsyncClient, ASGITransport
 
 from app.main import app
 from app.database import engine, Base, async_session
-from app.models import User, Group, UserGroup
+from app.models import User, Group, UserGroup, Service
 from app.permissions import ALL_PERMISSIONS
 from app.services.auth import hash_password, create_access_token
 
@@ -77,13 +77,22 @@ async def user_headers(user: User) -> dict:
     return {"Authorization": f"Bearer {create_access_token({'sub': str(user.id), 'role': user.role})}"}
 
 
-async def create_group(name: str, permissions: list[str], member_ids: list[int] = (), is_system: bool = False) -> Group:
-    """Создать группу с правами и составом прямо в БД (для тестов)."""
+async def create_group(
+    name: str,
+    permissions: list[str],
+    member_ids: list[int] = (),
+    is_system: bool = False,
+    all_models: bool = True,
+    model_ids: list[str] = (),
+) -> Group:
+    """Создать группу с правами, областью моделей и составом прямо в БД (для тестов)."""
     async with async_session() as session:
         group = Group(
             name=name,
             description="",
             permissions=json.dumps(permissions, ensure_ascii=False),
+            all_models=all_models,
+            model_ids=json.dumps(list(model_ids), ensure_ascii=False),
             is_system=is_system,
         )
         session.add(group)
@@ -93,6 +102,14 @@ async def create_group(name: str, permissions: list[str], member_ids: list[int] 
         await session.commit()
         await session.refresh(group)
         return group
+
+
+async def create_services(rows: list[tuple[str, str | None, str]]) -> None:
+    """Создать услуги прямо в БД: (zabbix_serviceid, parent_zabbix_serviceid, name)."""
+    async with async_session() as session:
+        for sid, pid, name in rows:
+            session.add(Service(zabbix_serviceid=sid, parent_zabbix_serviceid=pid, name=name))
+        await session.commit()
 
 
 # ── Базовые ──
@@ -681,6 +698,157 @@ async def test_system_group_cannot_be_deleted(auth_headers):
         system_id = next(g["id"] for g in groups if g["is_system"])
         response = await client.delete(f"/api/groups/{system_id}", headers=auth_headers)
     assert response.status_code == 400
+
+
+# ── Область моделей здоровья у групп ──
+
+@pytest.mark.asyncio
+async def test_me_returns_all_models_for_admin(auth_headers):
+    """admin видит все модели здоровья (scope.all=true)."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/auth/me", headers=auth_headers)
+    assert response.status_code == 200
+    assert response.json()["models"] == {"all": True, "ids": []}
+
+
+@pytest.mark.asyncio
+async def test_user_model_scope_from_groups(plain_user):
+    """Область моделей пользователя — объединение областей его групп."""
+    await create_group("SAP", ["model"], [plain_user.id], all_models=False, model_ids=["796"])
+    await create_group("1С", ["model"], [plain_user.id], all_models=False, model_ids=["797"])
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/auth/me", headers=await user_headers(plain_user))
+    assert response.status_code == 200
+    assert response.json()["models"] == {"all": False, "ids": ["796", "797"]}
+
+
+@pytest.mark.asyncio
+async def test_group_all_models_flag_wins(plain_user):
+    """Если хоть одна группа даёт «все модели» — scope.all=true."""
+    await create_group("SAP", ["model"], [plain_user.id], all_models=False, model_ids=["796"])
+    await create_group("Аналитики", ["model"], [plain_user.id], all_models=True)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/auth/me", headers=await user_headers(plain_user))
+    assert response.status_code == 200
+    assert response.json()["models"] == {"all": True, "ids": ["796"]}
+
+
+@pytest.mark.asyncio
+async def test_group_model_scope_limits_services(plain_user, auth_headers):
+    """Услуги видны только в пределах разрешённых моделей; admin — все."""
+    # модель 1: корень "1" + потомок "11"; модель 2: корень "2" + потомок "22"
+    await create_services([
+        ("1", None, "SAP"),
+        ("11", "1", "SAP child"),
+        ("2", None, "1С"),
+        ("22", "2", "1С child"),
+    ])
+    await create_group("SAP", ["model"], [plain_user.id], all_models=False, model_ids=["1"])
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        user_resp = await client.get("/api/services/", headers=await user_headers(plain_user))
+        admin_resp = await client.get("/api/services/", headers=auth_headers)
+
+    assert user_resp.status_code == 200
+    assert {s["zabbix_serviceid"] for s in user_resp.json()} == {"1", "11"}  # только модель SAP
+    assert {s["zabbix_serviceid"] for s in admin_resp.json()} == {"1", "11", "2", "22"}
+
+
+@pytest.mark.asyncio
+async def test_service_config_model_scope(plain_user):
+    """Конфиг услуги вне моделей пользователя — 403."""
+    await create_services([("1", None, "SAP"), ("2", None, "1С")])
+    await create_group("SAP", ["model"], [plain_user.id], all_models=False, model_ids=["1"])
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # услуга вне области — отказ до обращения к Zabbix
+        forbidden = await client.get("/api/services/2/config", headers=await user_headers(plain_user))
+    assert forbidden.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_graph_positions_model_scope(plain_user):
+    """Раскладку чужой модели читать нельзя (403), своей — можно (200)."""
+    await create_services([("1", None, "SAP"), ("2", None, "1С")])
+    await create_group("SAP", ["model"], [plain_user.id], all_models=False, model_ids=["1"])
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        mine = await client.get("/api/graph/positions?model=1", headers=await user_headers(plain_user))
+        alien = await client.get("/api/graph/positions?model=2", headers=await user_headers(plain_user))
+    assert mine.status_code == 200
+    assert alien.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_graph_edit_scoped_to_group_models(plain_user):
+    """graph.edit действует только на модели своей группы: чужую модель редактировать нельзя."""
+    await create_services([("1", None, "SAP"), ("2", None, "1С")])
+    await create_group(
+        "SAP", ["model", "graph.edit"], [plain_user.id], all_models=False, model_ids=["1"]
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        mine = await client.put(
+            "/api/graph/positions",
+            headers=await user_headers(plain_user),
+            json={"model": "1", "positions": [{"node_key": "svc:1", "x": 10, "y": 20}]},
+        )
+        alien = await client.put(
+            "/api/graph/positions",
+            headers=await user_headers(plain_user),
+            json={"model": "2", "positions": [{"node_key": "svc:2", "x": 1, "y": 2}]},
+        )
+    assert mine.status_code == 200
+    assert alien.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_group_crud_model_scope(auth_headers):
+    """CRUD группы сохраняет область моделей (all_models/model_ids)."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/groups/",
+            headers=auth_headers,
+            json={
+                "name": "SAP ПИ-БАЗИС",
+                "description": "Практика SAP",
+                "permissions": ["model", "graph.edit"],
+                "all_models": False,
+                "model_ids": ["796", "796", " 797 "],
+                "member_ids": [],
+            },
+        )
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+        assert data["all_models"] is False
+        assert data["model_ids"] == ["796", "797"]  # дубли/пробелы убраны
+
+        # включение «все модели»
+        put = await client.put(
+            f"/api/groups/{data['id']}",
+            headers=auth_headers,
+            json={
+                "name": "SAP ПИ-БАЗИС",
+                "description": "Практика SAP",
+                "permissions": ["model"],
+                "all_models": True,
+                "model_ids": [],
+                "member_ids": [],
+            },
+        )
+        assert put.status_code == 200, put.text
+        assert put.json()["all_models"] is True
+        assert put.json()["model_ids"] == []
 
 
 # ── Zabbix client ──

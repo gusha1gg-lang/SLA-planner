@@ -9,6 +9,14 @@ export interface UserGroup {
   name: string;
 }
 
+/** Область моделей здоровья пользователя (сумма областей его групп). */
+export interface ModelScope {
+  /** true — доступны все модели здоровья (admin или группа «все модели»). */
+  all: boolean;
+  /** rootId доступных моделей; пусто при all=true. */
+  ids: string[];
+}
+
 export interface User {
   id: number;
   username: string;
@@ -17,16 +25,22 @@ export interface User {
   groups: UserGroup[];
   /** Итоговые права (для admin — весь каталог). */
   permissions: string[];
+  /** Область доступных моделей здоровья. */
+  models: ModelScope;
   is_active: boolean;
   created_at: string;
 }
 
-/** Группа (команда): набор прав + состав участников. */
+/** Группа (команда): набор прав + область моделей здоровья + состав участников. */
 export interface Group {
   id: number;
   name: string;
   description: string;
   permissions: string[];
+  /** Видит все модели здоровья. */
+  all_models: boolean;
+  /** rootId доступных моделей при all_models=false. */
+  model_ids: string[];
   is_system: boolean;
   member_ids: number[];
   created_at?: string;

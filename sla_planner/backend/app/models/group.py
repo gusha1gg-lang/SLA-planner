@@ -18,6 +18,12 @@ class Group(Base):
     description = Column(String(255), default="")
     # JSON-список прав (флагов из app.permissions), например '["dashboard","works"]'
     permissions = Column(Text, default="[]")
+    # ── Область моделей здоровья ──
+    # True — группа видит ВСЕ модели здоровья (историческое поведение);
+    # False — только модели из model_ids.
+    all_models = Column(Boolean, default=True, nullable=False)
+    # JSON-список id корней разрешённых моделей здоровья, например '["796","1253"]'
+    model_ids = Column(Text, default="[]")
     # Системная группа (создаётся seed'ом) — защищена от удаления
     is_system = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -67,5 +67,12 @@ test('Права: меню по правам групп + страница «Г�
   await expect(page.getByText('Планировщики')).toBeVisible();
   await expect(page.getByText('Наблюдатели')).toBeVisible();
 
+  // 4. Область моделей здоровья видна в таблице и в модалке редактирования группы
+  await expect(page.getByText('все модели').first()).toBeVisible();
+  await page.getByTitle('Редактировать').first().click();
+  await expect(page.getByText('Права группы')).toBeVisible();
+  await expect(page.getByText('Все модели здоровья')).toBeVisible();
+  await page.getByRole('button', { name: 'Отмена' }).click();
+
   await page.screenshot({ path: '/tmp/opencode/ui-verify/groups.png' });
 });

@@ -7,22 +7,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.deps import get_current_user  # re-export для обратной совместимости
 from app.models.user import User
-from app.permissions import effective_permissions, user_groups
+from app.permissions import effective_permissions, model_scope, user_groups
 from app.services.auth import verify_password, create_access_token
 
 router = APIRouter()
 
 
 async def user_payload(user: User, db: AsyncSession) -> dict:
-    """Пользователь для ответов API: роль + права (admin => все) + группы."""
+    """Пользователь для ответов API: роль + права (admin => все) + группы + модели."""
     perms = await effective_permissions(user, db)
     groups = await user_groups(user, db)
+    models = await model_scope(user, db)
     return {
         "id": user.id,
         "username": user.username,
         "role": user.role,
         "groups": groups,
         "permissions": sorted(perms),
+        "models": models,
         "is_active": user.is_active,
     }
 

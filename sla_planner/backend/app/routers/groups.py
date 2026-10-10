@@ -24,6 +24,9 @@ class GroupIn(BaseModel):
     name: str
     description: str = ""
     permissions: list[str] = []
+    # Область моделей здоровья: all_models=True — все; иначе список rootId.
+    all_models: bool = True
+    model_ids: list[str] = []
     member_ids: list[int] = []
 
     @field_validator("permissions")
@@ -37,6 +40,19 @@ class GroupIn(BaseModel):
         ordered = [p for p in ALL_PERMISSIONS if p in set(v)]
         return ordered
 
+    @field_validator("model_ids")
+    @classmethod
+    def clean_model_ids(cls, v: list[str]) -> list[str]:
+        # rootId моделей — строки; чистим от пустых/дублей, сохраняем порядок
+        seen: set[str] = set()
+        out: list[str] = []
+        for raw in v:
+            s = str(raw).strip()
+            if s and s not in seen:
+                seen.add(s)
+                out.append(s)
+        return out
+
 
 def _group_dict(group: Group, member_ids: list[int] | None = None) -> dict:
     return {
@@ -44,6 +60,8 @@ def _group_dict(group: Group, member_ids: list[int] | None = None) -> dict:
         "name": group.name,
         "description": group.description,
         "permissions": json.loads(group.permissions or "[]"),
+        "all_models": bool(group.all_models),
+        "model_ids": json.loads(group.model_ids or "[]"),
         "is_system": group.is_system,
         "member_ids": member_ids or [],
         "created_at": group.created_at.isoformat() if group.created_at else None,
@@ -100,6 +118,8 @@ async def create_group(
         name=name,
         description=data.description.strip(),
         permissions=json.dumps(data.permissions, ensure_ascii=False),
+        all_models=data.all_models,
+        model_ids=json.dumps(data.model_ids, ensure_ascii=False),
         is_system=False,
     )
     db.add(group)
@@ -144,6 +164,8 @@ async def update_group(
 
     group.description = data.description.strip()
     group.permissions = json.dumps(data.permissions, ensure_ascii=False)
+    group.all_models = data.all_models
+    group.model_ids = json.dumps(data.model_ids, ensure_ascii=False)
 
     await _set_members(db, group.id, data.member_ids)
 
