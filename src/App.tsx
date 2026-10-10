@@ -1,8 +1,9 @@
-import React, { lazy, Suspense, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import LoginPage from './pages/LoginPage';
 import Layout from './components/Layout';
+import { buildHash, isPageAllowed, readRoute, Route } from './navigation';
 
 /**
  * Code-splitting: страницы (особенно «Модель здоровья» с vis-network) грузим
@@ -28,21 +29,52 @@ function PageLoader() {
 }
 
 function AppContent() {
-  const { user } = useAuth();
-  const [currentPage, setCurrentPage] = useState('dashboard');
-  const [pageParams, setPageParams] = useState<Record<string, string>>({});
+  const { user, can, isAdmin } = useAuth();
+
+  // Маршрут живёт в hash URL: перезагрузка (F5), закладки и «назад/вперёд» остаются
+  // на текущей странице, а не сбрасывают на дашборд.
+  const [route, setRoute] = useState<Route>(() => readRoute());
+
+  const navigateTo = useCallback((page: string, params?: Record<string, string>) => {
+    setRoute({ page, params: params || {} });
+    const hash = buildHash(page, params);
+    if (window.location.hash !== hash) {
+      window.location.hash = hash;
+    }
+  }, []);
+
+  // Синхронизация состояния с URL (кнопки браузера, ручная правка hash).
+  useEffect(() => {
+    const onHashChange = () => setRoute(readRoute());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  // Не пускаем на страницу без права (например, после смены пользователя) — на дашборд.
+  useEffect(() => {
+    if (user && !isPageAllowed(route.page, can, isAdmin)) {
+      navigateTo('dashboard');
+    }
+  }, [user, route.page, can, isAdmin, navigateTo]);
+
+  // При выходе возвращаем маршрут на дашборд (в т.ч. чтобы следующий вход начался с него).
+  const wasLoggedIn = useRef(false);
+  useEffect(() => {
+    if (user) {
+      wasLoggedIn.current = true;
+    } else if (wasLoggedIn.current) {
+      wasLoggedIn.current = false;
+      setRoute({ page: 'dashboard', params: {} });
+      window.location.hash = buildHash('dashboard');
+    }
+  }, [user]);
 
   if (!user) {
     return <LoginPage />;
   }
 
-  const navigateTo = (page: string, params?: Record<string, string>) => {
-    setCurrentPage(page);
-    setPageParams(params || {});
-  };
-
   const renderPage = () => {
-    switch (currentPage) {
+    switch (route.page) {
       case 'dashboard': return <DashboardPage onNavigate={navigateTo} />;
       case 'graph': return <GraphPage />;
       case 'works': return <WorksPage />;
@@ -51,14 +83,14 @@ function AppContent() {
       case 'users': return <UsersPage />;
       case 'groups': return <GroupsPage />;
       case 'settings': return <SettingsPage />;
-      case 'sla-detail': return <SLADetailPage slaId={pageParams.id} onBack={() => navigateTo('dashboard')} />;
+      case 'sla-detail': return <SLADetailPage slaId={route.params.id} onBack={() => navigateTo('dashboard')} />;
       default: return <DashboardPage onNavigate={navigateTo} />;
     }
   };
 
   return (
     <Layout
-      currentPage={currentPage}
+      currentPage={route.page}
       onNavigate={(page) => navigateTo(page)}
       onSync={() => window.location.reload()}
     >

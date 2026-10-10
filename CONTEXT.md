@@ -48,6 +48,24 @@
 
 ## 3. Что уже сделано (история)
 
+### Навигация в URL (hash): F5/закладки/«назад-вперёд» остаются на странице (2026-10-10)
+
+Пользователь жаловался: при F5 на «Модели здоровья» сайт сбрасывал на дашборд (навигация
+была только в React-состоянии `currentPage`, при перезагрузке — `'dashboard'`).
+- **Маршрут переехал в hash URL:** `#/graph`, `#/works`, `#/sla-detail?id=798`. Новый модуль
+  `src/navigation.ts`: единый список `NAV_ITEMS` (используется и в `Layout`, и для проверки
+  доступа), `readRoute()`/`buildHash()`, `isPageAllowed(page, can, isAdmin)`.
+- **`App.tsx`:** состояние — `route` из `readRoute()`; `navigateTo` пишет hash; слушатель
+  `hashchange` синхронизирует состояние (кнопки браузера, ручная правка hash); эффект-гвард
+  не пускает на страницу без права (откат на дашборд) — например, viewer по закладке `#/users`;
+  при выходе маршрут сбрасывается на дашборд.
+- **`Layout.tsx`:** определение меню берётся из `NAV_ITEMS` (дублирование убрано).
+- Побочный плюс: кнопка «Синхр. с Zabbix» (admin) делает `window.location.reload()` — теперь
+  после синка остаёшься на той же странице, а не на дашборде.
+- Проверено: typecheck чист; Playwright E2E 5 passed — новые тесты «Навигация: F5 и закладка
+  сохраняют текущую страницу» (F5 на `#/graph`, закладка `#/works`, «назад») и «Навигация:
+  закладка на чужую страницу не открывается (viewer → дашборд)».
+
 ### Единое время: API отдаёт UTC с зоной, UI показывает МСК (2026-10-10)
 
 Пользователь создал пользователя и вошёл «в 18:37», хотя по МСК было 21:38 — сайт показывал
@@ -571,9 +589,10 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
     install-deps chromium`; без sudo временно: `apt-get download libnspr4 libnss3 libasound2t64`
     → `dpkg -x` в `/tmp/opencode/rootfs` → запуск с
     `LD_LIBRARY_PATH=/tmp/opencode/rootfs/usr/lib/x86_64-linux-gnu`. Прогон: `npx playwright test
-    .opencode/skills/ui-verify/scripts/ui-check.spec.ts` (проверено: 3 passed — «Модель здоровья»,
+    .opencode/skills/ui-verify/scripts/ui-check.spec.ts` (проверено: 5 passed — «Модель здоровья»,
     «Права: меню по правам групп + страница «Группы» у admin», «Время: аудит-лог показывает
-    московское время (MSK)»). Внимание: vite-watcher следит и за
+    московское время (MSK)», «Навигация: F5 и закладка сохраняют текущую страницу»,
+    «Навигация: закладка на чужую страницу не открывается (viewer → дашборд)»). Внимание: vite-watcher следит и за
     файлами вне `src` (spec/бэкенд) и шлёт полный page-reload подключённым клиентам — правь spec до
     прогона, иначе тест сбросится на «Дашборд».
 22. **Модель прав (с 2026-10-10):** роли `admin`/`user`; права `user` = сумма прав его групп (как
@@ -595,6 +614,12 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
     любые метки — через `src/time.ts` (`formatDateTime`/`formatDate`/`formatTime`/…, жёстко
     `timeZone: 'Europe/Moscow'`), поля `datetime-local` — `toMskInputValue`/`mskInputToDate`
     (подписи в форме работы — «(МСК)»). Не возвращать `toLocaleString` без `timeZone`.
+24. **Навигация — через hash URL (`src/navigation.ts`), а не только React-состояние.** Страница
+    живёт в `#/graph`, `#/works`, `#/sla-detail?id=…`: перезагрузка (F5), закладки и кнопки
+    браузера сохраняют позицию. Список пунктов меню — единый `NAV_ITEMS` (Layout + проверка
+    доступа `isPageAllowed`). Новую страницу добавлять: пункт в `NAV_ITEMS` + `case` в
+    `App.tsx:renderPage` + (если нужно) право в `isPageAllowed`. Гвард не пускает на страницу
+    без права — откат на `#/dashboard`; при выходе маршрут сбрасывается на дашборд.
 
 ---
 

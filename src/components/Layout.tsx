@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { PERMISSIONS } from '../permissions';
+import { NAV_ITEMS } from '../navigation';
 import StatusBar from './StatusBar';
 
 interface LayoutProps {
@@ -10,31 +10,10 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
-interface NavItem {
-  id: string;
-  label: string;
-  icon: string;
-  /** Требуемое право (страница). */
-  permission?: string;
-  /** Только для роли admin (управление пользователями/группами/настройками). */
-  adminOnly?: boolean;
-}
-
 export default function Layout({ currentPage, onNavigate, onSync, children }: LayoutProps) {
   const { user, logout, can, isAdmin } = useAuth();
 
-  const navItems: NavItem[] = [
-    { id: 'dashboard', label: 'Дашборд', icon: 'fas fa-tachometer-alt', permission: PERMISSIONS.dashboard },
-    { id: 'graph', label: 'Модель здоровья', icon: 'fas fa-project-diagram', permission: PERMISSIONS.model },
-    { id: 'works', label: 'Плановые работы', icon: 'fas fa-calendar-alt', permission: PERMISSIONS.works },
-    { id: 'report', label: 'SLA-отчёт', icon: 'fas fa-chart-bar', permission: PERMISSIONS.reports },
-    { id: 'audit', label: 'Аудит-лог', icon: 'fas fa-history', permission: PERMISSIONS.audit },
-    { id: 'users', label: 'Пользователи', icon: 'fas fa-users-cog', adminOnly: true },
-    { id: 'groups', label: 'Группы', icon: 'fas fa-user-friends', adminOnly: true },
-    { id: 'settings', label: 'Настройки', icon: 'fas fa-cog', adminOnly: true },
-  ];
-
-  const visibleItems = navItems.filter(item =>
+  const visibleItems = NAV_ITEMS.filter(item =>
     item.adminOnly ? isAdmin : (item.permission ? can(item.permission) : false)
   );
 

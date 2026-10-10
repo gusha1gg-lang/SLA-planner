@@ -115,3 +115,45 @@ test('Время: аудит-лог показывает московское в
 
   await page.screenshot({ path: '/tmp/opencode/ui-verify/audit-time.png' });
 });
+
+test('Навигация: F5 и закладка сохраняют текущую страницу', async ({ page }) => {
+  await page.goto('http://localhost:3000/');
+  await page.getByPlaceholder('admin / planner / viewer').fill('admin');
+  await page.getByPlaceholder('Пароль').fill('admin123');
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await expect(page.getByRole('button', { name: 'Модель здоровья' })).toBeVisible();
+
+  // Переход на «Модель здоровья» — страница отражается в URL (hash)
+  await page.getByRole('button', { name: 'Модель здоровья' }).click();
+  await expect(page.getByRole('heading', { name: 'Модель здоровья', level: 1 })).toBeVisible();
+  expect(page.url()).toContain('#/graph');
+
+  // F5 — остаёмся на «Модели здоровья», а НЕ падаем на дашборд (главный кейс)
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Модель здоровья', level: 1 })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Модель здоровья' })).toBeVisible();
+
+  // Прямой заход по закладке «#/works» — открывается нужная страница
+  await page.goto('http://localhost:3000/#/works');
+  await expect(page.getByRole('heading', { name: 'Плановые работы', level: 1 })).toBeVisible();
+
+  // Кнопка «назад» браузера возвращает на «Модель здоровья»
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Модель здоровья', level: 1 })).toBeVisible();
+
+  await page.screenshot({ path: '/tmp/opencode/ui-verify/navigation.png' });
+});
+
+test('Навигация: закладка на чужую страницу не открывается (viewer → дашборд)', async ({ page }) => {
+  await page.goto('http://localhost:3000/');
+  await page.getByPlaceholder('admin / planner / viewer').fill('viewer');
+  await page.getByPlaceholder('Пароль').fill('viewer123');
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await expect(page.getByRole('button', { name: 'Дашборд' })).toBeVisible();
+
+  // Прямой заход на админ-страницу по закладке — у обычного пользователя прав нет,
+  // маршрут откатывается на дашборд (страница «Пользователи» не показывается).
+  await page.goto('http://localhost:3000/#/users');
+  await expect(page.getByRole('heading', { name: 'Дашборд', level: 1 })).toBeVisible();
+  expect(page.url()).toContain('#/dashboard');
+});
