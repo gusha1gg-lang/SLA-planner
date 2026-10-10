@@ -1,17 +1,31 @@
-import React, { useState } from 'react';
+import React, { lazy, Suspense, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import LoginPage from './pages/LoginPage';
-import DashboardPage from './pages/DashboardPage';
-import GraphPage from './pages/GraphPage';
-import WorksPage from './pages/WorksPage';
-import ServicesPage from './pages/ServicesPage';
-import ReportPage from './pages/ReportPage';
-import AuditPage from './pages/AuditPage';
-import UsersPage from './pages/UsersPage';
-import SettingsPage from './pages/SettingsPage';
-import SLADetailPage from './pages/SLADetailPage';
 import Layout from './components/Layout';
+
+/**
+ * Code-splitting: страницы (особенно «Модель здоровья» с vis-network) грузим
+ * лениво — при первом открытии портала в бандле только React + роутер + оболочка,
+ * а тяжёлые экраны догружаются при переходе на них.
+ */
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const GraphPage = lazy(() => import('./pages/GraphPage'));
+const WorksPage = lazy(() => import('./pages/WorksPage'));
+const ServicesPage = lazy(() => import('./pages/ServicesPage'));
+const ReportPage = lazy(() => import('./pages/ReportPage'));
+const AuditPage = lazy(() => import('./pages/AuditPage'));
+const UsersPage = lazy(() => import('./pages/UsersPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const SLADetailPage = lazy(() => import('./pages/SLADetailPage'));
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <i className="fas fa-spinner fa-spin text-3xl text-blue-600"></i>
+    </div>
+  );
+}
 
 function AppContent() {
   const { user } = useAuth();
@@ -48,7 +62,9 @@ function AppContent() {
       onNavigate={(page) => navigateTo(page)}
       onSync={() => window.location.reload()}
     >
-      {renderPage()}
+      <Suspense fallback={<PageLoader />}>
+        {renderPage()}
+      </Suspense>
     </Layout>
   );
 }
