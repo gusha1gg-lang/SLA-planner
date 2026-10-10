@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import { SLA, Service } from '../types';
 import ServiceConfigCard from '../components/ServiceConfigCard';
 import SLADetailCard from '../components/SLADetailCard';
+import ModelTree from '../components/ModelTree';
 import { DataSet } from 'vis-data';
 import { Network, Options } from 'vis-network';
 import { useToast } from '../context/ToastContext';
@@ -848,16 +849,35 @@ export default function GraphPage() {
             )}
           </p>
 
-          <div className="relative bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div ref={containerRef} className="w-full h-[600px]" />
-            {savedLayout === null && scoped.model && (
-              <div className="absolute inset-0 flex items-center justify-center bg-white/70">
-                <div className="flex items-center gap-2 text-gray-500 text-sm">
-                  <i className="fas fa-spinner fa-spin text-xl text-blue-600"></i>
-                  Загрузка раскладки…
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-4 items-start">
+            {/* Граф */}
+            <div className="relative bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden min-w-0">
+              <div ref={containerRef} className="w-full h-[600px]" />
+              {savedLayout === null && scoped.model && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white/70">
+                  <div className="flex items-center gap-2 text-gray-500 text-sm">
+                    <i className="fas fa-spinner fa-spin text-xl text-blue-600"></i>
+                    Загрузка раскладки…
+                  </div>
                 </div>
+              )}
+            </div>
+
+            {/* Структура модели — справа от графа */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 max-h-[50vh] lg:max-h-none lg:h-[600px] overflow-y-auto">
+              <div className="flex items-center justify-between px-2 pb-2">
+                <h3 className="font-semibold text-gray-900 text-sm">Структура модели</h3>
+                <span className="text-xs text-gray-400">{scoped.services.length} услуг</span>
               </div>
-            )}
+              {scoped.model && (
+                <ModelTree
+                  rootId={scoped.model.rootId}
+                  services={scoped.services}
+                  selectedServiceId={selectedServiceId}
+                  onSelect={selectServiceByZid}
+                />
+              )}
+            </div>
           </div>
 
           {/* Детали выбранного узла (SLA или услуга) — под графом */}

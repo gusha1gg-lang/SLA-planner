@@ -15,7 +15,6 @@ export default function Layout({ children, currentPage, onNavigate, onSync }: La
   const navItems = [
     { id: 'dashboard', label: 'Дашборд', icon: 'fa-chart-line', roles: ['admin', 'planner', 'viewer'] },
     { id: 'graph', label: 'Модель здоровья', icon: 'fa-project-diagram', roles: ['admin', 'planner', 'viewer'] },
-    { id: 'services', label: 'Услуги', icon: 'fa-sitemap', roles: ['admin', 'planner', 'viewer'] },
     { id: 'works', label: 'Плановые работы', icon: 'fa-calendar-alt', roles: ['admin', 'planner', 'viewer'] },
     { id: 'report', label: 'SLA-отчёт', icon: 'fa-chart-bar', roles: ['admin', 'planner', 'viewer'] },
     { id: 'audit', label: 'Аудит-лог', icon: 'fa-history', roles: ['admin'] },

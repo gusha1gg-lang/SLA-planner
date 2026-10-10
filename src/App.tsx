@@ -12,7 +12,6 @@ import Layout from './components/Layout';
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const GraphPage = lazy(() => import('./pages/GraphPage'));
 const WorksPage = lazy(() => import('./pages/WorksPage'));
-const ServicesPage = lazy(() => import('./pages/ServicesPage'));
 const ReportPage = lazy(() => import('./pages/ReportPage'));
 const AuditPage = lazy(() => import('./pages/AuditPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
@@ -45,7 +44,6 @@ function AppContent() {
     switch (currentPage) {
       case 'dashboard': return <DashboardPage onNavigate={navigateTo} />;
       case 'graph': return <GraphPage />;
-      case 'services': return <ServicesPage />;
       case 'works': return <WorksPage />;
       case 'report': return <ReportPage />;
       case 'audit': return <AuditPage />;
