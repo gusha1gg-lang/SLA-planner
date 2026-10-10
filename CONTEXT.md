@@ -45,6 +45,26 @@
 
 ## 3. Что уже сделано (история)
 
+### Обслуживание репозитория (2026-10-10) — ГОТОВО, ждёт коммита
+
+- **AGENTS.md** переработан ранее (коммит `3e75444`): точные команды typecheck/одиночный тест,
+  трап с seed.py, факты про create_all/Alembic, актуальные пути graph-API.
+- **Alembic:** добавлена миграция `003_graph_tables` (таблицы `graph_node_positions`,
+  `graph_node_styles`); `alembic/env.py` теперь берёт URL из `settings.DATABASE_URL`,
+  а не из `alembic.ini`. Проверено upgrade→downgrade→upgrade на чистой БД. Dev-БД помечена
+  `alembic stamp head` (была `002`, а таблицы графа уже были созданы `create_all`).
+  Запуск миграций — `venv/bin/python -m alembic ...` (консольный `alembic` без `python -m`
+  не видит пакет `app`).
+- **`app/seed.py`** переписан: идемпотентно заводит ТОЛЬКО пользователей (admin/planner/viewer);
+  мок-SLA/услуги/работы/аудиты из него удалены (проверено на изолированной БД: первый запуск
+  создаёт, повторный — skip).
+- **`fix_tree.py`** (untracked, устаревшая версия переноса) удалён — вместо него `fix_tree_uuid.py`.
+- **README.md** актуализирован: 18 тестов, миграции до `003`, routers/models, users-only seed,
+  тестовый стенд 67/711, пометка про `stamp head` для существующих БД.
+- **AGENTS.md** обновлён под новые факты (seed без моков, миграции 001→003, env.py).
+- Проверено: pytest 18/18, `tsc --noEmit` чистый. Живые данные на стенде не менялись
+  (67 SLA / 711 услуг в БД сайта сохранены).
+
 ### Синхронизация Zabbix ↔ сайт (главное изменение) — ЗАКОММИЧЕНО И ЗАПУШЕНО
 
 > Коммиты `3f577ca` (sync) и `c225d54` (docs: CONTEXT.md) запушены в origin
@@ -180,10 +200,10 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
 
 ## 4. Что надо сделать (TODO)
 
-- [x] **Закоммитить изменения** в ветку `sla-planner-zabbix-integration-ebdcf` — коммит `3f577ca`.
-- [x] **Создан в Zabbix SLA «ERP»** (slaid=6) с тегами `service: 1С` и `service: SAP` — услуги 1С/SAP приходят в форму «Новая плановая работа».
-- [x] **End-to-end push в Zabbix:** плановая работа ERP/1С → `POST /api/works/1/push` → в Zabbix создан `excluded_downtime "SLA Planner #1"` (проверено `sla.get`, работа удалена, артефакт в Zabbix прибран).
-- [x] **`CONTEXT.md` закоммичен** (`c225d54`) и запушен в origin.
+- [ ] **Новая фича** — пользователь опишет задачу (выбрано в чате 2026-10-10, описание не получено).
+- [ ] **Проверить UI вживую** — сессия проверила API-слой (см. ниже), но браузерную проверку
+      «Модели здоровья»/работ и граф-редактирования делает пользователь.
+- [ ] (low) `sla_planner/frontend/Dockerfile` — docker-путь деплоя требует донастройки (см. README).
 
 ---
 
@@ -205,9 +225,15 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
 9. **Фронтенд без моков:** если в localStorage залёг `mock-token`/`mock-jwt-token`, AuthContext вычистит его при старте — будет страница логина. Без доступного бэкенда сайт не работает (это норма, а не баг).
 10. **После перезагрузки машины vite/uvicorn умирают** (docker-Zabbix при этом стартует сам). Поднять: `cd sla_planner/backend && venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &`, в корне репо `npm run dev &`. Логи: `/tmp/opencode/uvicorn.log`, `/tmp/opencode/vite.log`. Проверка: достпно ли `curl localhost:3000` и `curl localhost:8000/health`.
 11. **Факты Zabbix 7.0** (проверены на живом 7.0.31): `service.get` НЕ отдаёт `parent_serviceid` — только `parents`/`children` через `selectParents`/`selectChildren`; `service.update` принимает `parents: [{"serviceid":...}]` (массив объектов); `service.create` требует `name`, `algorithm`, `sortorder` (tags опционально), `uuid` задаётся явно; `sla.create` требует name/slo/period/timezone/effective_date/status/service_tags/excluded_downtimes; `sla.update` ПЕРЕЗАПИСЫВАЕТ excluded_downtimes целиком (read-modify-write, учтено в push); значения period_from/to — строки unixtime UTC; авторизация `Authorization: Bearer <token>` (поле `auth` в теле не работает); `apiinfo.version` нельзя вызывать с токеном.
-12. **Скрипты переноса (корень репо):** `import_test.py`, `fix_tree_uuid.py`, `delete_all_services.py` — закоммичены. `zabbix_dump.json` в .gitignore. Повторный `import_test.py` создаст дубли — не запускать без `delete_all_services.py`. `fix_tree.py` (старая версия, матч по имени) не коммитился — суперcedировано `fix_tree_uuid.py`.
+12. **Скрипты переноса (корень репо):** `import_test.py`, `fix_tree_uuid.py`, `delete_all_services.py` — закоммичены. `zabbix_dump.json` в .gitignore. Повторный `import_test.py` создаст дубли — не запускать без `delete_all_services.py`. `fix_tree.py` (старая версия, матч по имени) удалён 2026-10-10 — вместо него `fix_tree_uuid.py`.
 13. **Кнопка «Синхр. с Zabbix»** после успешного синка перезагружает страницу (`onSync` → `window.location.reload()` в `App.tsx`) — модель здоровья/списки сразу актуализируются, без ручной смены страницы. Кнопка видна только admin.
 14. **По просьбе пользователя БД сайта очищена** (0 SLA / 0 услуг / 0 работ / чистая аудит-лог; пользователи сохранены) — чтобы он лично проверил кнопку синка с пустого состояния. Заполнить заново: у админа нажать «Синхр. с Zabbix» (→ 67 SLA / 711 услуг / 201 связь).
+15. **Alembic (с 2026-10-10):** URL берётся из `settings.DATABASE_URL` (не из `alembic.ini`); запуск
+    только через `venv/bin/python -m alembic ...` (консольный `alembic` без `python -m` не видит
+    пакет `app`). Миграции: `001_initial` → `002_add_service_tags` → `003_graph_tables`. Dev-БД,
+    наполненную через `create_all`, пометить `venv/bin/python -m alembic stamp head`, иначе
+    `upgrade` упадёт на существующих таблицах. `app/seed.py` — идемпотентный bootstrap только
+    пользователей (мок-данных больше нет).
 
 ---
 

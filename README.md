@@ -72,12 +72,12 @@ SLA Planner — мост между специалистами и системо
 ├── sla_planner/
 │   ├── backend/                     # FastAPI backend
 │   │   ├── app/
-│   │   │   ├── models/              # User, SLA, Service, SlaServiceLink, PlannedWork, AuditLog
+│   │   │   ├── models/              # User, SLA, Service, SlaServiceLink, PlannedWork, AuditLog, GraphNodePosition, GraphNodeStyle
 │   │   │   ├── schemas/
-│   │   │   ├── routers/             # auth, sla, services, planned_works, audit, users, sync
+│   │   │   ├── routers/             # auth, sla, services, planned_works, audit, users, sync, graph
 │   │   │   └── services/            # zabbix_client (JSON-RPC), sync, auth
-│   │   ├── alembic/                 # миграции (001_initial, 002_add_service_tags)
-│   │   ├── tests/                   # pytest (15 тестов)
+│   │   ├── alembic/                 # миграции (001_initial, 002_add_service_tags, 003_graph_tables)
+│   │   ├── tests/                   # pytest (18 тестов)
 │   │   ├── requirements.txt
 │   │   ├── .env.example
 │   │   └── Dockerfile
@@ -127,8 +127,15 @@ venv/bin/python -m alembic upgrade head
 venv/bin/uvicorn app.main:app --reload --port 8000
 ```
 
-Пользователи создаются скриптом `python -m app.seed` (либо вручную через `routers/users.py`).
-Тестовые учётки (если БД посеяна): `admin/admin123`, `planner/planner123`, `viewer/viewer123`.
+> Dev-запуск дополнительно создаёт таблицы автоматически (`create_all` в `app/main.py`).
+> Если БД уже наполнена через `create_all`, пометьте её `venv/bin/python -m alembic stamp head`,
+> чтобы `alembic upgrade` не пытался создавать существующие таблицы.
+> Alembic берёт URL из `DATABASE_URL` приложения (`.env`), запускать через `python -m alembic`.
+
+Пользователи создаются bootstrap-скриптом `python -m app.seed` — он идемпотентно заводит
+**только пользователей** (никаких мок-данных: SLA/услуги приходят из Zabbix) — либо вручную
+через `routers/users.py`.
+Тестовые учётки: `admin/admin123`, `planner/planner123`, `viewer/viewer123`.
 
 ### 3. Frontend (корень репо)
 
@@ -200,11 +207,12 @@ curl -X POST 'http://localhost:8000/api/auth/login?username=admin&password=admin
 - `excluded_downtimes` — массив `{name, period_from, period_to}`: **все значения строками**, unixtime UTC.
 - `sla.update` **перезаписывает** весь массив `excluded_downtimes` — нужен read-modify-write.
 
-## Демо-стенд (тестовые объекты Zabbix)
+## Тестовый стенд Zabbix
 
-На тестовом стенде живут: SLA `1С`, `ERP` (СКУД/EWM/MES), `SAP`, `Test SLA v3`;
-услуги `1С`, `SAP`, `СКУД`, `EWM`, `MES`, `Test Service 1` — каждый сервис привязан к своему SLA
-(схема «каждый сервис → свой SLA», без дублей).
+Тестовый Zabbix (`localhost:8080`) содержит реальную (прод-подобную) структуру:
+**67 SLA / 711 услуг / 68 моделей здоровья** (дерево услуг ≈643 ребра). Сайт наполняется
+кнопкой «Синхр. с Zabbix» (admin) или `POST /api/sync/full`. Перенос структуры с прод-Zabbix
+выполняется скриптами `import_test.py` + `fix_tree_uuid.py` (см. `CONTEXT.md`).
 
 ---
 

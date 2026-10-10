@@ -8,11 +8,16 @@ from alembic import context
 
 # Import models so metadata is populated
 from app.database import Base
+from app.config import settings
 from app.models import *  # noqa
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Единый источник URL — DATABASE_URL приложения (.env / переменные окружения),
+# иначе alembic.ini всегда тянул бы локальный ./sla_planner.db.
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 target_metadata = Base.metadata
 

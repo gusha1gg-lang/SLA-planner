@@ -22,11 +22,9 @@
 
 ## 2. Обязательные правила
 
-1. **Только живые данные из Zabbix.** Моки и seed-данные запрещены и в БД отсутствуют; `api.*`
-   во фронтенде всегда ходит в реальный бэкенд. ⚠️ В репо остался legacy-скрипт
-   `sla_planner/backend/app/seed.py` — он вставляет мок-SLA/услуги. **Не запускать его.**
-   `README.md` упоминает `python -m app.seed` для создания пользователей — это устарело:
-   пользователи уже в БД, новых заводить через `POST /api/users` (`routers/users.py`).
+1. **Только живые данные из Zabbix.** Мок- и seed-бизнес-данные запрещены и в БД отсутствуют;
+   `api.*` во фронтенде всегда ходит в реальный бэкенд. `app/seed.py` теперь идемпотентно
+   заводит **только пользователей** (SLA/услуги из него убраны).
 2. **Прод-Zabbix не трогать** — вся работа только с тестовым `localhost:8080`.
 3. **Логин через query params:** `POST /api/auth/login?username=...&password=...` → в ответе
    поле `access_token` (не `token`). Пользователи: `admin/admin123` (admin), `planner/planner123`,
@@ -74,10 +72,12 @@ cd /opt/sla_planner1 && npm run dev &
 - **Prune не срабатывает при пустом ответе Zabbix** — это защита от случайного удаления.
 - **test_version** проверяет `isinstance(..., bool)`, а не `is True` — локальный `.env` содержит `false`.
 - **Кнопка «Синхр. с Zabbix»** (admin) после синка перезагружает страницу (`window.location.reload()`).
-- **Схема БД создаётся `create_all`, не Alembic:** на старте `app/main.py` вызывает `init_db()`
-  (`Base.metadata.create_all`), поэтому новые модели/таблицы появляются сами и в dev, и в тестах.
-  Alembic отстаёт — есть только `001_initial`, `002_add_service_tags`; таблицы графа
-  (`graph_node_positions`, `graph_node_styles`) миграций не имеют. Для dev миграция не нужна.
+- **Схема БД: `create_all` + Alembic вместе.** На старте `app/main.py` вызывает `init_db()`
+  (`Base.metadata.create_all`) — таблицы появляются сами в dev и тестах. Alembic-миграции:
+  `001_initial`, `002_add_service_tags`, `003_graph_tables` (`alembic/env.py` берёт URL из
+  `settings.DATABASE_URL`, а не из `alembic.ini`). Запуск: `venv/bin/python -m alembic upgrade head`
+  (консольный `alembic` без `python -m` не видит пакет `app`). Dev-БД после `create_all` нужно
+  пометить `venv/bin/python -m alembic stamp head`, иначе `upgrade` упадёт на существующих таблицах.
 - **Скрипты переноса в корне репо** (`import_test.py`, `fix_tree_uuid.py`, `delete_all_services.py`)
   работают с тестовым Zabbix. `import_test.py` без предварительного `delete_all_services.py`
   создаёт дубли. `zabbix_dump.json` — прод-дамп (в `.gitignore`) — в git не коммитить.
@@ -92,6 +92,6 @@ cd /opt/sla_planner1 && npm run dev &
   (`graph_node_styles`) графа; `GET/PUT/DELETE /api/graph/positions?model=<rootId>` (PUT/DELETE —
   admin), `GET/PUT /api/graph/colors` (PUT — admin).
 - `sla_planner/backend/app/services/sync.py` + `zabbix_client.py` — синк Zabbix↔сайт (теги, prune, полный синк).
-- `sla_planner/backend/app/seed.py` — legacy-сеялка мок-данных (см. правило 1), не запускать.
+- `sla_planner/backend/app/seed.py` — идемпотентный bootstrap только пользователей (мок-данных нет).
 - `sla_planner/backend/tests/test_api.py` — тесты (run см. п.2).
 - `CONTEXT.md` — память проекта: история, TODO, ловушки. **Читать в начале, обновлять в конце.**
