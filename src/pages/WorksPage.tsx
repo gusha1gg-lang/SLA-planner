@@ -2,13 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { SLA, Service, PlannedWork, WorkStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { PERMISSIONS } from '../permissions';
 import { useToast } from '../context/ToastContext';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
 
 export default function WorksPage() {
   const { showToast } = useToast();
-  const { hasRole } = useAuth();
+  const { can } = useAuth();
   const [works, setWorks] = useState<PlannedWork[]>([]);
   const [slas, setSlas] = useState<SLA[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -103,7 +104,7 @@ export default function WorksPage() {
               <i className="fas fa-calendar mr-1"></i>Календарь
             </button>
           </div>
-          {hasRole(['admin', 'planner']) && (
+          {can(PERMISSIONS.worksEdit) && (
             <button onClick={() => { setEditingWork(null); setShowForm(true); }}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition">
               <i className="fas fa-plus mr-2"></i>Создать работу
@@ -159,19 +160,19 @@ export default function WorksPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      {hasRole(['admin', 'planner']) && work.status === 'draft' && (
+                      {can(PERMISSIONS.worksEdit) && work.status === 'draft' && (
                         <button onClick={() => handlePushToZabbix(work.id)}
                           className="text-blue-600 hover:text-blue-800 text-xs font-medium" title="Отправить в Zabbix">
                           <i className="fas fa-cloud-upload-alt mr-1"></i>Push
                         </button>
                       )}
-                      {hasRole(['admin', 'planner']) && (
+                      {can(PERMISSIONS.worksEdit) && (
                         <button onClick={() => { setEditingWork(work); setShowForm(true); }}
                           className="text-gray-500 hover:text-gray-700" title="Редактировать">
                           <i className="fas fa-edit"></i>
                         </button>
                       )}
-                      {hasRole(['admin']) && (
+                      {can(PERMISSIONS.worksDelete) && (
                         <button onClick={() => handleDelete(work.id)}
                           className="text-red-500 hover:text-red-700" title="Удалить">
                           <i className="fas fa-trash"></i>

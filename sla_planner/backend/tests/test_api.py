@@ -1,11 +1,16 @@
 """
 Tests for SLA Planner Backend.
 
+Модель прав в стиле Grafana: "admin" — полные права, "user" — права из групп
+(сумма прав). Проверки: каталог прав, гейтинг страниц и действий, CRUD групп.
+
 Run:
     cd backend
     pip install pytest pytest-asyncio httpx
     pytest tests/ -v
 """
+
+import json
 
 import pytest
 import pytest_asyncio
@@ -13,8 +18,9 @@ from httpx import AsyncClient, ASGITransport
 
 from app.main import app
 from app.database import engine, Base, async_session
-from app.models import User
-from app.services.auth import hash_password
+from app.models import User, Group, UserGroup
+from app.permissions import ALL_PERMISSIONS
+from app.services.auth import hash_password, create_access_token
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -47,10 +53,49 @@ async def admin_user():
 @pytest_asyncio.fixture
 async def auth_headers(admin_user):
     """Get auth headers for admin user."""
-    from app.services.auth import create_access_token
     token = create_access_token({"sub": str(admin_user.id), "role": "admin"})
     return {"Authorization": f"Bearer {token}"}
 
+
+@pytest_asyncio.fixture
+async def plain_user():
+    """Пользователь role='user' без групп (без единого права)."""
+    async with async_session() as session:
+        user = User(
+            username="plainuser",
+            password_hash=hash_password("testpass"),
+            role="user",
+            is_active=True,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        return user
+
+
+async def user_headers(user: User) -> dict:
+    return {"Authorization": f"Bearer {create_access_token({'sub': str(user.id), 'role': user.role})}"}
+
+
+async def create_group(name: str, permissions: list[str], member_ids: list[int] = (), is_system: bool = False) -> Group:
+    """Создать группу с правами и составом прямо в БД (для тестов)."""
+    async with async_session() as session:
+        group = Group(
+            name=name,
+            description="",
+            permissions=json.dumps(permissions, ensure_ascii=False),
+            is_system=is_system,
+        )
+        session.add(group)
+        await session.flush()
+        for uid in member_ids:
+            session.add(UserGroup(user_id=uid, group_id=group.id))
+        await session.commit()
+        await session.refresh(group)
+        return group
+
+
+# ── Базовые ──
 
 @pytest.mark.asyncio
 async def test_health():
@@ -78,7 +123,7 @@ async def test_version():
 
 @pytest.mark.asyncio
 async def test_login_success(admin_user):
-    """Test successful login."""
+    """Успешный логин: admin получает все права и пустой список групп."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
@@ -90,6 +135,37 @@ async def test_login_success(admin_user):
     assert "access_token" in data
     assert data["user"]["username"] == "testadmin"
     assert data["user"]["role"] == "admin"
+    assert data["user"]["groups"] == []
+    assert set(data["user"]["permissions"]) == set(ALL_PERMISSIONS)
+
+
+@pytest.mark.asyncio
+async def test_login_user_returns_permissions_from_groups(auth_headers):
+    """Логин пользователя возвращает сумму прав его групп."""
+    async with async_session() as session:
+        user = User(
+            username="member",
+            password_hash=hash_password("testpass"),
+            role="user",
+            is_active=True,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+    await create_group("Группа A", ["dashboard", "model"], [user.id])
+    await create_group("Группа B", ["works", "works.edit"], [user.id])
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/api/auth/login",
+            params={"username": "member", "password": "testpass"},
+        )
+    assert response.status_code == 200
+    user_data = response.json()["user"]
+    perms = set(user_data["permissions"])
+    assert perms == {"dashboard", "model", "works", "works.edit"}
+    assert {g["name"] for g in user_data["groups"]} == {"Группа A", "Группа B"}
 
 
 @pytest.mark.asyncio
@@ -106,7 +182,7 @@ async def test_login_wrong_password(admin_user):
 
 @pytest.mark.asyncio
 async def test_me(auth_headers):
-    """Test /api/auth/me endpoint."""
+    """Test /api/auth/me endpoint (с правами)."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/api/auth/me", headers=auth_headers)
@@ -114,6 +190,7 @@ async def test_me(auth_headers):
     data = response.json()
     assert data["username"] == "testadmin"
     assert data["role"] == "admin"
+    assert set(data["permissions"]) == set(ALL_PERMISSIONS)
 
 
 @pytest.mark.asyncio
@@ -196,9 +273,11 @@ async def test_service_config_not_found(auth_headers, monkeypatch):
     assert response.status_code == 404
 
 
+# ── Работы ──
+
 @pytest.mark.asyncio
 async def test_list_works(auth_headers):
-    """Test listing planned works."""
+    """Admin (право works) видит список плановых работ."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/api/works/", headers=auth_headers)
@@ -214,6 +293,74 @@ async def _seed_sla_service():
         session.add(SLA(id=1, zabbix_slaid="1", name="ERP", slo=99.5, service_tags='["SAP"]'))
         session.add(Service(id=1, zabbix_serviceid="1", name="SAP", tags='[{"tag":"service","value":"SAP"}]'))
         await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_works_page_requires_permission(plain_user):
+    """Пользователь без права works не видит список работ (403)."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/works/", headers=await user_headers(plain_user))
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_works_page_granted_by_group(plain_user):
+    """Право works из группы открывает список работ."""
+    await create_group("Планировщики", ["dashboard", "model", "works"], [plain_user.id])
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/works/", headers=await user_headers(plain_user))
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_group_grants_work_creation(plain_user):
+    """Право works.edit из группы позволяет создавать работы; без него — 403."""
+    await create_group("Операторы", ["dashboard", "works", "works.edit"], [plain_user.id])
+    await _seed_sla_service()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/api/works/",
+            headers=await user_headers(plain_user),
+            json={
+                "title": "ТО базы",
+                "description": "",
+                "sla_id": 1,
+                "service_id": 1,
+                "started_at": "2026-10-07T02:30:00.000Z",
+                "ended_at": "2026-10-07T06:30:00.000Z",
+            },
+        )
+    assert response.status_code == 201, response.text
+
+
+@pytest.mark.asyncio
+async def test_group_grants_work_delete(plain_user, auth_headers):
+    """Право works.delete из группы позволяет удалять работы."""
+    await create_group("Операторы", ["dashboard", "works", "works.delete"], [plain_user.id])
+    await _seed_sla_service()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # создаём работу как admin
+        resp = await client.post("/api/works/", headers=auth_headers, json={
+            "title": "ТО базы",
+            "description": "",
+            "sla_id": 1,
+            "service_id": 1,
+            "started_at": "2026-10-07T02:30:00.000Z",
+            "ended_at": "2026-10-07T06:30:00.000Z",
+        })
+        assert resp.status_code == 201, resp.text
+        work_id = resp.json()["id"]
+
+        # удаляем как пользователь с правом works.delete
+        response = await client.delete(f"/api/works/{work_id}", headers=await user_headers(plain_user))
+    assert response.status_code == 200, response.text
 
 
 @pytest.mark.asyncio
@@ -353,28 +500,25 @@ async def test_update_planned_work_resyncs_zabbix(auth_headers, monkeypatch):
         assert added["name"] == "Новое имя"              # новое окно добавлено
 
 
-@pytest.mark.asyncio
-async def test_audit_logs_admin_only(auth_headers):
-    """Test audit logs require admin role."""
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/api/audit/", headers=auth_headers)
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
-
+# ── Аудит ──
 
 @pytest.mark.asyncio
-async def test_unauthorized_access():
-    """Test that endpoints require authentication."""
+async def test_audit_logs_require_permission(plain_user, auth_headers):
+    """Аудит-лог: admin видит, пользователь без права audit — 403."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.get("/api/sla/")
-    assert response.status_code == 403 or response.status_code == 401
+        admin_response = await client.get("/api/audit/", headers=auth_headers)
+        plain_response = await client.get("/api/audit/", headers=await user_headers(plain_user))
+    assert admin_response.status_code == 200
+    assert isinstance(admin_response.json(), list)
+    assert plain_response.status_code == 403
 
+
+# ── Граф ──
 
 @pytest.mark.asyncio
 async def test_graph_colors_defaults(auth_headers):
-    """Graph colors default values for everyone."""
+    """Graph colors default values for everyone with model permission."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/api/graph/colors", headers=auth_headers)
@@ -385,7 +529,7 @@ async def test_graph_colors_defaults(auth_headers):
 
 @pytest.mark.asyncio
 async def test_graph_colors_save_and_get(auth_headers):
-    """Admin can change SLA/service colors; they persist through GET."""
+    """Пользователь с правом graph.edit может менять цвета SLA/услуг; они сохраняются."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         put = await client.put(
@@ -402,31 +546,15 @@ async def test_graph_colors_save_and_get(auth_headers):
 
 
 @pytest.mark.asyncio
-async def test_graph_colors_requires_admin(auth_headers):
-    """Non-admin cannot change graph colors."""
-    from app.services.auth import create_access_token
-    from app.models import User
-    from app.services.auth import hash_password as _hash
-    from app.database import async_session as db_session
+async def test_graph_edit_requires_permission(plain_user, auth_headers):
+    """Пользователь без права graph.edit не может менять цвета графа (403)."""
+    await create_group("Наблюдатели", ["dashboard", "model"], [plain_user.id])
 
-    async with db_session() as session:
-        user = User(
-            username="plainuser",
-            password_hash=_hash("testpass"),
-            role="planner",
-            is_active=True,
-        )
-        session.add(user)
-        await session.commit()
-        await session.refresh(user)
-
-    token = create_access_token({"sub": str(user.id), "role": "planner"})
-    headers = {"Authorization": f"Bearer {token}"}
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         put = await client.put(
             "/api/graph/colors",
-            headers=headers,
+            headers=await user_headers(plain_user),
             json={"sla": "#FF0000", "service": "#00FF00"},
         )
         assert put.status_code == 403
@@ -436,13 +564,135 @@ async def test_graph_colors_requires_admin(auth_headers):
 
 
 @pytest.mark.asyncio
+async def test_graph_edit_granted_by_group(plain_user):
+    """Право graph.edit из группы разрешает правку цветов графа."""
+    await create_group("Дизайнеры", ["dashboard", "model", "graph.edit"], [plain_user.id])
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        put = await client.put(
+            "/api/graph/colors",
+            headers=await user_headers(plain_user),
+            json={"sla": "#112233", "service": "#445566"},
+        )
+        assert put.status_code == 200, put.text
+
+
+# ── Пользователи и группы (admin only) ──
+
+@pytest.mark.asyncio
+async def test_admin_pages_require_admin(plain_user, auth_headers):
+    """Страницы администрирования (users/groups) недоступны без роли admin."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        users_plain = await client.get("/api/users/", headers=await user_headers(plain_user))
+        groups_plain = await client.get("/api/groups/", headers=await user_headers(plain_user))
+        users_admin = await client.get("/api/users/", headers=auth_headers)
+    assert users_plain.status_code == 403
+    assert groups_plain.status_code == 403
+    assert users_admin.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_create_user_with_groups(auth_headers):
+    """Создание пользователя с ролями и группами (admin)."""
+    group = await create_group("Наблюдатели", ["dashboard", "model", "works", "reports"])
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/users/",
+            headers=auth_headers,
+            json={"username": "newuser", "password": "secret", "role": "user", "group_ids": [group.id]},
+        )
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+        assert data["role"] == "user"
+        assert [g["name"] for g in data["groups"]] == ["Наблюдатели"]
+
+        # логин нового пользователя отдаёт права группы
+        login = await client.post(
+            "/api/auth/login",
+            params={"username": "newuser", "password": "secret"},
+        )
+        assert login.status_code == 200
+        assert set(login.json()["user"]["permissions"]) == {"dashboard", "model", "works", "reports"}
+
+
+@pytest.mark.asyncio
+async def test_groups_crud(auth_headers):
+    """CRUD групп: создание, правка прав/состава, удаление."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # создать
+        resp = await client.post(
+            "/api/groups/",
+            headers=auth_headers,
+            json={"name": "Операторы", "description": "Смена", "permissions": ["dashboard", "works"], "member_ids": []},
+        )
+        assert resp.status_code == 201, resp.text
+        group_id = resp.json()["id"]
+        assert resp.json()["permissions"] == ["dashboard", "works"]
+
+        # невалидное право отклоняется
+        bad = await client.post(
+            "/api/groups/",
+            headers=auth_headers,
+            json={"name": "Бад", "permissions": ["несуществующее_право"], "member_ids": []},
+        )
+        assert bad.status_code == 422
+
+        # дубль имени
+        dup = await client.post(
+            "/api/groups/",
+            headers=auth_headers,
+            json={"name": "Операторы", "permissions": [], "member_ids": []},
+        )
+        assert dup.status_code == 409
+
+        # правка
+        put = await client.put(
+            f"/api/groups/{group_id}",
+            headers=auth_headers,
+            json={"name": "Операторы", "description": "Новое описание", "permissions": ["works", "works.edit"], "member_ids": []},
+        )
+        assert put.status_code == 200, put.text
+        assert put.json()["permissions"] == ["works", "works.edit"]
+
+        # список
+        listing = await client.get("/api/groups/", headers=auth_headers)
+        assert listing.status_code == 200
+        assert any(g["id"] == group_id for g in listing.json())
+
+        # удаление
+        delete = await client.delete(f"/api/groups/{group_id}", headers=auth_headers)
+        assert delete.status_code == 200
+        assert delete.json() == {"deleted": True}
+
+
+@pytest.mark.asyncio
+async def test_system_group_cannot_be_deleted(auth_headers):
+    """Системные группы (создаются seed'ом) нельзя удалить."""
+    await create_group("Планировщики", ["dashboard", "works"], is_system=True)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        groups = (await client.get("/api/groups/", headers=auth_headers)).json()
+        system_id = next(g["id"] for g in groups if g["is_system"])
+        response = await client.delete(f"/api/groups/{system_id}", headers=auth_headers)
+    assert response.status_code == 400
+
+
+# ── Zabbix client ──
+
+@pytest.mark.asyncio
 async def test_zabbix_client_read_only():
     """Test that Zabbix client respects read-only mode."""
     from app.services.zabbix_client import ZabbixClient, ZabbixError
-    
+
     client = ZabbixClient()
     client.read_only = True
-    
+
     with pytest.raises(ZabbixError, match="Read-only"):
         await client.sla_update("1", [])
 

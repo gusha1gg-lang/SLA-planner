@@ -1,31 +1,46 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import { PERMISSIONS } from '../permissions';
 import StatusBar from './StatusBar';
 
 interface LayoutProps {
-  children: React.ReactNode;
   currentPage: string;
   onNavigate: (page: string) => void;
   onSync?: () => void;
+  children: React.ReactNode;
 }
 
-export default function Layout({ children, currentPage, onNavigate, onSync }: LayoutProps) {
-  const { user, logout, hasRole } = useAuth();
+interface NavItem {
+  id: string;
+  label: string;
+  icon: string;
+  /** Требуемое право (страница). */
+  permission?: string;
+  /** Только для роли admin (управление пользователями/группами/настройками). */
+  adminOnly?: boolean;
+}
 
-  const navItems = [
-    { id: 'dashboard', label: 'Дашборд', icon: 'fa-chart-line', roles: ['admin', 'planner', 'viewer'] },
-    { id: 'graph', label: 'Модель здоровья', icon: 'fa-project-diagram', roles: ['admin', 'planner', 'viewer'] },
-    { id: 'works', label: 'Плановые работы', icon: 'fa-calendar-alt', roles: ['admin', 'planner', 'viewer'] },
-    { id: 'report', label: 'SLA-отчёт', icon: 'fa-chart-bar', roles: ['admin', 'planner', 'viewer'] },
-    { id: 'audit', label: 'Аудит-лог', icon: 'fa-history', roles: ['admin'] },
-    { id: 'users', label: 'Пользователи', icon: 'fa-users-cog', roles: ['admin'] },
-    { id: 'settings', label: 'Настройки', icon: 'fa-cog', roles: ['admin'] },
+export default function Layout({ currentPage, onNavigate, onSync, children }: LayoutProps) {
+  const { user, logout, can, isAdmin } = useAuth();
+
+  const navItems: NavItem[] = [
+    { id: 'dashboard', label: 'Дашборд', icon: 'fas fa-tachometer-alt', permission: PERMISSIONS.dashboard },
+    { id: 'graph', label: 'Модель здоровья', icon: 'fas fa-project-diagram', permission: PERMISSIONS.model },
+    { id: 'works', label: 'Плановые работы', icon: 'fas fa-calendar-alt', permission: PERMISSIONS.works },
+    { id: 'report', label: 'SLA-отчёт', icon: 'fas fa-chart-bar', permission: PERMISSIONS.reports },
+    { id: 'audit', label: 'Аудит-лог', icon: 'fas fa-history', permission: PERMISSIONS.audit },
+    { id: 'users', label: 'Пользователи', icon: 'fas fa-users-cog', adminOnly: true },
+    { id: 'groups', label: 'Группы', icon: 'fas fa-user-friends', adminOnly: true },
+    { id: 'settings', label: 'Настройки', icon: 'fas fa-cog', adminOnly: true },
   ];
+
+  const visibleItems = navItems.filter(item =>
+    item.adminOnly ? isAdmin : (item.permission ? can(item.permission) : false)
+  );
 
   const roleBadge: Record<string, string> = {
     admin: 'bg-red-100 text-red-700',
-    planner: 'bg-blue-100 text-blue-700',
-    viewer: 'bg-gray-100 text-gray-700',
+    user: 'bg-blue-100 text-blue-200',
   };
 
   return (
@@ -45,7 +60,7 @@ export default function Layout({ children, currentPage, onNavigate, onSync }: La
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.filter(item => hasRole(item.roles as any[])).map(item => (
+          {visibleItems.map(item => (
             <button
               key={item.id}
               onClick={() => onNavigate(item.id)}
@@ -55,24 +70,29 @@ export default function Layout({ children, currentPage, onNavigate, onSync }: La
                   : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              <i className={`fas ${item.icon} w-5 text-center`}></i>
+              <i className={`${item.icon} w-5 text-center`}></i>
               {item.label}
             </button>
           ))}
         </nav>
 
         <div className="p-4 border-t border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
               <i className="fas fa-user text-sm"></i>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user?.username}</p>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${roleBadge[user?.role || 'viewer']}`}>
-                {user?.role}
+              <span className={`text-xs px-2 py-0.5 rounded-full ${roleBadge[user?.role || 'user']}`}>
+                {user?.role === 'admin' ? 'администратор' : 'пользователь'}
               </span>
+              {user?.role === 'user' && (
+                <p className="text-[11px] text-slate-400 mt-1 truncate" title={user.groups.map(g => g.name).join(', ')}>
+                  {user.groups.length > 0 ? user.groups.map(g => g.name).join(', ') : 'без групп'}
+                </p>
+              )}
             </div>
-            <button onClick={logout} className="text-slate-400 hover:text-white" title="Выйти">
+            <button onClick={logout} className="text-slate-400 hover:text-white shrink-0" title="Выйти">
               <i className="fas fa-sign-out-alt"></i>
             </button>
           </div>

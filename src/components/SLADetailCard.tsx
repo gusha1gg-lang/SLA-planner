@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { SLA, Service, ExcludedDowntime } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { PERMISSIONS } from '../permissions';
 
 /**
  * Карточка деталей SLA (живые данные из Zabbix): SLO, расписание, исключения
@@ -20,7 +21,7 @@ interface SLADetailCardProps {
 }
 
 export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADetailCardProps) {
-  const { hasRole } = useAuth();
+  const { can } = useAuth();
   const [sla, setSla] = useState<SLA | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [excludedDowntimes, setExcludedDowntimes] = useState<ExcludedDowntime[]>([]);
@@ -110,7 +111,7 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
           <p className="text-gray-500 mt-0.5 text-sm">Zabbix SLA ID: {sla.zabbix_slaid}</p>
         </div>
         <div className="flex items-center gap-2">
-          {hasRole(['admin', 'planner']) && (
+          {can(PERMISSIONS.slaEdit) && (
             <button onClick={() => setShowAddForm(true)}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
               <i className="fas fa-plus mr-2"></i>Добавить исключение
@@ -163,7 +164,7 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
                   <th className="text-left px-5 py-3 font-medium text-gray-500">Начало</th>
                   <th className="text-left px-5 py-3 font-medium text-gray-500">Окончание</th>
                   <th className="text-left px-5 py-3 font-medium text-gray-500">Длительность</th>
-                  {hasRole(['admin']) && (
+                  {can(PERMISSIONS.slaEdit) && (
                     <th className="text-left px-5 py-3 font-medium text-gray-500">Действия</th>
                   )}
                 </tr>
@@ -175,7 +176,7 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
                     <td className="px-5 py-3 text-gray-600">{formatUnixTime(dt.period_from)}</td>
                     <td className="px-5 py-3 text-gray-600">{formatUnixTime(dt.period_to)}</td>
                     <td className="px-5 py-3 text-gray-600">{calculateDuration(dt.period_from, dt.period_to)}</td>
-                    {hasRole(['admin']) && (
+                    {can(PERMISSIONS.slaEdit) && (
                       <td className="px-5 py-3">
                         <button onClick={() => handleRemoveDowntime(dt.name)}
                           className="text-red-500 hover:text-red-700" title="Удалить">

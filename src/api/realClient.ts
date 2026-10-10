@@ -3,7 +3,7 @@
  * Работает ТОЛЬКО с живыми данными: мок/seed-данные запрещены.
  */
 
-import { SLA, Service, PlannedWork, AuditLogEntry, User, ExcludedDowntime, ServiceConfig } from '../types';
+import { SLA, Service, PlannedWork, AuditLogEntry, User, Group, ExcludedDowntime, ServiceConfig } from '../types';
 
 const API_BASE = '/api';
 
@@ -180,9 +180,50 @@ class RealApiClient {
     });
   }
 
-  // Users
+  // Users (admin)
   async getUsers(): Promise<User[]> {
     return this.request<User[]>('/users/');
+  }
+
+  async createUser(data: {
+    username: string;
+    password: string;
+    role: string;
+    group_ids: number[];
+  }): Promise<User> {
+    return this.request<User>('/users/', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateUser(
+    id: number,
+    data: { role?: string; is_active?: boolean; password?: string; group_ids?: number[] }
+  ): Promise<User> {
+    return this.request<User>(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  // Groups (admin) — группы/команды с правами
+  async getGroups(): Promise<Group[]> {
+    return this.request<Group[]>('/groups/');
+  }
+
+  async createGroup(data: {
+    name: string;
+    description: string;
+    permissions: string[];
+    member_ids: number[];
+  }): Promise<Group> {
+    return this.request<Group>('/groups/', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateGroup(
+    id: number,
+    data: { name: string; description: string; permissions: string[]; member_ids: number[] }
+  ): Promise<Group> {
+    return this.request<Group>(`/groups/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteGroup(id: number): Promise<{ deleted: boolean }> {
+    return this.request<{ deleted: boolean }>(`/groups/${id}`, { method: 'DELETE' });
   }
 
   // Health
@@ -295,6 +336,46 @@ export const api = {
 
   async getUsers(): Promise<User[]> {
     return await realApi.getUsers();
+  },
+
+  async createUser(data: {
+    username: string;
+    password: string;
+    role: string;
+    group_ids: number[];
+  }): Promise<User> {
+    return await realApi.createUser(data);
+  },
+
+  async updateUser(
+    id: number,
+    data: { role?: string; is_active?: boolean; password?: string; group_ids?: number[] }
+  ): Promise<User> {
+    return await realApi.updateUser(id, data);
+  },
+
+  async getGroups(): Promise<Group[]> {
+    return await realApi.getGroups();
+  },
+
+  async createGroup(data: {
+    name: string;
+    description: string;
+    permissions: string[];
+    member_ids: number[];
+  }): Promise<Group> {
+    return await realApi.createGroup(data);
+  },
+
+  async updateGroup(
+    id: number,
+    data: { name: string; description: string; permissions: string[]; member_ids: number[] }
+  ): Promise<Group> {
+    return await realApi.updateGroup(id, data);
+  },
+
+  async deleteGroup(id: number): Promise<{ deleted: boolean }> {
+    return await realApi.deleteGroup(id);
   },
 
   async health(): Promise<{ status: string; version: string; zabbix_connected?: boolean }> {

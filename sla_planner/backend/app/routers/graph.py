@@ -1,13 +1,13 @@
 """Graph layout router — сохранение раскладки (позиций узлов) по моделям здоровья.
 
-GET    /api/graph/positions?model=<rootId>  → список позиций (все роли)
-PUT    /api/graph/positions                  → перезаписать раскладку (admin)
-DELETE /api/graph/positions?model=<rootId>   → сбросить раскладку (admin)
+GET    /api/graph/positions?model=<rootId>  → список позиций (право model)
+PUT    /api/graph/positions                  → перезаписать раскладку (graph.edit)
+DELETE /api/graph/positions?model=<rootId>   → сбросить раскладку (graph.edit)
 
-GET    /api/graph/colors                     → цвета узлов SLA и услуг (все роли)
-PUT    /api/graph/colors                     → изменить цвета (admin)
+GET    /api/graph/colors                     → цвета узлов SLA и услуг (право model)
+PUT    /api/graph/colors                     → изменить цвета (graph.edit)
 
-Раскладка и цвета общие: закрепляет admin, видят все.
+Раскладка и цвета общие: закрепляет пользователь с правом graph.edit, видят все.
 """
 
 from typing import List
@@ -21,7 +21,7 @@ from app.database import get_db
 from app.models.graph_node_position import GraphNodePosition
 from app.models.graph_node_style import GraphNodeStyle
 from app.models.user import User
-from app.routers.auth import get_current_user
+from app.permissions import P_GRAPH_EDIT, P_MODEL, require_permission
 
 router = APIRouter()
 
@@ -61,9 +61,9 @@ DEFAULT_COLORS = {"sla": "#3B82F6", "service": "#8B5CF6"}
 async def get_positions(
     model: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(P_MODEL)),
 ):
-    """Раскладка модели здоровья. Общая для всех пользователей."""
+    """Раскладка модели здоровья. Общая для всех пользователей с доступом к модели."""
     result = await db.execute(
         select(GraphNodePosition).where(GraphNodePosition.model_key == model)
     )
@@ -75,12 +75,9 @@ async def get_positions(
 async def save_positions(
     data: SavePositionsRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(P_GRAPH_EDIT)),
 ):
-    """Перезаписать раскладку модели целиком (только admin)."""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Only admin can pin graph layout")
-
+    """Перезаписать раскладку модели целиком (право graph.edit)."""
     await db.execute(
         delete(GraphNodePosition).where(GraphNodePosition.model_key == data.model)
     )
@@ -98,12 +95,9 @@ async def save_positions(
 async def clear_positions(
     model: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(P_GRAPH_EDIT)),
 ):
-    """Сбросить раскладку модели (только admin)."""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Only admin can reset graph layout")
-
+    """Сбросить раскладку модели (право graph.edit)."""
     await db.execute(
         delete(GraphNodePosition).where(GraphNodePosition.model_key == model)
     )
@@ -113,7 +107,7 @@ async def clear_positions(
 @router.get("/colors")
 async def get_graph_colors(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(P_MODEL)),
 ):
     """Цвета узлов SLA и услуг. Общие для всех моделей и пользователей."""
     result = await db.execute(select(GraphNodeStyle))
@@ -128,12 +122,9 @@ async def get_graph_colors(
 async def save_graph_colors(
     data: NodeColors,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(P_GRAPH_EDIT)),
 ):
-    """Изменить цвета узлов SLA и услуг (только admin)."""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Only admin can change graph colors")
-
+    """Изменить цвета узлов SLA и услуг (право graph.edit)."""
     for node_type, color in (("sla", data.sla), ("service", data.service)):
         result = await db.execute(
             select(GraphNodeStyle).where(GraphNodeStyle.node_type == node_type)

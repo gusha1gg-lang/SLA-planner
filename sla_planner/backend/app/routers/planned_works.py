@@ -12,8 +12,8 @@ from app.database import get_db
 from app.models.planned_work import PlannedWork
 from app.models.audit_log import AuditLog
 from app.models.sla import SLA
-from app.routers.auth import get_current_user
 from app.models.user import User
+from app.permissions import P_WORKS, P_WORKS_DELETE, P_WORKS_EDIT, require_permission
 from app.services.zabbix_client import zabbix_client, ZabbixError
 
 router = APIRouter()
@@ -23,9 +23,9 @@ router = APIRouter()
 async def list_works(
     status_filter: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(P_WORKS)),
 ):
-    """Список плановых работ."""
+    """Список плановых работ (право works)."""
     query = select(PlannedWork)
     if status_filter:
         query = query.where(PlannedWork.status == status_filter)
@@ -40,12 +40,9 @@ async def list_works(
 async def create_work(
     data: dict,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(P_WORKS_EDIT)),
 ):
-    """Создать плановую работу."""
-    if current_user.role not in ("admin", "planner"):
-        raise HTTPException(status_code=403, detail="Only admin/planner can create works")
-    
+    """Создать плановую работу (право works.edit)."""
     work = PlannedWork(
         title=data["title"],
         description=data.get("description", ""),
@@ -107,16 +104,14 @@ async def update_work(
     work_id: int,
     data: dict,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(P_WORKS_EDIT)),
 ):
     """Обновить плановую работу (сохраняет изменения).
 
     Если работа уже запланирована (окно есть в Zabbix), правки автоматически
     прокатываются в Zabbix: старое окно (старый заголовок/период) заменяется новым.
+    Право: works.edit.
     """
-    if current_user.role not in ("admin", "planner"):
-        raise HTTPException(status_code=403, detail="Only admin/planner can update works")
-
     result = await db.execute(select(PlannedWork).where(PlannedWork.id == work_id))
     work = result.scalar_one_or_none()
     if not work:
@@ -202,7 +197,7 @@ async def update_work(
 async def push_to_zabbix(
     work_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(P_WORKS_EDIT)),
 ):
     """
     Отправить исключение простоя в Zabbix.
@@ -211,10 +206,8 @@ async def push_to_zabbix(
     1. Получить текущие excluded_downtimes из Zabbix
     2. Добавить окно работы
     3. sla.update с полным массивом
+    Право: works.edit.
     """
-    if current_user.role not in ("admin", "planner"):
-        raise HTTPException(status_code=403, detail="Only admin/planner can push to Zabbix")
-    
     result = await db.execute(select(PlannedWork).where(PlannedWork.id == work_id))
     work = result.scalar_one_or_none()
     if not work:
@@ -263,12 +256,9 @@ async def push_to_zabbix(
 async def delete_work(
     work_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(P_WORKS_DELETE)),
 ):
-    """Удалить плановую работу."""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Only admin can delete works")
-    
+    """Удалить плановую работу (право works.delete)."""
     result = await db.execute(select(PlannedWork).where(PlannedWork.id == work_id))
     work = result.scalar_one_or_none()
     if not work:

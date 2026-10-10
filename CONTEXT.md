@@ -37,14 +37,45 @@
 ## 2. Доступы
 
 - **Сайт (логин/пароль из query params!):**
-  `POST /api/auth/login?username=admin&password=admin123` → возвращает `access_token` (не `token`).
-  Пользователи: `admin/admin123`, `planner/planner123`, `viewer/viewer123`.
+  `POST /api/auth/login?username=admin&password=admin123` → возвращает `access_token` (не `token`)
+  и `user` с полями `role`, `groups`, `permissions`.
+  Пользователи: `admin/admin123` (роль `admin` — полные права без групп), `planner/planner123`
+  (роль `user`, группа «Планировщики»), `viewer/viewer123` (роль `user`, группа «Наблюдатели»).
 - **Zabbix API:** `http://localhost:8080/api_jsonrpc.php`, Bearer-токен в `.env` (`sla_planner/backend/.env`), пользователь Super admin.
 - **Режим записи:** `ZABBIX_READ_ONLY=false` — можно создавать/менять объекты в Zabbix (это тестовый стенд).
 
 ---
 
 ## 3. Что уже сделано (история)
+
+### Модель прав «как в Grafana»: роли + группы (2026-10-10)
+
+Переделана модель прав: вместо трёх ролей `admin/planner/viewer` — две роли и группы.
+- **`admin`** — полные права всегда, без групп (управление пользователями/группами/настройками
+  тоже только у admin).
+- **`user`** — права = **сумма прав групп**, в которых состоит (несколько групп объединяются).
+- **Группа** — это набор прав («что видеть и делать») + состав участников.
+- Каталог прав (`app/permissions.py` ↔ `src/permissions.ts`) — «страницы + действия»:
+  страницы `dashboard, model, works, reports, audit`; действия `works.edit, works.delete,
+  sla.edit, graph.edit, sync.run`.
+- Новые файлы: бэкенд `app/permissions.py`, `app/deps.py` (get_current_user вынесен сюда, чтобы
+  избежать цикла auth↔permissions), `app/models/group.py` (`Group`, `UserGroup`),
+  `app/routers/groups.py` (`/api/groups` CRUD, admin-only), миграция `alembic/versions/004_groups.py`;
+  фронтенд `src/permissions.ts`, `src/pages/GroupsPage.tsx`.
+- Гейтинг на бэке: `require_admin` и `require_permission(...)` (admin проходит всегда). Роутеры
+  graph/sync/sla/services/planned_works/audit/users переведены на них; `GET /api/sla/`,
+  `/api/services/`, `/api/works/`, `/api/sla/service-links` остаются доступны любому
+  авторизованному (общие данные нескольких страниц; видимость страницы — через меню).
+- Логин и `GET /api/auth/me` теперь возвращают `user: {id, username, role, groups, permissions,
+  is_active}`; фронтенд хранит `permissions` и решает через `can(permission)` (вместо `hasRole`).
+- `seed.py` создаёт системные группы «Планировщики» (dashboard/model/works/reports/works.edit/
+  sla.edit) и «Наблюдатели» (dashboard/model/works/reports), конвертирует `planner → user +
+  «Планировщики»`, `viewer → user + «Наблюдатели»`; пароли не меняются. Идемпотентно.
+- Проверено вживую: smoke API по трём логинам (admin — всё; planner/viewer — без audit/users/groups)
+  + Playwright E2E (в `ui-check.spec.ts` добавлен тест «Права: меню по правам групп + страница
+  «Группы» у admin»): viewer не видит админ-пункты и видит свою группу; admin заходит в «Группы»,
+  видит системные группы. Скриншоты: `/tmp/opencode/ui-verify/model-health.png`, `groups.png`.
+- pytest 29 passed, typecheck чистый. — ЗАКОММИЧЕНО
 
 ### Навыки (skills) для агента (2026-10-10)
 
@@ -376,6 +407,10 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
 
 ## 4. Что надо сделать (TODO)
 
+- [x] **Модель прав «как в Grafana»** (2026-10-10): роли admin/user + группы с правами, страница
+      «Группы», конвертация planner/viewer — реализовано (см. историю). Возможное развитие:
+      аудит-лог по изменениям групп/прав; выдача прав на уровне отдельного объекта (сейчас — только
+      страницы+действия).
 - [x] **Новая фича** (описана 2026-10-10): страница «Услуги» с показом конфигурации услуг
       из Zabbix для ИТ-специалистов — реализовано (см. историю выше). Возможное развитие:
       редактирование конфигурации услуг админом (сейчас только просмотр).
@@ -414,10 +449,11 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
 14. **По просьбе пользователя БД сайта очищена** (0 SLA / 0 услуг / 0 работ / чистая аудит-лог; пользователи сохранены) — чтобы он лично проверил кнопку синка с пустого состояния. Заполнить заново: у админа нажать «Синхр. с Zabbix» (→ 67 SLA / 711 услуг / 201 связь).
 15. **Alembic (с 2026-10-10):** URL берётся из `settings.DATABASE_URL` (не из `alembic.ini`); запуск
     только через `venv/bin/python -m alembic ...` (консольный `alembic` без `python -m` не видит
-    пакет `app`). Миграции: `001_initial` → `002_add_service_tags` → `003_graph_tables`. Dev-БД,
+    пакет `app`). Миграции: `001_initial` → `002_add_service_tags` → `003_graph_tables` → `004_groups`. Dev-БД,
     наполненную через `create_all`, пометить `venv/bin/python -m alembic stamp head`, иначе
-    `upgrade` упадёт на существующих таблицах. `app/seed.py` — идемпотентный bootstrap только
-    пользователей (мок-данных больше нет).
+    `upgrade` упадёт на существующих таблицах. `app/seed.py` — идемпотентный bootstrap пользователей
+    и системных групп (мок-данных больше нет). `alembic.op.create_table` НЕ принимает `checkfirst=`
+    — проверять существование таблиц через `sa.inspect(bind)`.
 16. **Zabbix 7.0 service/problem_tags/триггеры:** услуга с дочерними услугами НЕ может иметь
     `problem_tags` («cannot have problem tags and children at the same time») — теги проблем
     вешать ТОЛЬКО на листовые услуги (пример: листья «Доступность по ping» 809/778/798
@@ -461,7 +497,19 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
     install-deps chromium`; без sudo временно: `apt-get download libnspr4 libnss3 libasound2t64`
     → `dpkg -x` в `/tmp/opencode/rootfs` → запуск с
     `LD_LIBRARY_PATH=/tmp/opencode/rootfs/usr/lib/x86_64-linux-gnu`. Прогон: `npx playwright test
-    .opencode/skills/ui-verify/scripts/ui-check.spec.ts` (проверено: 1 passed).
+    .opencode/skills/ui-verify/scripts/ui-check.spec.ts` (проверено: 2 passed — «Модель здоровья» и
+    «Права: меню по правам групп + страница «Группы» у admin»). Внимание: vite-watcher следит и за
+    файлами вне `src` (spec/бэкенд) и шлёт полный page-reload подключённым клиентам — правь spec до
+    прогона, иначе тест сбросится на «Дашборд».
+22. **Модель прав (с 2026-10-10):** роли `admin`/`user`; права `user` = сумма прав его групп (как
+    команды в Grafana). Каталог и хелперы — `app/permissions.py` (бэк) ↔ `src/permissions.ts`
+    (фронт), держать синхронно. Проверки: `require_admin` / `require_permission(...)` (admin
+    проходит всегда); на фронте — `can(permission)` из `useAuth()` (вместо `hasRole`). Страница
+    «Группы» (`/api/groups`, admin-only) — права + состав; системные группы (seed) удалить нельзя.
+    Каталог `ALL_PERMISSIONS` — страницы `dashboard/model/works/reports/audit` + действия
+    `works.edit/works.delete/sla.edit/graph.edit/sync.run`. **`get_current_user` живёт в
+    `app/deps.py`** (не в `routers/auth.py`, который реэкспортит его) — иначе цикл импортов
+    auth↔permissions.
 
 ---
 

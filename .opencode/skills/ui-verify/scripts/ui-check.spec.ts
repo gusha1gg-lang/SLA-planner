@@ -39,3 +39,33 @@ test('Модель здоровья: логин → граф → дерево �
   // 5. Скриншот для визуальной проверки
   await page.screenshot({ path: '/tmp/opencode/ui-verify/model-health.png' });
 });
+
+test('Права: меню по правам групп + страница «Группы» у admin', async ({ page }) => {
+  // 1. Логин viewer (role=user, группа «Наблюдатели»): админ-страницы скрыты
+  await page.goto('http://localhost:3000/');
+  await page.getByPlaceholder('admin / planner / viewer').fill('viewer');
+  await page.getByPlaceholder('Пароль').fill('viewer123');
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await expect(page.getByRole('button', { name: 'Дашборд' })).toBeVisible();
+
+  await expect(page.getByRole('button', { name: 'Пользователи' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Группы' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Настройки' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Аудит-лог' })).toHaveCount(0);
+  await expect(page.getByText('Наблюдатели')).toBeVisible();
+
+  // 2. Выход и логин админом
+  await page.getByTitle('Выйти').click();
+  await page.getByPlaceholder('admin / planner / viewer').fill('admin');
+  await page.getByPlaceholder('Пароль').fill('admin123');
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await expect(page.getByRole('button', { name: 'Группы' })).toBeVisible();
+
+  // 3. Страница «Группы»: системные группы видны с правами
+  await page.getByRole('button', { name: 'Группы' }).click();
+  await expect(page.getByRole('heading', { name: 'Группы', level: 1 })).toBeVisible();
+  await expect(page.getByText('Планировщики')).toBeVisible();
+  await expect(page.getByText('Наблюдатели')).toBeVisible();
+
+  await page.screenshot({ path: '/tmp/opencode/ui-verify/groups.png' });
+});

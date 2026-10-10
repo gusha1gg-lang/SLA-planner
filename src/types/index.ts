@@ -1,13 +1,35 @@
 // Типы данных для SLA Planner
 
-export type UserRole = 'admin' | 'planner' | 'viewer';
+/** Роли: admin — полные права без групп; user — права приходят из групп. */
+export type UserRole = 'admin' | 'user';
+
+/** Краткая информация о группе (для отображения у пользователя). */
+export interface UserGroup {
+  id: number;
+  name: string;
+}
 
 export interface User {
   id: number;
   username: string;
   role: UserRole;
+  /** Группы пользователя (для admin — пусто). */
+  groups: UserGroup[];
+  /** Итоговые права (для admin — весь каталог). */
+  permissions: string[];
   is_active: boolean;
   created_at: string;
+}
+
+/** Группа (команда): набор прав + состав участников. */
+export interface Group {
+  id: number;
+  name: string;
+  description: string;
+  permissions: string[];
+  is_system: boolean;
+  member_ids: number[];
+  created_at?: string;
 }
 
 export interface SLA {

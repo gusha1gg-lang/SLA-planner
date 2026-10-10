@@ -11,6 +11,7 @@ from app.database import get_db
 from app.models.service import Service
 from app.models.user import User
 from app.routers.auth import get_current_user
+from app.permissions import P_MODEL, P_SYNC, require_permission
 from app.services.sync import sync_services, sync_sla_service_links
 from app.services.zabbix_client import zabbix_client, ZabbixError
 
@@ -83,14 +84,10 @@ async def list_services(
 
 @router.post("/sync")
 async def sync(
-    db = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_permission(P_SYNC)),
 ):
-    """Синхронизировать услуги из Zabbix (+ пересобрать связи)."""
-    if current_user.role != "admin":
-        from fastapi import HTTPException
-        raise HTTPException(status_code=403, detail="Only admin can sync")
-    
+    """Синхронизировать услуги из Zabbix (+ пересобрать связи). Право: sync.run."""
     count = await sync_services(db)
     links = await sync_sla_service_links(db)
     return {"synced": count, "links": links}
@@ -101,10 +98,11 @@ async def sync(
 @router.get("/{zabbix_serviceid}/config")
 async def service_config(
     zabbix_serviceid: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(P_MODEL)),
 ):
     """Живая конфигурация услуги из Zabbix: родители/дети, теги проблем,
-    алгоритм вычисления состояния, правило распространения, вес и т.п."""
+    алгоритм вычисления состояния, правило распространения, вес и т.п.
+    Право: model (видно на «Модели здоровья»)."""
     try:
         s = await zabbix_client.service_config_get(zabbix_serviceid)
     except ZabbixError as e:

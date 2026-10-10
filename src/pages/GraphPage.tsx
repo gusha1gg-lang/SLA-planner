@@ -8,6 +8,7 @@ import { DataSet } from 'vis-data';
 import { Network, Options } from 'vis-network';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { PERMISSIONS } from '../permissions';
 
 /**
  * Модель здоровья = дерево услуг от корневого сервиса (услуги без родителя).
@@ -74,8 +75,8 @@ function serviceNodeColor(base: string, isRoot: boolean) {
  */
 export default function GraphPage() {
   const { showToast } = useToast();
-  const { hasRole } = useAuth();
-  const isAdmin = hasRole(['admin']);
+  const { can } = useAuth();
+  const canEditGraph = can(PERMISSIONS.graphEdit);
 
   const [slas, setSlas] = useState<SLA[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -729,7 +730,7 @@ export default function GraphPage() {
           <div className="flex items-center gap-1.5 text-sm text-gray-600">
             <span className="w-3 h-3 rounded-full" style={{ background: nodeColors.service }}></span> Услуга
           </div>
-          {isAdmin && (
+          {canEditGraph && (
             <div className="flex items-center gap-3 border-l border-gray-200 pl-3">
               <label className="flex items-center gap-1.5 text-sm text-gray-600" title="Цвет SLA — общий для всех моделей">
                 <span className="font-medium">Цвет SLA</span>
@@ -787,7 +788,7 @@ export default function GraphPage() {
                 SLA: <b className="text-gray-700">{scoped.slas.length}</b> · Услуг: <b className="text-gray-700">{scoped.services.length}</b> из {scoped.model.serviceIds.size}
               </span>
             )}
-            {isAdmin && scoped.model && (
+            {canEditGraph && scoped.model && (
               <div className="flex items-center gap-2">
                 {editMode ? (
                   <>
@@ -836,7 +837,7 @@ export default function GraphPage() {
                 <i className="fas fa-hand-pointer mr-1 text-gray-400"></i>
                 Режим редактирования: перетащите узлы на новые места и нажмите «Сохранить» — раскладка станет общей для всех пользователей. Потянув услугу, её поддерево едет следом.
               </>
-            ) : isAdmin ? (
+            ) : canEditGraph ? (
               <>
                 <i className="fas fa-lock mr-1 text-gray-400"></i>
                 Граф в режиме просмотра. Нажмите «Редактировать граф», чтобы перемещать узлы.
@@ -844,7 +845,7 @@ export default function GraphPage() {
             ) : (
               <>
                 <i className="fas fa-lock mr-1 text-gray-400"></i>
-                Раскладку графа может изменять только администратор.
+                Раскладку графа может изменять только пользователь с правом «Граф: редактирование».
               </>
             )}
           </p>

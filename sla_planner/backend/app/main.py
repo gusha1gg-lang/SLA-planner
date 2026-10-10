@@ -74,7 +74,7 @@ async def zabbix_status():
 
 
 # ── Routers ──
-from app.routers import auth, sla, services, planned_works, audit, users, sync, graph
+from app.routers import auth, sla, services, planned_works, audit, users, sync, graph, groups
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(sla.router, prefix="/api/sla", tags=["sla"])
@@ -82,5 +82,6 @@ app.include_router(services.router, prefix="/api/services", tags=["services"])
 app.include_router(planned_works.router, prefix="/api/works", tags=["planned_works"])
 app.include_router(audit.router, prefix="/api/audit", tags=["audit"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
+app.include_router(groups.router, prefix="/api/groups", tags=["groups"])
 app.include_router(sync.router, prefix="/api/sync", tags=["sync"])
 app.include_router(graph.router, prefix="/api/graph", tags=["graph"])

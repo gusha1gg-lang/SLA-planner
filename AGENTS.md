@@ -24,11 +24,14 @@
 
 1. **Только живые данные из Zabbix.** Мок- и seed-бизнес-данные запрещены и в БД отсутствуют;
    `api.*` во фронтенде всегда ходит в реальный бэкенд. `app/seed.py` теперь идемпотентно
-   заводит **только пользователей** (SLA/услуги из него убраны).
+   заводит пользователей и системные группы (SLA/услуги из него убраны).
 2. **Прод-Zabbix не трогать** — вся работа только с тестовым `localhost:8080`.
+   **Модель прав (2026-10-10):** роли `admin` (полные права, без групп) и `user`
+   (права = сумма прав его групп, как команды в Grafana). Каталог в `app/permissions.py` ↔
+   `src/permissions.ts`, гейтинг `require_permission`/`require_admin`, на фронте `can(...)`.
 3. **Логин через query params:** `POST /api/auth/login?username=...&password=...` → в ответе
-   поле `access_token` (не `token`). Пользователи: `admin/admin123` (admin), `planner/planner123`,
-   `viewer/viewer123`.
+   поле `access_token` (не `token`). Пользователи: `admin/admin123` (роль admin),
+   `planner/planner123` (user, «Планировщики»), `viewer/viewer123` (user, «Наблюдатели»).
 4. **Тесты — только на изолированной БД.** `tests/test_api.py` дропает все таблицы в БД из
    `DATABASE_URL`!
    ```bash
@@ -92,6 +95,10 @@ cd /opt/sla_planner1 && npm run dev &
   (`graph_node_styles`) графа; `GET/PUT/DELETE /api/graph/positions?model=<rootId>` (PUT/DELETE —
   admin), `GET/PUT /api/graph/colors` (PUT — admin).
 - `sla_planner/backend/app/services/sync.py` + `zabbix_client.py` — синк Zabbix↔сайт (теги, prune, полный синк).
-- `sla_planner/backend/app/seed.py` — идемпотентный bootstrap только пользователей (мок-данных нет).
+- `sla_planner/backend/app/seed.py` — идемпотентный bootstrap пользователей и системных групп
+  («Планировщики»/«Наблюдатели»; мок-данных нет).
+- `sla_planner/backend/app/permissions.py` + `src/permissions.ts` — каталог прав и хелперы RBAC;
+  `app/routers/groups.py` — CRUD групп (`/api/groups`, admin-only);
+  `src/pages/GroupsPage.tsx` — страница «Группы».
 - `sla_planner/backend/tests/test_api.py` — тесты (run см. п.2).
 - `CONTEXT.md` — память проекта: история, TODO, ловушки. **Читать в начале, обновлять в конце.**

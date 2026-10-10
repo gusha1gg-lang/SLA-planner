@@ -15,6 +15,7 @@ const WorksPage = lazy(() => import('./pages/WorksPage'));
 const ReportPage = lazy(() => import('./pages/ReportPage'));
 const AuditPage = lazy(() => import('./pages/AuditPage'));
 const UsersPage = lazy(() => import('./pages/UsersPage'));
+const GroupsPage = lazy(() => import('./pages/GroupsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const SLADetailPage = lazy(() => import('./pages/SLADetailPage'));
 
@@ -48,6 +49,7 @@ function AppContent() {
       case 'report': return <ReportPage />;
       case 'audit': return <AuditPage />;
       case 'users': return <UsersPage />;
+      case 'groups': return <GroupsPage />;
       case 'settings': return <SettingsPage />;
       case 'sla-detail': return <SLADetailPage slaId={pageParams.id} onBack={() => navigateTo('dashboard')} />;
       default: return <DashboardPage onNavigate={navigateTo} />;

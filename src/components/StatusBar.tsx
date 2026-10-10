@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { PERMISSIONS } from '../permissions';
 
 interface StatusBarProps {
   onSync?: () => void;
 }
 
 export default function StatusBar({ onSync }: StatusBarProps) {
-  const { hasRole, token } = useAuth();
+  const { can, token } = useAuth();
   const [status, setStatus] = useState<{
     backend: 'ok' | 'error' | 'loading';
     zabbix: 'connected' | 'disconnected' | 'unknown';
@@ -59,7 +60,7 @@ export default function StatusBar({ onSync }: StatusBarProps) {
   };
 
   const handleSync = async () => {
-    if (!hasRole(['admin'])) return;
+    if (!can(PERMISSIONS.sync)) return;
     setSyncing(true);
     try {
       await api.syncFull();
@@ -117,7 +118,7 @@ export default function StatusBar({ onSync }: StatusBarProps) {
           </span>
         )}
         
-        {hasRole(['admin']) && (
+        {can(PERMISSIONS.sync) && (
           <button
             onClick={handleSync}
             disabled={syncing}

@@ -10,6 +10,7 @@ from app.models.sla import SLA
 from app.models.user import User
 from app.routers.auth import get_current_user
 from app.models.sla_service_link import SlaServiceLink
+from app.permissions import P_SLA_EDIT, P_SYNC, require_permission
 from app.services.sync import sync_slas, sync_sla_service_links, sla_service_tags
 from app.services.zabbix_client import zabbix_client, ZabbixError
 
@@ -55,13 +56,9 @@ async def service_links(
 @router.post("/sync")
 async def sync(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(P_SYNC)),
 ):
-    """Синхронизировать SLA из Zabbix (+ пересобрать связи)."""
-    if current_user.role != "admin":
-        from fastapi import HTTPException
-        raise HTTPException(status_code=403, detail="Only admin can sync")
-    
+    """Синхронизировать SLA из Zabbix (+ пересобрать связи). Право: sync.run."""
     count = await sync_slas(db)
     links = await sync_sla_service_links(db)
     return {"synced": count, "links": links}
@@ -86,11 +83,9 @@ async def sla_excluded_downtimes(
 async def sla_add_excluded_downtime(
     zabbix_slaid: str,
     data: ExcludedDowntimeIn,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(P_SLA_EDIT)),
 ):
-    """Добавить окно исключения простоя в Zabbix (read-modify-write)."""
-    if current_user.role not in ("admin", "planner"):
-        raise HTTPException(status_code=403, detail="Only admin/planner can add downtimes")
+    """Добавить окно исключения простоя в Zabbix (read-modify-write). Право: sla.edit."""
     try:
         updated = await zabbix_client.add_excluded_downtime(
             slaid=zabbix_slaid,
@@ -107,11 +102,9 @@ async def sla_add_excluded_downtime(
 async def sla_remove_excluded_downtime(
     zabbix_slaid: str,
     downtime_name: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(P_SLA_EDIT)),
 ):
-    """Удалить окно исключения простоя из Zabbix по имени."""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Only admin can remove downtimes")
+    """Удалить окно исключения простоя из Zabbix по имени. Право: sla.edit."""
     try:
         updated = await zabbix_client.remove_excluded_downtime(zabbix_slaid, downtime_name)
     except ZabbixError as e:

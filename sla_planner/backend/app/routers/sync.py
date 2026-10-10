@@ -1,11 +1,11 @@
 """Sync router — полная синхронизация с Zabbix (SLA + Services + Links)."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.user import User
-from app.routers.auth import get_current_user
+from app.permissions import P_SYNC, require_permission
 from app.services.sync import full_sync
 
 router = APIRouter()
@@ -14,14 +14,12 @@ router = APIRouter()
 @router.post("/full")
 async def sync_full(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(P_SYNC)),
 ):
     """
     Полная синхронизация с Zabbix: SLA → услуги → связи.
     Только живые данные: пропавшее в Zabbix удаляется из БД.
+    Право: sync.run (у admin оно есть по умолчанию).
     """
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Only admin can sync")
-
     result = await full_sync(db)
     return result
