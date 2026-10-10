@@ -26,6 +26,9 @@ export default function GroupsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<GroupForm>(emptyForm);
   const [saving, setSaving] = useState(false);
+  /** Как в Grafana: участник добавляется через «+» (раскрывается выбор пользователя). */
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [newMemberId, setNewMemberId] = useState<number | ''>('');
 
   useEffect(() => { loadData(); }, []);
 
@@ -45,6 +48,8 @@ export default function GroupsPage() {
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm);
+    setAddMemberOpen(false);
+    setNewMemberId('');
     setShowModal(true);
   };
 
@@ -58,16 +63,9 @@ export default function GroupsPage() {
       model_ids: [...group.model_ids],
       member_ids: [...group.member_ids],
     });
+    setAddMemberOpen(false);
+    setNewMemberId('');
     setShowModal(true);
-  };
-
-  const togglePermission = (key: string) => {
-    setForm(prev => ({
-      ...prev,
-      permissions: prev.permissions.includes(key)
-        ? prev.permissions.filter(p => p !== key)
-        : [...prev.permissions, key],
-    }));
   };
 
   const toggleModel = (rootId: string) => {
@@ -79,13 +77,18 @@ export default function GroupsPage() {
     }));
   };
 
-  const toggleMember = (userId: number) => {
-    setForm(prev => ({
-      ...prev,
-      member_ids: prev.member_ids.includes(userId)
-        ? prev.member_ids.filter(id => id !== userId)
-        : [...prev.member_ids, userId],
-    }));
+  const removeMember = (userId: number) => {
+    setForm(prev => ({ ...prev, member_ids: prev.member_ids.filter(id => id !== userId) }));
+  };
+
+  const addMember = () => {
+    if (newMemberId === '') return;
+    const id = Number(newMemberId);
+    if (!form.member_ids.includes(id)) {
+      setForm(prev => ({ ...prev, member_ids: [...prev.member_ids, id] }));
+    }
+    setNewMemberId('');
+    setAddMemberOpen(false);
   };
 
   const handleSave = async () => {
@@ -138,7 +141,8 @@ export default function GroupsPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Группы</h1>
         <p className="text-gray-500 mt-1">
-          Группа — это набор прав и состав участников. Пользователь получает сумму прав своих групп (как в Grafana).
+          Группа — это набор прав, область моделей здоровья и состав участников (как команды в Grafana).
+          Нажмите на название группы, чтобы её отредактировать и добавить участников.
         </p>
       </div>
 
@@ -170,7 +174,11 @@ export default function GroupsPage() {
                   <tr key={group.id} className="hover:bg-gray-50 align-top">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{group.name}</span>
+                        <button onClick={() => openEdit(group)}
+                          className="font-medium text-blue-700 hover:text-blue-900 hover:underline text-left"
+                          title="Редактировать группу">
+                          {group.name}
+                        </button>
                         {group.is_system && (
                           <span className="px-2 py-0.5 rounded-full text-[11px] bg-amber-100 text-amber-700" title="Системная группа, создаётся автоматически">системная</span>
                         )}
@@ -298,9 +306,9 @@ export default function GroupsPage() {
                       <p className="text-xs text-gray-500 mt-2 mb-1">
                         Отметьте модели, которые видит группа ({form.model_ids.length} из {models.length}):
                       </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                      <div className="border border-gray-100 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto">
                         {models.map(m => (
-                          <label key={m.rootId} className="flex items-center gap-2 p-2 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer">
+                          <label key={m.rootId} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
                             <input type="checkbox"
                               checked={form.model_ids.includes(m.rootId)}
                               onChange={() => toggleModel(m.rootId)} />
@@ -313,26 +321,61 @@ export default function GroupsPage() {
                 )}
               </div>
 
+              {/* Участники: как в Grafana — список + «+ Добавить участника» */}
               <div>
-                <p className="text-sm font-semibold text-gray-700 mb-1.5">Участники</p>
-                {users.length === 0 ? (
-                  <p className="text-sm text-gray-400">Нет пользователей</p>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-sm font-semibold text-gray-700">Участники</p>
+                  <button type="button" onClick={() => setAddMemberOpen(v => !v)}
+                    className="text-sm text-blue-600 hover:text-blue-800">
+                    <i className="fas fa-plus mr-1"></i>Добавить участника
+                  </button>
+                </div>
+
+                {addMemberOpen && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <select
+                      value={newMemberId}
+                      onChange={e => setNewMemberId(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Выберите пользователя…</option>
+                      {users.filter(u => !form.member_ids.includes(u.id)).map(u => (
+                        <option key={u.id} value={u.id}>{u.username}</option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={addMember} disabled={newMemberId === ''}
+                      className="px-3 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+                      Добавить
+                    </button>
+                    <button type="button" onClick={() => { setAddMemberOpen(false); setNewMemberId(''); }}
+                      className="px-3 py-2 rounded-lg text-sm bg-gray-100 text-gray-600 hover:bg-gray-200">
+                      Отмена
+                    </button>
+                  </div>
+                )}
+
+                {form.member_ids.length === 0 ? (
+                  <p className="text-sm text-gray-400 border border-dashed border-gray-200 rounded-lg px-3 py-3 text-center">
+                    Пока никого нет — добавьте участников через «+ Добавить участника».
+                  </p>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-                    {users.map(u => (
-                      <label key={u.id} className="flex items-center gap-2 p-2 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer">
-                        <input type="checkbox"
-                          checked={form.member_ids.includes(u.id)}
-                          onChange={() => setForm(prev => ({
-                            ...prev,
-                            member_ids: prev.member_ids.includes(u.id)
-                              ? prev.member_ids.filter(id => id !== u.id)
-                              : [...prev.member_ids, u.id],
-                          }))} />
-                        <span className="text-sm text-gray-800">{u.username}</span>
-                        {u.role === 'admin' && <span className="text-xs text-gray-400">(админ — группы не важны)</span>}
-                      </label>
-                    ))}
+                  <div className="border border-gray-100 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto">
+                    {form.member_ids.map(id => {
+                      const u = users.find(x => x.id === id);
+                      return (
+                        <div key={id} className="flex items-center justify-between px-3 py-2">
+                          <span className="flex items-center gap-2 text-sm text-gray-800">
+                            <i className="fas fa-user-circle text-gray-300"></i>
+                            {u?.username || `#${id}`}
+                            {u?.role === 'admin' && <span className="text-xs text-gray-400">(админ — группы не важны)</span>}
+                          </span>
+                          <button type="button" onClick={() => removeMember(id)}
+                            className="text-gray-400 hover:text-red-500" title="Убрать из группы">
+                            <i className="fas fa-times"></i>
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
