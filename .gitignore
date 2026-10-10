@@ -37,6 +37,9 @@ Thumbs.db
 zabbix_dump.json
 zabbix_dump.json:*
 
+# Local OpenCode MCP config (contains API keys) — never commit
+opencode.json
+
 # Coverage
 htmlcov/
 .coverage
