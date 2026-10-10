@@ -4,6 +4,7 @@ import { SLA, Service, PlannedWork, WorkStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { PERMISSIONS } from '../permissions';
 import { useToast } from '../context/ToastContext';
+import { formatDateTimeShort, toMskInputValue, mskInputToDate, mskDateKey } from '../time';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
 
@@ -76,11 +77,10 @@ export default function WorksPage() {
 
   const getWorksForDay = (day: number) => {
     return works.filter(w => {
-      const start = new Date(w.started_at);
-      const end = new Date(w.ended_at);
-      const checkDate = new Date(calYear, calMonth, day);
-      return checkDate >= new Date(start.getFullYear(), start.getMonth(), start.getDate()) &&
-             checkDate <= new Date(end.getFullYear(), end.getMonth(), end.getDate());
+      const key = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const start = mskDateKey(w.started_at);
+      const end = mskDateKey(w.ended_at);
+      return start !== '' && end !== '' && start <= key && key <= end;
     });
   };
 
@@ -150,8 +150,8 @@ export default function WorksPage() {
                     <div className="text-xs text-gray-400">{work.service_name}</div>
                   </td>
                   <td className="px-4 py-3 text-gray-600">
-                    <div>{new Date(work.started_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
-                    <div className="text-xs text-gray-400">— {new Date(work.ended_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+                    <div>{formatDateTimeShort(work.started_at)}</div>
+                    <div className="text-xs text-gray-400">— {formatDateTimeShort(work.ended_at)}</div>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[work.status]}`}>
@@ -288,8 +288,8 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
   const [description, setDescription] = useState(work?.description || '');
   const [slaId, setSlaId] = useState(work?.sla_id?.toString() || '');
   const [serviceId, setServiceId] = useState(work?.service_id?.toString() || '');
-  const [startDate, setStartDate] = useState(work?.started_at ? new Date(work.started_at).toISOString().slice(0, 16) : '');
-  const [endDate, setEndDate] = useState(work?.ended_at ? new Date(work.ended_at).toISOString().slice(0, 16) : '');
+  const [startDate, setStartDate] = useState(work?.started_at ? toMskInputValue(work.started_at) : '');
+  const [endDate, setEndDate] = useState(work?.ended_at ? toMskInputValue(work.ended_at) : '');
   const [saving, setSaving] = useState(false);
   const [filteredServices, setFilteredServices] = useState<Service[]>([]);
 
@@ -327,8 +327,8 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
     e.preventDefault();
     setSaving(true);
     try {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
+      const start = mskInputToDate(startDate);
+      const end = mskInputToDate(endDate);
       await onSave({
         title, description,
         sla_id: parseInt(slaId), service_id: parseInt(serviceId),
@@ -403,12 +403,12 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Начало (UTC) *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Начало (МСК) *</label>
               <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Окончание (UTC) *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Окончание (МСК) *</label>
               <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
             </div>

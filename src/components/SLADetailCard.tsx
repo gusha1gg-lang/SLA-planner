@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import { SLA, Service, ExcludedDowntime } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { PERMISSIONS } from '../permissions';
+import { formatDateTime } from '../time';
 
 /**
  * Карточка деталей SLA (живые данные из Zabbix): SLO, расписание, исключения
@@ -69,15 +70,7 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
     }
   };
 
-  const formatUnixTime = (unix: string) => {
-    return new Date(parseInt(unix) * 1000).toLocaleString('ru-RU', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+  const formatUnixTime = (unix: string) => formatDateTime(parseInt(unix) * 1000);
 
   const calculateDuration = (from: string, to: string) => {
     const diff = parseInt(to) - parseInt(from);

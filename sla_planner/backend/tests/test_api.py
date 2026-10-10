@@ -877,3 +877,63 @@ async def test_zabbix_client_downtime_format():
     assert isinstance(downtime["name"], str)
     assert isinstance(downtime["period_from"], str)
     assert isinstance(downtime["period_to"], str)
+
+
+# ── Время: единый UTC-формат (иначе браузер трактует naive-время как локальное) ──
+
+
+def test_iso_utc_marks_naive_as_utc():
+    """iso_utc: naive-время (как пишет SQLite) получает явную зону UTC."""
+    from datetime import datetime
+    from app.timeutil import iso_utc
+
+    assert iso_utc(datetime(2026, 10, 10, 18, 37)) == "2026-10-10T18:37:00+00:00"
+    assert iso_utc(None) is None
+
+
+def test_parse_utc_normalizes_offset():
+    """parse_utc: aware-строку приводит к UTC, naive считает UTC."""
+    from app.timeutil import parse_utc
+
+    assert parse_utc("2026-10-10T14:37:00+03:00").isoformat() == "2026-10-10T11:37:00+00:00"
+    assert parse_utc("2026-10-10T11:37:00Z").isoformat() == "2026-10-10T11:37:00+00:00"
+    assert parse_utc("2026-10-10T11:37:00").isoformat() == "2026-10-10T11:37:00+00:00"
+
+
+@pytest.mark.asyncio
+async def test_work_timestamps_are_utc(auth_headers):
+    """Момент работы отдаётся в UTC с зоной; epoch считается по UTC."""
+    await _seed_sla_service()
+    from datetime import datetime, timezone
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/works/", headers=auth_headers, json={
+            "title": "Время",
+            "description": "",
+            "sla_id": 1,
+            "service_id": 1,
+            "started_at": "2026-10-10T11:37:00.000Z",
+            "ended_at": "2026-10-10T12:07:00.000Z",
+        })
+    assert resp.status_code == 201, resp.text
+    work = resp.json()
+    assert work["started_at"] == "2026-10-10T11:37:00+00:00"
+    assert work["ended_at"] == "2026-10-10T12:07:00+00:00"
+    assert work["created_at"].endswith("+00:00")
+    expected = int(datetime(2026, 10, 10, 11, 37, tzinfo=timezone.utc).timestamp())
+    assert work["downtime_period_from"] == str(expected)
+
+
+@pytest.mark.asyncio
+async def test_audit_and_user_timestamps_are_utc(auth_headers):
+    """Аудит и пользователи отдают created_at с явной зоной UTC."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        await client.post("/api/groups/", headers=auth_headers, json={
+            "name": "Группа-время", "permissions": ["dashboard"],
+        })
+        logs = (await client.get("/api/audit/", headers=auth_headers)).json()
+        users = (await client.get("/api/users/", headers=auth_headers)).json()
+    assert logs and all(l["created_at"].endswith("+00:00") for l in logs)
+    assert users and all(u["created_at"].endswith("+00:00") for u in users)

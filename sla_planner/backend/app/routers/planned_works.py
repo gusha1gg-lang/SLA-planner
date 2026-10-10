@@ -1,7 +1,6 @@
 """Planned Works router — CRUD + push to Zabbix."""
 
 import json
-from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -15,6 +14,7 @@ from app.models.sla import SLA
 from app.models.user import User
 from app.permissions import P_WORKS, P_WORKS_DELETE, P_WORKS_EDIT, require_permission
 from app.services.zabbix_client import zabbix_client, ZabbixError
+from app.timeutil import iso_utc, parse_utc
 
 router = APIRouter()
 
@@ -43,17 +43,19 @@ async def create_work(
     current_user: User = Depends(require_permission(P_WORKS_EDIT)),
 ):
     """Создать плановую работу (право works.edit)."""
+    start_dt = parse_utc(data["started_at"])
+    end_dt = parse_utc(data["ended_at"])
     work = PlannedWork(
         title=data["title"],
         description=data.get("description", ""),
         service_id=data["service_id"],
         sla_id=data["sla_id"],
-        started_at=datetime.fromisoformat(data["started_at"]),
-        ended_at=datetime.fromisoformat(data["ended_at"]),
+        started_at=start_dt,
+        ended_at=end_dt,
         status="draft",
         downtime_marker=f"SLA Planner #pending",
-        downtime_period_from=str(int(datetime.fromisoformat(data["started_at"]).timestamp())),
-        downtime_period_to=str(int(datetime.fromisoformat(data["ended_at"]).timestamp())),
+        downtime_period_from=str(int(start_dt.timestamp())),
+        downtime_period_to=str(int(end_dt.timestamp())),
         created_by=current_user.id,
         updated_by=current_user.id,
     )
@@ -136,11 +138,11 @@ async def update_work(
     started_at = data.get("started_at")
     ended_at = data.get("ended_at")
     if started_at:
-        start_dt = datetime.fromisoformat(started_at)
+        start_dt = parse_utc(started_at)
         work.started_at = start_dt
         work.downtime_period_from = str(int(start_dt.timestamp()))
     if ended_at:
-        end_dt = datetime.fromisoformat(ended_at)
+        end_dt = parse_utc(ended_at)
         work.ended_at = end_dt
         work.downtime_period_to = str(int(end_dt.timestamp()))
 
@@ -285,13 +287,13 @@ def work_to_dict(w: PlannedWork) -> dict:
         "description": w.description,
         "service_id": w.service_id,
         "sla_id": w.sla_id,
-        "started_at": w.started_at.isoformat() if w.started_at else None,
-        "ended_at": w.ended_at.isoformat() if w.ended_at else None,
+        "started_at": iso_utc(w.started_at),
+        "ended_at": iso_utc(w.ended_at),
         "status": w.status,
         "downtime_marker": w.downtime_marker,
         "downtime_period_from": w.downtime_period_from,
         "downtime_period_to": w.downtime_period_to,
         "sync_error": w.sync_error,
         "created_by": w.created_by,
-        "created_at": w.created_at.isoformat() if w.created_at else None,
+        "created_at": iso_utc(w.created_at),
     }

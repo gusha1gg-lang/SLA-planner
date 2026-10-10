@@ -48,6 +48,29 @@
 
 ## 3. Что уже сделано (история)
 
+### Единое время: API отдаёт UTC с зоной, UI показывает МСК (2026-10-10)
+
+Пользователь создал пользователя и вошёл «в 18:37», хотя по МСК было 21:38 — сайт показывал
+время на 3 часа назад. Причина: SQLite не хранит часовой пояс, `DateTime(timezone=True)` +
+`server_default=func.now()` возвращали *naive*-UTC, а роутеры отдавали `.isoformat()` **без зоны**.
+Браузер трактует строку без зоны как локальное время → сдвиг на смещение зоны (для МСК −3 ч).
+- **Бэкенд:** новый `app/timeutil.py`: `iso_utc(dt)` (naive считает UTC, добавляет `+00:00`;
+  aware приводит к UTC) и `parse_utc(s)` (ISO → aware-UTC, `Z`/смещения, naive = UTC).
+  Все эндпоинты, отдающие время (`audit`, `groups`, `users`, `sla`, `services`, `planned_works`),
+  переведены на `iso_utc`; создание/правка работы хранит момент через `parse_utc`
+  (в SQLite пишется UTC-wall, epoch для Zabbix считается по UTC — корректно).
+- **Фронтенд:** новый `src/time.ts` — единые хелперы, отформатированные через
+  `Intl` с `timeZone: 'Europe/Moscow'` (детерминированно по МСК независимо от зоны браузера):
+  `formatDateTime`, `formatDateTimeShort`, `formatDate`, `formatTime`, `mskDateKey`,
+  `toMskInputValue`, `mskInputToDate`. Переведены `AuditPage`, `UsersPage`, `DashboardPage`,
+  `WorksPage` (список + календарь + форма), `ReportPage`, `SLADetailCard`, `ServiceConfigCard`,
+  `StatusBar`. В форме работы подписи «(UTC)» → «(МСК)», значения полей читаются/пишутся как МСК.
+- Проверено: pytest 41 passed (добавлены `test_iso_utc_marks_naive_as_utc`,
+  `test_parse_utc_normalizes_offset`, `test_work_timestamps_are_utc`,
+  `test_audit_and_user_timestamps_are_utc`), typecheck чист, Playwright E2E 3 passed
+  (новый тест «Время: аудит-лог показывает московское время (MSK)»: время первой записи
+  совпадает с текущим МСК ±5 мин).
+
 ### Скрыта привязка к Zabbix от обычных пользователей; синк — только admin (2026-10-10)
 
 Пользователь просил, чтобы коллеги видели просто сайт плановых работ/отчётов без следов
@@ -548,8 +571,9 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
     install-deps chromium`; без sudo временно: `apt-get download libnspr4 libnss3 libasound2t64`
     → `dpkg -x` в `/tmp/opencode/rootfs` → запуск с
     `LD_LIBRARY_PATH=/tmp/opencode/rootfs/usr/lib/x86_64-linux-gnu`. Прогон: `npx playwright test
-    .opencode/skills/ui-verify/scripts/ui-check.spec.ts` (проверено: 2 passed — «Модель здоровья» и
-    «Права: меню по правам групп + страница «Группы» у admin»). Внимание: vite-watcher следит и за
+    .opencode/skills/ui-verify/scripts/ui-check.spec.ts` (проверено: 3 passed — «Модель здоровья»,
+    «Права: меню по правам групп + страница «Группы» у admin», «Время: аудит-лог показывает
+    московское время (MSK)»). Внимание: vite-watcher следит и за
     файлами вне `src` (spec/бэкенд) и шлёт полный page-reload подключённым клиентам — правь spec до
     прогона, иначе тест сбросится на «Дашборд».
 22. **Модель прав (с 2026-10-10):** роли `admin`/`user`; права `user` = сумма прав его групп (как
@@ -560,8 +584,17 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
     Каталог `ALL_PERMISSIONS` — страницы `dashboard/model/works/reports/audit` + действия
     `works.edit/works.delete/sla.edit/graph.edit`. `sync.run` в каталог групп НЕ входит: полная
     синхронизация доступна только роли admin, у обычных пользователей нет и следа интеграции. **`get_current_user` живёт в
+    синхронизация доступна только роли admin, у обычных пользователей нет и следа интеграции. **`get_current_user` живёт в
     `app/deps.py`** (не в `routers/auth.py`, который реэкспортит его) — иначе цикл импортов
     auth↔permissions.
+23. **Время (с 2026-10-10): наружу — только UTC с зоной, UI — МСК.** SQLite не хранит TZ:
+    `DateTime(timezone=True)` + `server_default=func.now()` дают *naive*-UTC. Отдавать такое
+    время через `.isoformat()` нельзя — браузер трактует строку без зоны как локальную и метки
+    уезжают на смещение (для МСК −3 ч). Правило: наружу — через `app/timeutil.py: iso_utc()`
+    (добавляет `+00:00`), входящие моменты — через `parse_utc()` (приводит к UTC). На фронте
+    любые метки — через `src/time.ts` (`formatDateTime`/`formatDate`/`formatTime`/…, жёстко
+    `timeZone: 'Europe/Moscow'`), поля `datetime-local` — `toMskInputValue`/`mskInputToDate`
+    (подписи в форме работы — «(МСК)»). Не возвращать `toLocaleString` без `timeZone`.
 
 ---
 

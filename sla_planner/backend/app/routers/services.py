@@ -14,6 +14,7 @@ from app.routers.auth import get_current_user
 from app.permissions import P_MODEL, P_SYNC, allowed_service_ids, require_permission
 from app.services.sync import sync_services, sync_sla_service_links
 from app.services.zabbix_client import zabbix_client, ZabbixError
+from app.timeutil import iso_utc
 
 router = APIRouter()
 
@@ -82,7 +83,7 @@ async def list_services(
         "sortorder": s.sortorder,
         "status": s.status,
         "tags": json.loads(s.tags) if s.tags else [],
-        "synced_at": s.synced_at.isoformat() if s.synced_at else None,
+        "synced_at": iso_utc(s.synced_at),
     } for s in services]
 
 
@@ -126,7 +127,7 @@ async def service_config(
     created_at = None
     if s.get("created_at"):
         try:
-            created_at = datetime.fromtimestamp(int(s["created_at"]), tz=timezone.utc).isoformat()
+            created_at = iso_utc(datetime.fromtimestamp(int(s["created_at"]), tz=timezone.utc))
         except (ValueError, TypeError):
             created_at = None
 

@@ -16,6 +16,7 @@ from app.models.group import Group, UserGroup
 from app.models.user import User
 from app.models.audit_log import AuditLog
 from app.permissions import ALL_PERMISSIONS, require_admin
+from app.timeutil import iso_utc
 
 router = APIRouter()
 
@@ -64,7 +65,7 @@ def _group_dict(group: Group, member_ids: list[int] | None = None) -> dict:
         "model_ids": json.loads(group.model_ids or "[]"),
         "is_system": group.is_system,
         "member_ids": member_ids or [],
-        "created_at": group.created_at.isoformat() if group.created_at else None,
+        "created_at": iso_utc(group.created_at),
     }
 
 

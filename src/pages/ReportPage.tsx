@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { SLA, PlannedWork } from '../types';
 import { useToast } from '../context/ToastContext';
+import { mskDateKey } from '../time';
 
 export default function ReportPage() {
   const { showToast } = useToast();
@@ -40,7 +41,7 @@ export default function ReportPage() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `sla-report-${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `sla-report-${mskDateKey(new Date())}.csv`;
     link.click();
     
     showToast('success', 'Отчёт экспортирован в CSV');

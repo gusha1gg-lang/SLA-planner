@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.audit_log import AuditLog
 from app.models.user import User
 from app.permissions import P_AUDIT, require_permission
+from app.timeutil import iso_utc
 
 router = APIRouter()
 
@@ -36,5 +37,5 @@ async def list_logs(
         "entity_id": log.entity_id,
         "payload": json.loads(log.payload) if log.payload else {},
         "result": log.result,
-        "created_at": log.created_at.isoformat() if log.created_at else None,
+        "created_at": iso_utc(log.created_at),
     } for log in logs]

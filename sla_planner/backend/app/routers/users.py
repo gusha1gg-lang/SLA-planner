@@ -13,6 +13,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.group import Group, UserGroup
 from app.models.audit_log import AuditLog
+from app.timeutil import iso_utc
 from app.permissions import require_admin, user_groups
 from app.services.auth import hash_password
 
@@ -53,7 +54,7 @@ async def list_users(
         "role": u.role,
         "groups": await user_groups(u, db),
         "is_active": u.is_active,
-        "created_at": u.created_at.isoformat() if u.created_at else None,
+        "created_at": iso_utc(u.created_at),
     } for u in users]
 
 

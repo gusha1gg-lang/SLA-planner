@@ -13,6 +13,7 @@ from app.models.sla_service_link import SlaServiceLink
 from app.permissions import P_SLA_EDIT, P_SYNC, require_permission
 from app.services.sync import sync_slas, sync_sla_service_links, sla_service_tags
 from app.services.zabbix_client import zabbix_client, ZabbixError
+from app.timeutil import iso_utc
 
 router = APIRouter()
 
@@ -38,7 +39,7 @@ async def list_slas(
         "slo": s.slo,
         "schedule_type": s.schedule_type,
         "service_tags": sla_service_tags(s),  # string[] для фронта
-        "synced_at": s.synced_at.isoformat() if s.synced_at else None,
+        "synced_at": iso_utc(s.synced_at),
     } for s in slas]
 
 

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { SLA, Service, PlannedWork } from '../types';
 import { useToast } from '../context/ToastContext';
+import { formatDate } from '../time';
 
 interface DashboardPageProps {
   onNavigate: (page: string, params?: Record<string, string>) => void;
@@ -133,7 +134,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
                   <td className="px-5 py-3 text-gray-600">{work.sla_name}</td>
                   <td className="px-5 py-3 text-gray-600">{work.service_name}</td>
                   <td className="px-5 py-3 text-gray-600">
-                    {new Date(work.started_at).toLocaleDateString('ru-RU')} — {new Date(work.ended_at).toLocaleDateString('ru-RU')}
+                    {formatDate(work.started_at)} — {formatDate(work.ended_at)}
                   </td>
                   <td className="px-5 py-3">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[work.status]}`}>

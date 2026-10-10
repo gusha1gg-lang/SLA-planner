@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { ServiceConfig } from '../types';
+import { formatDateTime } from '../time';
 
 /**
  * Карточка живой конфигурации услуги из Zabbix (GET /api/services/{id}/config).
@@ -55,11 +56,7 @@ export function statusLabel(status: number): string {
 }
 
 function formatDate(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return formatDateTime(iso);
 }
 
 /** Строка «поле» карточки конфигурации. */

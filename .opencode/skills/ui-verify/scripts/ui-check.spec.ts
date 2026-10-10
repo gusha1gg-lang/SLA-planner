@@ -90,3 +90,28 @@ test('Права: меню по правам групп + страница «Г�
 
   await page.screenshot({ path: '/tmp/opencode/ui-verify/groups.png' });
 });
+
+test('Время: аудит-лог показывает московское время (MSK)', async ({ page }) => {
+  // Логин админом (аудит-лог — admin-only). Само событие login пишет запись в лог.
+  await page.goto('http://localhost:3000/');
+  await page.getByPlaceholder('admin / planner / viewer').fill('admin');
+  await page.getByPlaceholder('Пароль').fill('admin123');
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await expect(page.getByRole('button', { name: 'Аудит-лог' })).toBeVisible();
+  await page.getByRole('button', { name: 'Аудит-лог' }).click();
+  await expect(page.getByRole('heading', { name: 'Аудит-лог', level: 1 })).toBeVisible();
+
+  // Время первой строки — событие login только что; оно должно совпасть с текущим МСК (±5 мин).
+  // До фикса бэкенд отдавал naive-UTC, и браузер показывал время на 3 часа назад.
+  const firstRow = page.locator('table tbody tr').first();
+  const timeText = (await firstRow.locator('td').nth(1).innerText()).trim();
+  const m = timeText.match(/(\d{2})\.(\d{2})\.(\d{4}),\s*(\d{2}):(\d{2})/);
+  expect(m, `не разобрали время в аудит-логе: «${timeText}»`).not.toBeNull();
+  const [, dd, mo, yyyy, hh, mi] = m!;
+  // Показанное время — московское (UTC+3): переводим в UTC-момент и сравниваем с текущим.
+  const shownUtc = Date.UTC(Number(yyyy), Number(mo) - 1, Number(dd), Number(hh) - 3, Number(mi));
+  const diffMin = Math.abs(Date.now() - shownUtc) / 60000;
+  expect(diffMin, `время в логе «${timeText}» расходится с МСК на ${diffMin.toFixed(1)} мин`).toBeLessThan(5);
+
+  await page.screenshot({ path: '/tmp/opencode/ui-verify/audit-time.png' });
+});

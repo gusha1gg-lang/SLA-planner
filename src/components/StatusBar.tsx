@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { formatTime } from '../time';
 
 interface StatusBarProps {
   onSync?: () => void;
@@ -70,7 +71,7 @@ export default function StatusBar({ onSync }: StatusBarProps) {
     setSyncing(true);
     try {
       await api.syncFull();
-      setLastSync(new Date().toLocaleTimeString('ru-RU'));
+      setLastSync(formatTime(new Date()));
       onSync?.();
     } catch (err) {
       console.error('Sync failed:', err);

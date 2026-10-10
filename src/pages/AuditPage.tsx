@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { AuditLogEntry } from '../types';
+import { formatDateTime } from '../time';
 
 export default function AuditPage() {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
@@ -72,7 +73,7 @@ export default function AuditPage() {
                   <i className={`fas ${actionIcons[log.action] || 'fa-circle text-gray-400'}`}></i>
                 </td>
                 <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                  {new Date(log.created_at).toLocaleString('ru-RU')}
+                  {formatDateTime(log.created_at)}
                 </td>
                 <td className="px-4 py-3 font-medium">{log.username}</td>
                 <td className="px-4 py-3">

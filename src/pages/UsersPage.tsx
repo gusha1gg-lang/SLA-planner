@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { Group, User, UserRole } from '../types';
 import { useToast } from '../context/ToastContext';
+import { formatDate } from '../time';
 
 const roleColors: Record<string, string> = {
   admin: 'bg-red-100 text-red-700',
@@ -193,7 +194,7 @@ export default function UsersPage() {
                       {user.is_active ? 'Активен' : 'Заблокирован'}
                     </span>
                   </td>
-                  <td className="px-5 py-3 text-gray-600">{new Date(user.created_at).toLocaleDateString('ru-RU')}</td>
+                  <td className="px-5 py-3 text-gray-600">{formatDate(user.created_at)}</td>
                   <td className="px-5 py-3">
                     <button onClick={() => openEdit(user)} className="text-blue-600 hover:text-blue-800 text-sm mr-3" title="Редактировать">
                       <i className="fas fa-edit"></i>
