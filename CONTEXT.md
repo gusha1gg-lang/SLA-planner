@@ -46,6 +46,19 @@
 
 ## 3. Что уже сделано (история)
 
+### Навыки (skills) для агента (2026-10-10)
+
+По просьбе пользователя созданы проектные skills в `.opencode/skills/` (подхватываются opencode
+автоматически, закоммичены в репозиторий):
+- **dev-env-up** — идемпотентный подъём dev-среды после ребута (uvicorn + vite, проверка портов,
+  логи; скрипт `scripts/env-up.sh`), ловушки про порты и устаревший код vite.
+- **zabbix-api** — факты Zabbix 7.0 API (Bearer, parents/children, problem_tags только на листьях,
+  icmpping[<ip>], привязка хостов тегом service и т.д.) + готовый клиент
+  `scripts/zabbix_client.py` (creds из env/.env, вызовы service/host/trigger).
+- **check-secrets** — сканер staged-изменений перед коммитом (`scripts/scan-secrets.sh`):
+  паттерны ключей/токенов + запрет на стейдж `.env`, `opencode.json`, `zabbix_dump.json`
+  (профилактика повторения инцидента с утёкшим API-ключом).
+
 ### Секреты вычищены из репозитория (2026-10-10)
 
 - **`opencode.json` (конфиг MCP opencode) удалён из git и из всей истории** — в нём лежал живой
