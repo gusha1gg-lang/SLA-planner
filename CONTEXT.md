@@ -60,6 +60,13 @@
 Проверено end-to-end: item=0 (пинг не идёт), триггеры 25227/25228 в проблеме
 (events 30/32, тег `service=Q3MET ТЭСЦ-1`), статус услуги **4 (High)** на листе 798,
 MES-DB-PROD-TESC1 и корне 796. Сайт не трогался (хосты на сайт не синкаются).
+- **Теги на триггерах (по требованию пользователя):** триггерам 25227/25228 добавлен тег
+  `service: Q3MET ТЭСЦ-1` (`trigger.update`, `tags`) — теги открытых проблем обновились сразу
+  (в Zabbix 7.0 изменение тегов триггера пересчитывает теги активных событий).
+- **Новый скрипт `create_ping_test_hosts.py`** (корень репо): повторяемо создаёт тестовые хосты
+  с триггером «недоступен по пингу» **и тегом `service` на триггере**; идемпотентный
+  (`--service --prefix --count [--group --base-ip-octet]`), креды из `backend/.env`.
+  Проверен путь и создания, и пропуска существующих.
 
 Новые ловушки Zabbix 7.0 (проверено вживую):
 - услуга с детьми НЕ может иметь `problem_tags` («cannot have problem tags and children at the same time») — теги проблем вешаются на листовые услуги;
@@ -257,11 +264,14 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
     наполненную через `create_all`, пометить `venv/bin/python -m alembic stamp head`, иначе
     `upgrade` упадёт на существующих таблицах. `app/seed.py` — идемпотентный bootstrap только
     пользователей (мок-данных больше нет).
-16. **Zabbix 7.0 service/problem_tags:** услуга с дочерними услугами НЕ может иметь
+16. **Zabbix 7.0 service/problem_tags/триггеры:** услуга с дочерними услугами НЕ может иметь
     `problem_tags` («cannot have problem tags and children at the same time») — теги проблем
     вешать ТОЛЬКО на листовые услуги (пример: лист 798 «Доступность по ping» в дереве
     Q3MET ТЭСЦ-1). Item `icmpping` без параметра уходит в unsupported — цель задавать
-    в ключе: `icmpping[<ip>]`. `service.get` не поддерживает `selectAncestors`/`problem_count`.
+    в ключе: `icmpping[<ip>]`, и в выражении триггера ключ указывать ТОЧНО как у item:
+    `last(/host/icmpping[<ip>])=0` (иначе trigger.create: «Incorrect item key»).
+    Теги на триггере вешать `tags: [{"tag":"service","value":...}]` — Zabbix сразу
+    обновляет теги открытых проблем. `service.get` не поддерживает `selectAncestors`/`problem_count`.
 
 ---
 
