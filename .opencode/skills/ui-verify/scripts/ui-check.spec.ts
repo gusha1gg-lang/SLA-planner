@@ -54,12 +54,22 @@ test('Права: меню по правам групп + страница «Г�
   await expect(page.getByRole('button', { name: 'Аудит-лог' })).toHaveCount(0);
   await expect(page.getByText('Наблюдатели')).toBeVisible();
 
+  // Обычный пользователь НЕ видит следов интеграции с Zabbix (кнопка, статус, Read-Only)
+  await expect(page.getByText('Сервер: Online')).toBeVisible();
+  await expect(page.getByText('Zabbix')).toHaveCount(0);
+  await expect(page.getByText('Read-Only')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Синхр. с Zabbix' })).toHaveCount(0);
+
   // 2. Выход и логин админом
   await page.getByTitle('Выйти').click();
   await page.getByPlaceholder('admin / planner / viewer').fill('admin');
   await page.getByPlaceholder('Пароль').fill('admin123');
   await page.getByRole('button', { name: 'Войти' }).click();
   await expect(page.getByRole('button', { name: 'Группы' })).toBeVisible();
+
+  // Админ видит кнопку синхронизации и состояние Zabbix
+  await expect(page.getByRole('button', { name: 'Синхр. с Zabbix' })).toBeVisible();
+  await expect(page.getByText('Zabbix:')).toBeVisible();
 
   // 3. Страница «Группы»: системные группы видны с правами
   await page.getByRole('button', { name: 'Группы' }).click();

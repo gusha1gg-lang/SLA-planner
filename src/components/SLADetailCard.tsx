@@ -108,7 +108,7 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-xl font-bold text-gray-900">{sla.name}</h2>
-          <p className="text-gray-500 mt-0.5 text-sm">Zabbix SLA ID: {sla.zabbix_slaid}</p>
+          <p className="text-gray-500 mt-0.5 text-sm">ID SLA: {sla.zabbix_slaid}</p>
         </div>
         <div className="flex items-center gap-2">
           {can(PERMISSIONS.slaEdit) && (
@@ -208,7 +208,7 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
                   <>
                     <div>
                       <p className="font-medium text-gray-900">{svc.name}</p>
-                      <p className="text-xs text-gray-500">Zabbix ID: {svc.zabbix_serviceid}</p>
+                      <p className="text-xs text-gray-500">ID: {svc.zabbix_serviceid}</p>
                     </div>
                     <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
                       {svc.tags.find(t => t.tag === 'service')?.value}

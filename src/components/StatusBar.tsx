@@ -1,14 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { PERMISSIONS } from '../permissions';
 
 interface StatusBarProps {
   onSync?: () => void;
 }
 
+/**
+ * Строка состояния.
+ *
+ * Обычные пользователи видят только состояние сервера — портал должен выглядеть
+ * как самостоятельное приложение, без следов интеграции с Zabbix. Состояние
+ * Zabbix, режим Read-Only и кнопка синхронизации показываются только admin.
+ */
 export default function StatusBar({ onSync }: StatusBarProps) {
-  const { can, token } = useAuth();
+  const { token, isAdmin } = useAuth();
   const [status, setStatus] = useState<{
     backend: 'ok' | 'error' | 'loading';
     zabbix: 'connected' | 'disconnected' | 'unknown';
@@ -27,7 +33,7 @@ export default function StatusBar({ onSync }: StatusBarProps) {
     checkStatus();
     const interval = setInterval(checkStatus, 30000);
     return () => clearInterval(interval);
-  }, [token]);
+  }, [token, isAdmin]);
 
   const checkStatus = async () => {
     try {
@@ -38,8 +44,8 @@ export default function StatusBar({ onSync }: StatusBarProps) {
         version: health.version || '0.1.0',
       }));
 
-      // Проверяем Zabbix через бэкенд
-      if (token) {
+      // Состояние Zabbix запрашиваем только для admin — остальным оно не нужно.
+      if (token && isAdmin) {
         try {
           const response = await fetch('/api/zabbix/status');
           if (response.ok) {
@@ -60,7 +66,7 @@ export default function StatusBar({ onSync }: StatusBarProps) {
   };
 
   const handleSync = async () => {
-    if (!can(PERMISSIONS.sync)) return;
+    if (!isAdmin) return;
     setSyncing(true);
     try {
       await api.syncFull();
@@ -75,7 +81,7 @@ export default function StatusBar({ onSync }: StatusBarProps) {
   return (
     <div className="bg-white border-b border-gray-200 px-6 py-2 flex items-center justify-between text-xs">
       <div className="flex items-center gap-4">
-        {/* Backend status */}
+        {/* Статус сервера — виден всем */}
         <div className="flex items-center gap-1.5">
           <span className={`w-2 h-2 rounded-full ${
             status.backend === 'ok' ? 'bg-green-500' :
@@ -83,42 +89,44 @@ export default function StatusBar({ onSync }: StatusBarProps) {
             'bg-red-500'
           }`}></span>
           <span className="text-gray-600">
-            Backend: {status.backend === 'ok' ? 'Online' : status.backend === 'loading' ? '...' : 'Offline'}
+            Сервер: {status.backend === 'ok' ? 'Online' : status.backend === 'loading' ? '...' : 'Offline'}
           </span>
         </div>
 
-        {/* Zabbix status */}
-        <div className="flex items-center gap-1.5">
-          <span className={`w-2 h-2 rounded-full ${
-            status.zabbix === 'connected' ? 'bg-green-500' :
-            status.zabbix === 'unknown' ? 'bg-gray-400' :
-            'bg-red-400'
-          }`}></span>
-          <span className="text-gray-600">
-            Zabbix: {status.zabbix === 'connected' ? 'Подключен' : status.zabbix === 'unknown' ? '—' : 'Не подключен'}
-          </span>
-        </div>
+        {/* Состояние интеграции — только admin */}
+        {isAdmin && (
+          <>
+            <div className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${
+                status.zabbix === 'connected' ? 'bg-green-500' :
+                status.zabbix === 'unknown' ? 'bg-gray-400' :
+                'bg-red-400'
+              }`}></span>
+              <span className="text-gray-600">
+                Zabbix: {status.zabbix === 'connected' ? 'Подключен' : status.zabbix === 'unknown' ? '—' : 'Не подключен'}
+              </span>
+            </div>
 
-        {/* Read-only badge */}
-        {status.readOnly && (
-          <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
-            <i className="fas fa-lock text-[10px]"></i>
-            Read-Only
-          </span>
+            {status.readOnly && (
+              <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                <i className="fas fa-lock text-[10px]"></i>
+                Read-Only
+              </span>
+            )}
+          </>
         )}
 
-        {/* Version */}
         <span className="text-gray-400">v{status.version}</span>
       </div>
 
-      <div className="flex items-center gap-3">
-        {lastSync && (
-          <span className="text-gray-400">
-            Последняя синхр.: {lastSync}
-          </span>
-        )}
-        
-        {can(PERMISSIONS.sync) && (
+      {isAdmin && (
+        <div className="flex items-center gap-3">
+          {lastSync && (
+            <span className="text-gray-400">
+              Последняя синхр.: {lastSync}
+            </span>
+          )}
+
           <button
             onClick={handleSync}
             disabled={syncing}
@@ -127,8 +135,8 @@ export default function StatusBar({ onSync }: StatusBarProps) {
             <i className={`fas fa-sync-alt ${syncing ? 'animate-spin' : ''}`}></i>
             {syncing ? 'Синхронизация...' : 'Синхр. с Zabbix'}
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

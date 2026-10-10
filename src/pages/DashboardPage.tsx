@@ -48,7 +48,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
     active: 'Активно',
     done: 'Завершено',
     cancelled: 'Отменено',
-    sync_error: 'Ошибка синхр.',
+    sync_error: 'Ошибка отправки',
   };
 
   if (loading) {

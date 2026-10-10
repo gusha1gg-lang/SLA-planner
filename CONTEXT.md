@@ -48,6 +48,28 @@
 
 ## 3. Что уже сделано (история)
 
+### Скрыта привязка к Zabbix от обычных пользователей; синк — только admin (2026-10-10)
+
+Пользователь просил, чтобы коллеги видели просто сайт плановых работ/отчётов без следов
+интеграции с Zabbix, а кнопка синхронизации была только у admin.
+- **Кнопка «Синхр. с Zabbix»** и статус `Zabbix`/`Read-Only` в `StatusBar.tsx` показываются
+  только при `isAdmin` (обычным — лишь «Сервер: Online» и версия); запрос `/api/zabbix/status`
+  для неадмина тоже не делается.
+- **`sync.run` убран из каталога прав групп** (`app/permissions.py` `ALL_PERMISSIONS`,
+  `src/permissions.ts` `PERMISSION_SECTIONS`): синхронизация стала чисто админ-операцией.
+  Роутеры `/api/sync`, `/api/sla/sync`, `/api/services/sync` по-прежнему используют
+  `require_permission(P_SYNC)`, но admin проходит по роли; константа `P_SYNC` оставлена только
+  для гварда.
+- **Убраны пользовательские упоминания Zabbix:** подзаголовок «Модели здоровья» и подсказка про
+  синк (только admin) в `GraphPage`; «Загрузка конфигурации…» и «только чтение» в
+  `ServiceConfigCard`; «ID SLA»/«ID» в `SLADetailCard`; статус «Ошибка отправки» и кнопка
+  «Отправить» вместо «Push»/«Отправить в Zabbix» в `WorksPage`/`DashboardPage`; пустое
+  состояние групп. Раздел «Настройки» (подключение к Zabbix) — по-прежнему только admin.
+- **GroupsPage** при открытии группы отбрасывает права, которых нет в каталоге, — осиротевший
+  `sync.run` не улетает в PUT и не ломает валидатор.
+- Проверки: typecheck чист, pytest **37 passed**, E2E — `viewer` не видит «Zabbix»/«Read-Only»/
+  кнопки синка, `admin` видит.
+
 ### Модель прав «как в Grafana»: роли + группы (2026-10-10)
 
 Переделана модель прав: вместо трёх ролей `admin/planner/viewer` — две роли и группы.
@@ -57,7 +79,7 @@
 - **Группа** — это набор прав («что видеть и делать») + состав участников.
 - Каталог прав (`app/permissions.py` ↔ `src/permissions.ts`) — «страницы + действия»:
   страницы `dashboard, model, works, reports, audit`; действия `works.edit, works.delete,
-  sla.edit, graph.edit, sync.run`.
+  sla.edit, graph.edit`. Полная синхронизация (`sync.run`) — **не право группы, только admin**.
 - Новые файлы: бэкенд `app/permissions.py`, `app/deps.py` (get_current_user вынесен сюда, чтобы
   избежать цикла auth↔permissions), `app/models/group.py` (`Group`, `UserGroup`),
   `app/routers/groups.py` (`/api/groups` CRUD, admin-only), миграция `alembic/versions/004_groups.py`;
@@ -536,7 +558,8 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
     проходит всегда); на фронте — `can(permission)` из `useAuth()` (вместо `hasRole`). Страница
     «Группы» (`/api/groups`, admin-only) — права + состав; системные группы (seed) удалить нельзя.
     Каталог `ALL_PERMISSIONS` — страницы `dashboard/model/works/reports/audit` + действия
-    `works.edit/works.delete/sla.edit/graph.edit/sync.run`. **`get_current_user` живёт в
+    `works.edit/works.delete/sla.edit/graph.edit`. `sync.run` в каталог групп НЕ входит: полная
+    синхронизация доступна только роли admin, у обычных пользователей нет и следа интеграции. **`get_current_user` живёт в
     `app/deps.py`** (не в `routers/auth.py`, который реэкспортит его) — иначе цикл импортов
     auth↔permissions.
 

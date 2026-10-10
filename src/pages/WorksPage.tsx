@@ -38,7 +38,7 @@ export default function WorksPage() {
   };
   const statusLabels: Record<string, string> = {
     draft: 'Черновик', planned: 'Запланировано', active: 'Активно',
-    done: 'Завершено', cancelled: 'Отменено', sync_error: 'Ошибка синхр.',
+    done: 'Завершено', cancelled: 'Отменено', sync_error: 'Ошибка отправки',
   };
 
   const filteredWorks = filter === 'all' ? works : works.filter(w => w.status === filter);
@@ -50,7 +50,7 @@ export default function WorksPage() {
     if (result.success) {
       await loadData();
     } else {
-      alert('Ошибка синхронизации: ' + result.error);
+      alert('Не удалось отправить: ' + result.error);
     }
   };
 
@@ -162,8 +162,8 @@ export default function WorksPage() {
                     <div className="flex items-center gap-2">
                       {can(PERMISSIONS.worksEdit) && work.status === 'draft' && (
                         <button onClick={() => handlePushToZabbix(work.id)}
-                          className="text-blue-600 hover:text-blue-800 text-xs font-medium" title="Отправить в Zabbix">
-                          <i className="fas fa-cloud-upload-alt mr-1"></i>Push
+                          className="text-blue-600 hover:text-blue-800 text-xs font-medium" title="Отправить">
+                          <i className="fas fa-cloud-upload-alt mr-1"></i>Отправить
                         </button>
                       )}
                       {can(PERMISSIONS.worksEdit) && (
@@ -396,7 +396,7 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
               {slaId && filteredServices.length === 0 && (
                 <p className="text-xs text-orange-600 mt-1">
                   <i className="fas fa-exclamation-triangle mr-1"></i>
-                  Для выбранного SLA нет услуг. Синхронизируйте услуги из Zabbix.
+                  Для выбранного SLA нет услуг.
                 </p>
               )}
             </div>

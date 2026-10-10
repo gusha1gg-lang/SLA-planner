@@ -58,7 +58,7 @@ export default function GroupsPage() {
     setForm({
       name: group.name,
       description: group.description,
-      permissions: [...group.permissions],
+      permissions: group.permissions.filter(p => PERMISSION_LABELS[p]),
       all_models: group.all_models,
       model_ids: [...group.model_ids],
       member_ids: [...group.member_ids],
@@ -300,7 +300,7 @@ export default function GroupsPage() {
                 </label>
                 {!form.all_models && (
                   models.length === 0 ? (
-                    <p className="text-sm text-gray-400 mt-2">Модели не загружены — нужна синхронизация с Zabbix.</p>
+                    <p className="text-sm text-gray-400 mt-2">Модели не загружены — выполните синхронизацию.</p>
                   ) : (
                     <>
                       <p className="text-xs text-gray-500 mt-2 mb-1">

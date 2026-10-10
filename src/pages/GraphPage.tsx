@@ -66,7 +66,7 @@ function serviceNodeColor(base: string, isRoot: boolean) {
  */
 export default function GraphPage() {
   const { showToast } = useToast();
-  const { can, canModel } = useAuth();
+  const { can, canModel, isAdmin } = useAuth();
   const canEditGraph = can(PERMISSIONS.graphEdit);
 
   const [slas, setSlas] = useState<SLA[]>([]);
@@ -691,7 +691,7 @@ export default function GraphPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Модель здоровья</h1>
-          <p className="text-gray-500 mt-1">Модели здоровья (деревья услуг) из Zabbix → SLA по тегам</p>
+          <p className="text-gray-500 mt-1">Модели здоровья: деревья услуг и связанные SLA</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-1.5 text-sm text-gray-600">
@@ -732,7 +732,9 @@ export default function GraphPage() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 text-center">
           <i className="fas fa-project-diagram text-4xl text-gray-300 mb-3"></i>
           <p className="text-gray-500">Данных пока нет.</p>
-          <p className="text-gray-400 text-sm mt-1">Нажмите «Синхр. с Zabbix» (правая кнопка вверху, нужна роль admin), чтобы загрузить SLA и услуги.</p>
+          {isAdmin && (
+            <p className="text-gray-400 text-sm mt-1">Нажмите «Синхр. с Zabbix» (правая кнопка вверху), чтобы загрузить SLA и услуги.</p>
+          )}
         </div>
       ) : models.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 text-center">

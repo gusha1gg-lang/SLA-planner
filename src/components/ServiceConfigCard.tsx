@@ -107,7 +107,7 @@ export default function ServiceConfigCard({ serviceId, onClose, onSelectService 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center h-64">
         <span className="flex items-center gap-2 text-gray-500 text-sm">
           <i className="fas fa-spinner fa-spin text-xl text-blue-600"></i>
-          Загрузка конфигурации из Zabbix…
+          Загрузка конфигурации…
         </span>
       </div>
     );
@@ -131,7 +131,7 @@ export default function ServiceConfigCard({ serviceId, onClose, onSelectService 
           <h2 className="text-xl font-bold text-gray-900">{config.name}</h2>
           <p className="text-gray-400 font-mono text-xs mt-0.5">
             id={config.serviceid}
-            {config.readonly && <span className="ml-3 text-amber-600"><i className="fas fa-lock mr-1"></i>только чтение в Zabbix</span>}
+            {config.readonly && <span className="ml-3 text-amber-600"><i className="fas fa-lock mr-1"></i>только чтение</span>}
           </p>
         </div>
         <div className="flex items-center gap-2">

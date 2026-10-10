@@ -17,7 +17,6 @@ export const PERMISSIONS = {
   worksDelete: 'works.delete',
   slaEdit: 'sla.edit',
   graphEdit: 'graph.edit',
-  sync: 'sync.run',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -43,11 +42,10 @@ export const PERMISSION_SECTIONS: { title: string; items: PermissionMeta[] }[] =
   {
     title: 'Действия (что делать)',
     items: [
-      { key: PERMISSIONS.worksEdit, label: 'Работы: создание/редактирование', description: 'Создание, правка и push работ в Zabbix' },
+      { key: PERMISSIONS.worksEdit, label: 'Работы: создание/редактирование', description: 'Создание, правка и отправка работ' },
       { key: PERMISSIONS.worksDelete, label: 'Работы: удаление', description: 'Удаление плановых работ' },
       { key: PERMISSIONS.slaEdit, label: 'Исключения простоя SLA', description: 'Добавление и удаление окон простоя' },
       { key: PERMISSIONS.graphEdit, label: 'Граф: редактирование', description: 'Раскладка узлов и цвета графа' },
-      { key: PERMISSIONS.sync, label: 'Синхр. с Zabbix', description: 'Полная синхронизация данных' },
     ],
   },
 ];
