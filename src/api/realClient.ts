@@ -189,14 +189,13 @@ class RealApiClient {
     username: string;
     password: string;
     role: string;
-    group_ids: number[];
   }): Promise<User> {
     return this.request<User>('/users/', { method: 'POST', body: JSON.stringify(data) });
   }
 
   async updateUser(
     id: number,
-    data: { role?: string; is_active?: boolean; password?: string; group_ids?: number[] }
+    data: { role?: string; is_active?: boolean; password?: string }
   ): Promise<User> {
     return this.request<User>(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   }
@@ -344,14 +343,13 @@ export const api = {
     username: string;
     password: string;
     role: string;
-    group_ids: number[];
   }): Promise<User> {
     return await realApi.createUser(data);
   },
 
   async updateUser(
     id: number,
-    data: { role?: string; is_active?: boolean; password?: string; group_ids?: number[] }
+    data: { role?: string; is_active?: boolean; password?: string }
   ): Promise<User> {
     return await realApi.updateUser(id, data);
   },

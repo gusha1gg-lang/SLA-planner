@@ -193,3 +193,22 @@ test('Навигация: закладка на чужую страницу не
   await expect(page.getByRole('heading', { name: 'Дашборд', level: 1 })).toBeVisible();
   expect(page.url()).toContain('#/dashboard');
 });
+
+test('Пользователи: при создании нет выбора групп (группы — только на странице «Группы»)', async ({ page }) => {
+  await page.goto('http://localhost:3000/');
+  await page.getByPlaceholder('admin / planner / viewer').fill('admin');
+  await page.getByPlaceholder('Пароль').fill('admin123');
+  await page.getByRole('button', { name: 'Войти' }).click();
+
+  await page.getByRole('button', { name: 'Пользователи' }).click();
+  await expect(page.getByRole('heading', { name: 'Пользователи', level: 1 })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Добавить' }).click();
+  await expect(page.getByRole('heading', { name: 'Новый пользователь' })).toBeVisible();
+
+  // Назначения групп при создании нет: чекбоксов нет, есть подсказка про страницу «Группы»
+  await expect(page.locator('input[type="checkbox"]')).toHaveCount(0);
+  await expect(page.getByText('Состав групп задаётся на странице «Группы»')).toBeVisible();
+
+  await page.screenshot({ path: '/tmp/opencode/ui-verify/user-create.png' });
+});

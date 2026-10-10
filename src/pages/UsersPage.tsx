@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
-import { Group, User, UserRole } from '../types';
+import { User, UserRole } from '../types';
 import { useToast } from '../context/ToastContext';
 import { formatDate } from '../time';
 
@@ -18,16 +18,14 @@ interface UserForm {
   username: string;
   password: string;
   role: UserRole;
-  group_ids: number[];
   is_active: boolean;
 }
 
-const emptyForm: UserForm = { username: '', password: '', role: 'user', group_ids: [], is_active: true };
+const emptyForm: UserForm = { username: '', password: '', role: 'user', is_active: true };
 
 export default function UsersPage() {
   const { showToast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -38,9 +36,7 @@ export default function UsersPage() {
 
   const loadData = async () => {
     try {
-      const [u, g] = await Promise.all([api.getUsers(), api.getGroups()]);
-      setUsers(u);
-      setGroups(g);
+      setUsers(await api.getUsers());
     } catch (err: any) {
       showToast('error', 'Не удалось загрузить пользователей: ' + err.message);
     } finally {
@@ -56,23 +52,8 @@ export default function UsersPage() {
 
   const openEdit = (user: User) => {
     setEditingId(user.id);
-    setForm({
-      username: user.username,
-      password: '',
-      role: user.role,
-      group_ids: user.groups.map(g => g.id),
-      is_active: user.is_active,
-    });
+    setForm({ username: user.username, password: '', role: user.role, is_active: user.is_active });
     setShowModal(true);
-  };
-
-  const toggleGroup = (groupId: number) => {
-    setForm(prev => ({
-      ...prev,
-      group_ids: prev.group_ids.includes(groupId)
-        ? prev.group_ids.filter(id => id !== groupId)
-        : [...prev.group_ids, groupId],
-    }));
   };
 
   const handleSave = async () => {
@@ -86,14 +67,12 @@ export default function UsersPage() {
           username: form.username.trim(),
           password: form.password,
           role: form.role,
-          group_ids: form.group_ids,
         });
         showToast('success', 'Пользователь создан');
       } else {
         await api.updateUser(editingId, {
           role: form.role,
           is_active: form.is_active,
-          group_ids: form.group_ids,
           ...(form.password ? { password: form.password } : {}),
         });
         showToast('success', 'Изменения сохранены');
@@ -124,7 +103,7 @@ export default function UsersPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Пользователи</h1>
-        <p className="text-gray-500 mt-1">Учётные записи и членство в группах. Права определяются группами.</p>
+        <p className="text-gray-500 mt-1">Учётные записи. Права и состав групп настраиваются на странице «Группы».</p>
       </div>
 
       {/* Role descriptions */}
@@ -250,25 +229,10 @@ export default function UsersPage() {
               </div>
 
               {form.role === 'user' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Группы</label>
-                  {groups.length === 0 ? (
-                    <p className="text-sm text-gray-400">Групп пока нет — создайте их на странице «Группы».</p>
-                  ) : (
-                    <div className="space-y-1.5 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
-                      {groups.map(g => (
-                        <label key={g.id} className="flex items-start gap-2 text-sm cursor-pointer">
-                          <input type="checkbox" checked={form.group_ids.includes(g.id)} onChange={() => toggleGroup(g.id)}
-                            className="mt-0.5" />
-                          <span>
-                            <span className="font-medium text-gray-800">{g.name}</span>
-                            {g.description && <span className="text-gray-500"> — {g.description}</span>}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <p className="text-sm text-gray-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                  Состав групп задаётся на странице «Группы» — там же определяются права и доступные
+                  модели здоровья. Новый пользователь создаётся без групп.
+                </p>
               )}
 
               {editingId !== null && (
