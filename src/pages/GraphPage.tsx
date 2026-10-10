@@ -689,7 +689,6 @@ export default function GraphPage() {
           if (sla) {
             setSelectedSlaId(sla.zabbix_slaid);
             setSelectedServiceId('');
-            showToast('info', `SLA «${sla.name}» — детали под графом`);
           }
         } else if (nodeId.startsWith('svc-')) {
           const dbId = nodeId.replace('svc-', '');
