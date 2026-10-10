@@ -137,6 +137,66 @@ async def test_list_services(auth_headers):
 
 
 @pytest.mark.asyncio
+async def test_service_config(auth_headers, monkeypatch):
+    """GET /api/services/{id}/config должен вернуть живую конфигурацию услуги с русскими ярлыками."""
+    from app.services.zabbix_client import zabbix_client
+
+    async def fake_config(serviceid):
+        assert serviceid == "798"
+        return {
+            "serviceid": "798",
+            "name": "Доступность по ping",
+            "algorithm": "2",
+            "sortorder": "0",
+            "status": "4",
+            "weight": "0",
+            "propagation_rule": "0",
+            "propagation_value": "0",
+            "description": "Доступность по ping MES-DB-PROD-TESC1",
+            "created_at": "1791457342",
+            "readonly": False,
+            "tags": None,
+            "parents": [{"serviceid": "1253", "name": "MES-DB-PROD-TESC1", "status": "4"}],
+            "children": [],
+            "problem_tags": [{"tag": "service", "operator": "0", "value": "Q3MET ТЭСЦ-1"}],
+        }
+
+    monkeypatch.setattr(zabbix_client, "service_config_get", fake_config)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/services/798/config", headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["serviceid"] == "798"
+    assert data["name"] == "Доступность по ping"
+    assert data["algorithm_label"] == "Самое критичное из дочерних услуг"
+    assert data["status_label"] == "Высокая"
+    assert data["propagation_rule_label"] == "Как есть"
+    assert data["created_at"].startswith("2026-")
+    assert data["problem_tags"][0]["operator_label"] == "Равно"
+    assert data["problem_tags"][0]["value"] == "Q3MET ТЭСЦ-1"
+    assert data["parents"][0]["name"] == "MES-DB-PROD-TESC1"
+    assert data["children"] == []
+
+
+@pytest.mark.asyncio
+async def test_service_config_not_found(auth_headers, monkeypatch):
+    """GET /api/services/{id}/config для несуществующей услуги -> 404."""
+    from app.services.zabbix_client import zabbix_client
+
+    async def fake_config(serviceid):
+        return None
+
+    monkeypatch.setattr(zabbix_client, "service_config_get", fake_config)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/api/services/999999/config", headers=auth_headers)
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_list_works(auth_headers):
     """Test listing planned works."""
     transport = ASGITransport(app=app)

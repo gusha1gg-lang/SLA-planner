@@ -33,6 +33,43 @@ export interface Service {
   synced_at: string;
 }
 
+/** Родитель/ребёнок услуги из живой конфигурации Zabbix. */
+export interface ServiceConfigLink {
+  serviceid: string;
+  name: string;
+  status: number;
+}
+
+/** Тег проблемы услуги (problem tag). */
+export interface ServiceProblemTag {
+  tag: string;
+  operator: string;
+  operator_label: string;
+  value: string;
+}
+
+/** Живая конфигурация услуги из Zabbix (для страницы «Услуги»). */
+export interface ServiceConfig {
+  serviceid: string;
+  name: string;
+  description: string;
+  algorithm: number;
+  algorithm_label: string;
+  status: number;
+  status_label: string;
+  sortorder: number;
+  weight: number;
+  propagation_rule: number;
+  propagation_rule_label: string;
+  propagation_value: number;
+  created_at: string | null;
+  readonly: boolean;
+  tags: { tag: string; value: string }[];
+  problem_tags: ServiceProblemTag[];
+  parents: ServiceConfigLink[];
+  children: ServiceConfigLink[];
+}
+
 export type WorkStatus = 'draft' | 'planned' | 'active' | 'done' | 'cancelled' | 'sync_error';
 
 export interface PlannedWork {

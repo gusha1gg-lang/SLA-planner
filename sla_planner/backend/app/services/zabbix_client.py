@@ -164,6 +164,24 @@ class ZabbixClient:
         params["selectParents"] = "extend"
         return await self._call("service.get", params)
 
+    async def service_config_get(self, serviceid: str) -> Optional[dict]:
+        """Получить услугу с полной конфигурацией (для просмотра на портале).
+
+        Возвращает поля Zabbix 7.0 Service object (algorithm, sortorder, weight,
+        propagation_rule, propagation_value, description, created_at, readonly) +
+        parents/children (одним уровнем), problem_tags и теги услуги.
+        Возвращает None, если услуги с таким ID нет.
+        """
+        result = await self._call("service.get", {
+            "serviceids": [serviceid],
+            "output": "extend",
+            "selectTags": "extend",
+            "selectParents": "extend",
+            "selectChildren": "extend",
+            "selectProblemTags": "extend",
+        })
+        return result[0] if result else None
+
     # ── Write methods ──
 
     async def sla_update(self, slaid: str, excluded_downtimes: list[dict]) -> dict:

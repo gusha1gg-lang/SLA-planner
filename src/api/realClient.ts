@@ -3,7 +3,7 @@
  * Работает ТОЛЬКО с живыми данными: мок/seed-данные запрещены.
  */
 
-import { SLA, Service, PlannedWork, AuditLogEntry, User, ExcludedDowntime } from '../types';
+import { SLA, Service, PlannedWork, AuditLogEntry, User, ExcludedDowntime, ServiceConfig } from '../types';
 
 const API_BASE = '/api';
 
@@ -96,6 +96,13 @@ class RealApiClient {
 
   async syncServicesFromZabbix(): Promise<{ synced: number }> {
     return this.request<{ synced: number }>('/services/sync', { method: 'POST' });
+  }
+
+  // Живая конфигурация услуги из Zabbix (для страницы «Услуги»)
+  async getServiceConfig(zabbixServiceId: string): Promise<ServiceConfig> {
+    return this.request<ServiceConfig>(
+      `/services/${encodeURIComponent(zabbixServiceId)}/config`
+    );
   }
 
   // Planned Works
@@ -210,6 +217,10 @@ export const api = {
 
   async syncServicesFromZabbix(): Promise<{ synced: number }> {
     return await realApi.syncServicesFromZabbix();
+  },
+
+  async getServiceConfig(zabbixServiceId: string): Promise<ServiceConfig> {
+    return await realApi.getServiceConfig(zabbixServiceId);
   },
 
   async getSLAServiceLinks(): Promise<{ sla_id: number; service_id: number }[]> {

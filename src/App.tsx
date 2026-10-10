@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import GraphPage from './pages/GraphPage';
 import WorksPage from './pages/WorksPage';
+import ServicesPage from './pages/ServicesPage';
 import ReportPage from './pages/ReportPage';
 import AuditPage from './pages/AuditPage';
 import UsersPage from './pages/UsersPage';
@@ -30,6 +31,7 @@ function AppContent() {
     switch (currentPage) {
       case 'dashboard': return <DashboardPage onNavigate={navigateTo} />;
       case 'graph': return <GraphPage onNavigate={navigateTo} />;
+      case 'services': return <ServicesPage />;
       case 'works': return <WorksPage />;
       case 'report': return <ReportPage />;
       case 'audit': return <AuditPage />;
