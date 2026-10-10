@@ -30,7 +30,7 @@ function AppContent() {
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard': return <DashboardPage onNavigate={navigateTo} />;
-      case 'graph': return <GraphPage onNavigate={navigateTo} />;
+      case 'graph': return <GraphPage />;
       case 'services': return <ServicesPage />;
       case 'works': return <WorksPage />;
       case 'report': return <ReportPage />;

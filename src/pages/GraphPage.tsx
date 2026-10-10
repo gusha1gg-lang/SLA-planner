@@ -1,14 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { SLA, Service } from '../types';
+import ServiceConfigCard from '../components/ServiceConfigCard';
+import SLADetailCard from '../components/SLADetailCard';
 import { DataSet } from 'vis-data';
 import { Network, Options } from 'vis-network';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
-
-interface GraphPageProps {
-  onNavigate?: (page: string, params?: Record<string, string>) => void;
-}
 
 /**
  * Модель здоровья = дерево услуг от корневого сервиса (услуги без родителя).
@@ -73,7 +71,7 @@ function serviceNodeColor(base: string, isRoot: boolean) {
  * Позиции считаем сами (листья слева направо, внутренний узел — по центру детей),
  * поэтому перетаскивание работает сразу и держится: физики нет.
  */
-export default function GraphPage({ onNavigate }: GraphPageProps) {
+export default function GraphPage() {
   const { showToast } = useToast();
   const { hasRole } = useAuth();
   const isAdmin = hasRole(['admin']);
@@ -89,6 +87,12 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
   const [savedLayoutModel, setSavedLayoutModel] = useState<string>('');
   /** Режим редактирования: true = узлы можно перемещать (кнопки «Сохранить»/«Отмена»). */
   const [editMode, setEditMode] = useState(false);
+  /** Выбранный на графе SLA (zabbix_slaid) — детали показываем под графом. */
+  const [selectedSlaId, setSelectedSlaId] = useState('');
+  /** Выбранная на графе услуга (zabbix_serviceid) — конфигурацию показываем под графом. */
+  const [selectedServiceId, setSelectedServiceId] = useState('');
+  /** vis-id узла, выделенного в прошлый раз (чтобы снять подсветку при смене выбора). */
+  const prevSelectedVisIdRef = useRef<string | null>(null);
 
   /** Цвета узлов SLA и услуг (общие для всех моделей; настраивает admin). */
   const [nodeColors, setNodeColors] = useState<NodeColors>({ sla: '#3B82F6', service: '#8B5CF6' });
@@ -463,6 +467,55 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
     }, 400);
   };
 
+  /** Переключить выбранную услугу (из карточки конфигурации/связанных услуг) —
+   *  при необходимости меняем модель, чтобы узел оказался на графе. */
+  const selectServiceByZid = (zabbixServiceId: string) => {
+    setSelectedServiceId(zabbixServiceId);
+    setSelectedSlaId('');
+    const model = models.find(m => m.serviceIds.has(zabbixServiceId));
+    if (model) setSelectedModel(model.rootId);
+  };
+
+  /** vis-id выбранного узла (в текущей модели) или null. */
+  const selectedVisId = useMemo(() => {
+    if (selectedServiceId) {
+      const svc = scoped.services.find(s => s.zabbix_serviceid === selectedServiceId);
+      return svc ? `svc-${svc.id}` : null;
+    }
+    if (selectedSlaId) {
+      const sla = scoped.slas.find(s => s.zabbix_slaid === selectedSlaId);
+      return sla ? `sla-${sla.id}` : null;
+    }
+    return null;
+  }, [selectedServiceId, selectedSlaId, scoped.slas, scoped.services]);
+
+  /** Подсветить выбранный узел (толще обводка + тень), предыдущий — вернуть к обычному виду. */
+  const applySelectionHighlight = (nextVisId: string | null) => {
+    const nodes = nodesRef.current;
+    if (!nodes) return;
+    const prev = prevSelectedVisIdRef.current;
+    if (prev && prev !== nextVisId) {
+      const n = nodes.get(prev) as any;
+      if (n) nodes.update({ id: prev, borderWidth: n._defaultBorderWidth ?? n.borderWidth, shadow: n._defaultShadow ?? false });
+    }
+    if (nextVisId) {
+      const n = nodes.get(nextVisId) as any;
+      if (n) {
+        nodes.update({
+          id: nextVisId,
+          borderWidth: (n._defaultBorderWidth ?? n.borderWidth) + 3,
+          shadow: { color: '#00000080', size: 24, x: 0, y: 0 },
+        });
+      }
+    }
+    prevSelectedVisIdRef.current = nextVisId;
+  };
+
+  // при смене выбора — обновляем подсветку узла (граф при этом не пересоздаётся)
+  useEffect(() => {
+    applySelectionHighlight(selectedVisId);
+  }, [selectedVisId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const renderGraph = (view: ScopedView, saved: Map<string, SavedPos>) => {
     if (!containerRef.current) return;
 
@@ -539,7 +592,9 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
           color: slaNodeColor(nodeColors.sla),
           font: { color: '#ffffff', size: 14, face: 'Inter, sans-serif' },
           borderWidth: 2,
+          _defaultBorderWidth: 2,
           shadow: true,
+          _defaultShadow: true,
           margin: 12,
         };
       }),
@@ -561,7 +616,9 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
           color: serviceNodeColor(nodeColors.service, isRoot),
           font: { color: '#ffffff', size: isRoot ? 13 : 11, face: 'Inter, sans-serif' },
           borderWidth: isRoot ? 3 : 2,
+          _defaultBorderWidth: isRoot ? 3 : 2,
           shadow: true,
+          _defaultShadow: true,
           margin: 10,
         };
       }),
@@ -623,18 +680,30 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
         suppressClickRef.current = false;
         return;
       }
-      if (params.nodes.length > 0) {
+      // клик по узлу (вне режима редактирования) — выбираем ему и показываем детали под графом
+      if (params.nodes.length > 0 && !editModeRef.current) {
         const nodeId = params.nodes[0];
-        if (nodeId.startsWith('sla-') && !editModeRef.current && onNavigate) {
-          const slaId = nodeId.replace('sla-', '');
-          const sla = slas.find(s => s.id.toString() === slaId);
+        if (nodeId.startsWith('sla-')) {
+          const dbId = nodeId.replace('sla-', '');
+          const sla = view.slas.find(s => s.id.toString() === dbId);
           if (sla) {
-            onNavigate('sla-detail', { id: sla.zabbix_slaid });
-            showToast('info', `Открыт SLA: ${sla.name}`);
+            setSelectedSlaId(sla.zabbix_slaid);
+            setSelectedServiceId('');
+            showToast('info', `SLA «${sla.name}» — детали под графом`);
+          }
+        } else if (nodeId.startsWith('svc-')) {
+          const dbId = nodeId.replace('svc-', '');
+          const svc = view.services.find(s => s.id.toString() === dbId);
+          if (svc) {
+            setSelectedServiceId(svc.zabbix_serviceid);
+            setSelectedSlaId('');
           }
         }
       }
     });
+
+    // граф пересоздан — вернуть подсветку выбранного узла
+    applySelectionHighlight(selectedVisId);
   };
 
   if (loading) {
@@ -699,7 +768,12 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
             </label>
             <select
               value={selectedModel}
-              onChange={e => setSelectedModel(e.target.value)}
+              onChange={e => {
+                setSelectedModel(e.target.value);
+                // смена модели сбрасывает выбор узла (панель деталей ниже графа)
+                setSelectedSlaId('');
+                setSelectedServiceId('');
+              }}
               className="border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-xl"
             >
               {models.map(m => (
@@ -786,6 +860,28 @@ export default function GraphPage({ onNavigate }: GraphPageProps) {
               </div>
             )}
           </div>
+
+          {/* Детали выбранного узла (SLA или услуга) — под графом */}
+          {selectedSlaId ? (
+            <SLADetailCard
+              slaId={selectedSlaId}
+              onClose={() => setSelectedSlaId('')}
+              onSelectService={selectServiceByZid}
+            />
+          ) : selectedServiceId ? (
+            <ServiceConfigCard
+              serviceId={selectedServiceId}
+              onClose={() => setSelectedServiceId('')}
+              onSelectService={selectServiceByZid}
+            />
+          ) : (
+            <div className="bg-white rounded-xl shadow-sm border border-dashed border-gray-200 p-8 text-center text-gray-400">
+              <i className="fas fa-mouse-pointer text-2xl mb-2"></i>
+              <p className="text-sm">
+                Кликните на SLA или услугу на графе — детали появятся здесь, под графом
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
