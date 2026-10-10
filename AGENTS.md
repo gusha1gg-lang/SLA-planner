@@ -22,8 +22,11 @@
 
 ## 2. Обязательные правила
 
-1. **Только живые данные из Zabbix.** Моки и seed-данные запрещены и удалены. `api.*` во фронтенде
-   всегда ходит в реальный бэкенд.
+1. **Только живые данные из Zabbix.** Моки и seed-данные запрещены и в БД отсутствуют; `api.*`
+   во фронтенде всегда ходит в реальный бэкенд. ⚠️ В репо остался legacy-скрипт
+   `sla_planner/backend/app/seed.py` — он вставляет мок-SLA/услуги. **Не запускать его.**
+   `README.md` упоминает `python -m app.seed` для создания пользователей — это устарело:
+   пользователи уже в БД, новых заводить через `POST /api/users` (`routers/users.py`).
 2. **Прод-Zabbix не трогать** — вся работа только с тестовым `localhost:8080`.
 3. **Логин через query params:** `POST /api/auth/login?username=...&password=...` → в ответе
    поле `access_token` (не `token`). Пользователи: `admin/admin123` (admin), `planner/planner123`,
@@ -40,7 +43,9 @@
 6. **Ветка `sla-planner-zabbix-integration-ebdcf`.** Коммиты по делу. Пуш в origin — всегда, когда
    есть что запушить («всегда пуш, если считаешь нужным»). Если origin не пушит напрямую — пушить
    по URL с PAT (токен в файлы репо НЕ класть).
-7. **Перед сдачей:** `npx tsc --noEmit` (должен быть чистый) + pytest (зелёный).
+7. **Перед сдачей:** `npm run typecheck` (= `npx tsc --noEmit`, должен быть чистый) + pytest (зелёный).
+   Один тест: `DATABASE_URL=sqlite+aiosqlite:///./test_sla.db venv/bin/python -m pytest tests/test_api.py::test_health -v`.
+   У фронтенда отдельного тест-раннера нет — только typecheck.
 8. **Комментарии и сообщения в стиле проекта** (русский, по делу).
 
 ## 3. Поднять dev-среду (после перезагрузки машины)
@@ -69,14 +74,24 @@ cd /opt/sla_planner1 && npm run dev &
 - **Prune не срабатывает при пустом ответе Zabbix** — это защита от случайного удаления.
 - **test_version** проверяет `isinstance(..., bool)`, а не `is True` — локальный `.env` содержит `false`.
 - **Кнопка «Синхр. с Zabbix»** (admin) после синка перезагружает страницу (`window.location.reload()`).
+- **Схема БД создаётся `create_all`, не Alembic:** на старте `app/main.py` вызывает `init_db()`
+  (`Base.metadata.create_all`), поэтому новые модели/таблицы появляются сами и в dev, и в тестах.
+  Alembic отстаёт — есть только `001_initial`, `002_add_service_tags`; таблицы графа
+  (`graph_node_positions`, `graph_node_styles`) миграций не имеют. Для dev миграция не нужна.
+- **Скрипты переноса в корне репо** (`import_test.py`, `fix_tree_uuid.py`, `delete_all_services.py`)
+  работают с тестовым Zabbix. `import_test.py` без предварительного `delete_all_services.py`
+  создаёт дубли. `zabbix_dump.json` — прод-дамп (в `.gitignore`) — в git не коммитить.
 
 ## 5. Где что лежит (для быстрой ориентации)
 
 - `src/pages/GraphPage.tsx` — «Модель здоровья»: граф, ручная раскладка, перетаскивание (своя
   реализация через `moveNode`), цвета узлов, режимы просмотра/редактирования.
-- `src/api/realClient.ts` — весь HTTP-слой (только реальные запросы, моков нет).
+- `src/api/realClient.ts` — весь HTTP-слой (только реальные запросы, моков нет);
+  `src/api/client.ts` — реэкспорт `realClient` (обратная совместимость).
 - `sla_planner/backend/app/routers/graph.py` — позиции (`graph_node_positions`) и цвета
-  (`graph_node_styles`) графа; `GET/PUT/DELETE /api/graph/...`.
+  (`graph_node_styles`) графа; `GET/PUT/DELETE /api/graph/positions?model=<rootId>` (PUT/DELETE —
+  admin), `GET/PUT /api/graph/colors` (PUT — admin).
 - `sla_planner/backend/app/services/sync.py` + `zabbix_client.py` — синк Zabbix↔сайт (теги, prune, полный синк).
+- `sla_planner/backend/app/seed.py` — legacy-сеялка мок-данных (см. правило 1), не запускать.
 - `sla_planner/backend/tests/test_api.py` — тесты (run см. п.2).
 - `CONTEXT.md` — память проекта: история, TODO, ловушки. **Читать в начале, обновлять в конце.**
