@@ -92,7 +92,7 @@ test('Права: меню по правам групп + страница «Г�
 });
 
 test('Время: аудит-лог показывает московское время (MSK)', async ({ page }) => {
-  // Логин админом (аудит-лог — admin-only). Само событие login пишет запись в лог.
+  // Логин админом (аудит-лог — admin-only).
   await page.goto('http://localhost:3000/');
   await page.getByPlaceholder('admin / planner / viewer').fill('admin');
   await page.getByPlaceholder('Пароль').fill('admin123');
@@ -101,17 +101,26 @@ test('Время: аудит-лог показывает московское в
   await page.getByRole('button', { name: 'Аудит-лог' }).click();
   await expect(page.getByRole('heading', { name: 'Аудит-лог', level: 1 })).toBeVisible();
 
-  // Время первой строки — событие login только что; оно должно совпасть с текущим МСК (±5 мин).
-  // До фикса бэкенд отдавал naive-UTC, и браузер показывал время на 3 часа назад.
+  // Сверяем время первой строки с ISO-моментом той же записи из API: в UI должно быть
+  // МСК (UTC+3). До фикса бэкенд отдавал naive-UTC, и браузер показывал время на 3 ч назад.
   const firstRow = page.locator('table tbody tr').first();
-  const timeText = (await firstRow.locator('td').nth(1).innerText()).trim();
-  const m = timeText.match(/(\d{2})\.(\d{2})\.(\d{4}),\s*(\d{2}):(\d{2})/);
-  expect(m, `не разобрали время в аудит-логе: «${timeText}»`).not.toBeNull();
-  const [, dd, mo, yyyy, hh, mi] = m!;
-  // Показанное время — московское (UTC+3): переводим в UTC-момент и сравниваем с текущим.
-  const shownUtc = Date.UTC(Number(yyyy), Number(mo) - 1, Number(dd), Number(hh) - 3, Number(mi));
-  const diffMin = Math.abs(Date.now() - shownUtc) / 60000;
-  expect(diffMin, `время в логе «${timeText}» расходится с МСК на ${diffMin.toFixed(1)} мин`).toBeLessThan(5);
+  const displayed = (await firstRow.locator('td').nth(1).innerText()).trim();
+
+  const token = await page.evaluate(() => localStorage.getItem('sla_token'));
+  const resp = await page.request.get('http://localhost:8000/api/audit/?limit=1', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const iso: string = (await resp.json())[0].created_at;
+  // naive-строку (если бэкенд снова сломается) трактуем как UTC — так поймаем регресс.
+  const isoUtc = /(Z|[+-]\d{2}:\d{2})$/.test(iso) ? iso : `${iso}Z`;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date(isoUtc));
+  const get = (t: string) => parts.find(p => p.type === t)!.value;
+  const expected = `${get('day')}.${get('month')}.${get('year')}, ${get('hour')}:${get('minute')}`;
+
+  expect(displayed, `в логе «${displayed}», а МСК для ${iso} — «${expected}»`).toBe(expected);
 
   await page.screenshot({ path: '/tmp/opencode/ui-verify/audit-time.png' });
 });
@@ -142,6 +151,33 @@ test('Навигация: F5 и закладка сохраняют текущу
   await expect(page.getByRole('heading', { name: 'Модель здоровья', level: 1 })).toBeVisible();
 
   await page.screenshot({ path: '/tmp/opencode/ui-verify/navigation.png' });
+});
+
+test('Модель здоровья: выбранная модель переживает F5', async ({ page }) => {
+  await page.goto('http://localhost:3000/');
+  await page.getByPlaceholder('admin / planner / viewer').fill('admin');
+  await page.getByPlaceholder('Пароль').fill('admin123');
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await page.getByRole('button', { name: 'Модель здоровья' }).click();
+
+  const select = page.locator('select');
+  await expect(select).toBeVisible();
+  const options = select.locator('option');
+  expect(await options.count(), 'нужно ≥2 моделей здоровья для теста').toBeGreaterThan(1);
+
+  // Выбираем НЕ первую модель (иначе совпадёт с дефолтом)
+  const target = await options.nth(1).getAttribute('value');
+  await select.selectOption(target!);
+  await expect(select).toHaveValue(target!);
+  // Выбор отражается в URL (закладка)
+  expect(page.url()).toContain(`#/graph?model=${target}`);
+
+  // F5 — остаётся выбранная модель, а не верхняя из списка
+  await page.reload();
+  await expect(page.locator('select')).toHaveValue(target!);
+  expect(page.url()).toContain(`#/graph?model=${target}`);
+
+  await page.screenshot({ path: '/tmp/opencode/ui-verify/graph-model-f5.png' });
 });
 
 test('Навигация: закладка на чужую страницу не открывается (viewer → дашборд)', async ({ page }) => {

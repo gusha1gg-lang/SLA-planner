@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { SLA, Service } from '../types';
 import ServiceConfigCard from '../components/ServiceConfigCard';
@@ -64,7 +64,25 @@ function serviceNodeColor(base: string, isRoot: boolean) {
  * Позиции считаем сами (листья слева направо, внутренний узел — по центру детей),
  * поэтому перетаскивание работает сразу и держится: физики нет.
  */
-export default function GraphPage() {
+/** Ключ в localStorage: последняя открытая модель здоровья (переживает F5 и переходы). */
+const GRAPH_MODEL_KEY = 'sla_graph_model';
+
+function readStoredModel(): string {
+  try { return localStorage.getItem(GRAPH_MODEL_KEY) || ''; } catch { return ''; }
+}
+
+function storeModel(id: string) {
+  try { localStorage.setItem(GRAPH_MODEL_KEY, id); } catch { /* приватный режим и т.п. */ }
+}
+
+interface GraphPageProps {
+  /** Модель из URL (`#/graph?model=…`) — имеет приоритет над сохранённой. */
+  initialModelId?: string;
+  /** Уведомить оболочку о смене модели (чтобы отразить её в URL). */
+  onModelChange?: (id: string) => void;
+}
+
+export default function GraphPage({ initialModelId, onModelChange }: GraphPageProps) {
   const { showToast } = useToast();
   const { can, canModel, isAdmin } = useAuth();
   const canEditGraph = can(PERMISSIONS.graphEdit);
@@ -73,7 +91,8 @@ export default function GraphPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [links, setLinks] = useState<{ sla_id: number; service_id: number }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedModel, setSelectedModel] = useState<string>(''); // zabbix_serviceid корня
+  // zabbix_serviceid корня. Приоритет: URL → сохранённая модель → первая доступная (эффект ниже).
+  const [selectedModel, setSelectedModel] = useState<string>(() => initialModelId || readStoredModel());
   /** Раскладка выбранной модели: node_key → {x, y}. null = ещё грузится. */
   const [savedLayout, setSavedLayout] = useState<Map<string, SavedPos> | null>(null);
   /** rootId модели, для которой загружена/актуальна savedLayout (защита от «мигания» раскладкой чужой модели). */
@@ -116,16 +135,24 @@ export default function GraphPage() {
     [services, canModel]
   );
 
+  /** Выбрать модель: сохранить в localStorage и отразить в URL (через оболочку). */
+  const applyModel = useCallback((id: string) => {
+    setSelectedModel(id);
+    storeModel(id);
+    onModelChange?.(id);
+  }, [onModelChange]);
+
   useEffect(() => {
     loadData();
   }, []);
 
-  // По умолчанию — первая модель
+  // Если модель не задана (или недоступна по правам групп) — берём первую доступную
   useEffect(() => {
-    if (!selectedModel && models.length > 0) {
-      setSelectedModel(models[0].rootId);
+    if (models.length === 0) return;
+    if (!selectedModel || !models.some(m => m.rootId === selectedModel)) {
+      applyModel(models[0].rootId);
     }
-  }, [models, selectedModel]);
+  }, [models, selectedModel, applyModel]);
 
   // ── Данные выбранной модели: её дерево + SLA, связанные с ним ──
   const scoped = useMemo<ScopedView>(() => {
@@ -448,7 +475,7 @@ export default function GraphPage() {
     setSelectedServiceId(zabbixServiceId);
     setSelectedSlaId('');
     const model = models.find(m => m.serviceIds.has(zabbixServiceId));
-    if (model) setSelectedModel(model.rootId);
+    if (model) applyModel(model.rootId);
   };
 
   /** vis-id выбранного узла (в текущей модели) или null. */
@@ -753,10 +780,10 @@ export default function GraphPage() {
             <select
               value={selectedModel}
               onChange={e => {
-                setSelectedModel(e.target.value);
                 // смена модели сбрасывает выбор узла (панель деталей ниже графа)
                 setSelectedSlaId('');
                 setSelectedServiceId('');
+                applyModel(e.target.value);
               }}
               className="border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-xl"
             >

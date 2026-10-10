@@ -43,6 +43,12 @@ function AppContent() {
     }
   }, []);
 
+  // Смена модели здоровья внутри графа обновляет URL без нового шага истории
+  // (F5/закладка сохранят выбранную модель; кнопка «назад» не листает модели).
+  const setGraphModel = useCallback((id: string) => {
+    window.history.replaceState(null, '', buildHash('graph', { model: id }));
+  }, []);
+
   // Синхронизация состояния с URL (кнопки браузера, ручная правка hash).
   useEffect(() => {
     const onHashChange = () => setRoute(readRoute());
@@ -76,7 +82,7 @@ function AppContent() {
   const renderPage = () => {
     switch (route.page) {
       case 'dashboard': return <DashboardPage onNavigate={navigateTo} />;
-      case 'graph': return <GraphPage />;
+      case 'graph': return <GraphPage initialModelId={route.params.model} onModelChange={setGraphModel} />;
       case 'works': return <WorksPage />;
       case 'report': return <ReportPage />;
       case 'audit': return <AuditPage />;
