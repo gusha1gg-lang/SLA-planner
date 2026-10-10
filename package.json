@@ -25,6 +25,7 @@
     "vis-network": "^10.1.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
     "@tailwindcss/vite": "^4.1.7",
     "@types/canvas-confetti": "^1.6.4",
     "@types/react": "^18.2.0",

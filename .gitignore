@@ -45,3 +45,9 @@ htmlcov/
 .coverage
 .pytest_cache/
 .next/
+
+# Playwright (ui-verify) artifacts
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

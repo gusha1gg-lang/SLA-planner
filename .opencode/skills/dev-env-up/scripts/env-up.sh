@@ -2,7 +2,7 @@
 # Идемпотентный подъём dev-среды SLA Planner: uvicorn (:8000) + vite (:3000).
 # Логи: /tmp/opencode/uvicorn.log, /tmp/opencode/vite.log. Zabbix (:8080) поднимается сам.
 set -u
-ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 log() { echo "[env-up] $*"; }
 
 is_up() { curl -s -o /dev/null --max-time 2 "$1"; }

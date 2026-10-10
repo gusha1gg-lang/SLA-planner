@@ -58,6 +58,13 @@
 - **check-secrets** — сканер staged-изменений перед коммитом (`scripts/scan-secrets.sh`):
   паттерны ключей/токенов + запрет на стейдж `.env`, `opencode.json`, `zabbix_dump.json`
   (профилактика повторения инцидента с утёкшим API-ключом).
+- **ui-verify** — Playwright E2E реального UI (`scripts/ui-check.spec.ts`): логин viewer →
+  «Модель здоровья» → граф (canvas) → дерево → клик по узлу → детали, скриншот в
+  `/tmp/opencode/ui-verify/model-health.png`; запуск `npx playwright test
+  .opencode/skills/ui-verify/scripts/ui-check.spec.ts`. `@playwright/test` — devDependency
+  (лёгкий, влить в typecheck нельзя — это отдельный раннер). Браузеры — в кэш пользователя.
+- **dod** — чек-лист сдачи (`scripts/dod.sh`): typecheck + pytest на `test_sla.db` + сканер
+  секретов + git status, стоп на первом падении.
 
 ### Секреты вычищены из репозитория (2026-10-10)
 
@@ -448,6 +455,13 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
     `.gitignore` (2026-10-10 вычищен из git и из всей истории, ветка force-push'нута). Локально
     нужен для MCP-серверов; ключ в нём задаётся через `{env:TESTSprite_API_KEY}` — задавать
     переменную в окружении. Любые API-ключи/токены в репозиторий не класть.
+21. **Playwright (ui-verify):** `@playwright/test` — devDependency фронтенда, браузеры в
+    `~/.cache/ms-playwright` (не в git). Если браузер не стартует из-за «cannot open shared
+    library: libnspr4.so / libnss3 / libasound2» — системные зависимости: `sudo npx playwright
+    install-deps chromium`; без sudo временно: `apt-get download libnspr4 libnss3 libasound2t64`
+    → `dpkg -x` в `/tmp/opencode/rootfs` → запуск с
+    `LD_LIBRARY_PATH=/tmp/opencode/rootfs/usr/lib/x86_64-linux-gnu`. Прогон: `npx playwright test
+    .opencode/skills/ui-verify/scripts/ui-check.spec.ts` (проверено: 1 passed).
 
 ---
 
