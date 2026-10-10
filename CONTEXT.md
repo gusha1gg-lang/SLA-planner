@@ -45,7 +45,28 @@
 
 ## 3. Что уже сделано (история)
 
-### Обслуживание репозитория (2026-10-10) — ГОТОВО, ждёт коммита
+### Тест для услуги Q3MET ТЭСЦ-1: хосты + триггер «недоступен по пингу» (2026-10-10)
+
+По просьбе пользователя на тестовом Zabbix (`localhost:8080`) для услуги **Q3MET ТЭСЦ-1**
+(serviceid=796, корень модели здоровья):
+- созданы хосты `q3met-app-01` (10688) и `q3met-app-02` (10689): группа Applications,
+  агент-интерфейс на заведомо недоступных TEST-NET IP (192.0.2.1 / 192.0.2.2),
+  тег `service: Q3MET ТЭСЦ-1`;
+- на каждом хосте item `icmpping[<ip>]` (delay 1m) и триггер **«недоступен по пингу»**
+  (severity 4 = High);
+- `problem_tags: service=Q3MET ТЭСЦ-1` повешены НЕ на корень (у него есть дети — нельзя),
+  а на листовую услугу **798 «Доступность по ping»** (ветка `MES-DB-PROD-TESC1`, 1253).
+
+Проверено end-to-end: item=0 (пинг не идёт), триггеры 25227/25228 в проблеме
+(events 30/32, тег `service=Q3MET ТЭСЦ-1`), статус услуги **4 (High)** на листе 798,
+MES-DB-PROD-TESC1 и корне 796. Сайт не трогался (хосты на сайт не синкаются).
+
+Новые ловушки Zabbix 7.0 (проверено вживую):
+- услуга с детьми НЕ может иметь `problem_tags` («cannot have problem tags and children at the same time») — теги проблем вешаются на листовые услуги;
+- item `icmpping` БЕЗ параметра падает в unsupported («must have target or host interface specified») даже при наличии агент-интерфейса — задавать цель явно: `icmpping[<ip>]`;
+- `service.get` не принимает `selectAncestors` и поле `problem_count`; `selectProblemEvents` — только eventid/severity/name.
+
+### Обслуживание репозитория (2026-10-10) — ЗАКОММИЧЕНО И ЗАПУШЕНО
 
 - **AGENTS.md** переработан ранее (коммит `3e75444`): точные команды typecheck/одиночный тест,
   трап с seed.py, факты про create_all/Alembic, актуальные пути graph-API.
@@ -236,6 +257,11 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
     наполненную через `create_all`, пометить `venv/bin/python -m alembic stamp head`, иначе
     `upgrade` упадёт на существующих таблицах. `app/seed.py` — идемпотентный bootstrap только
     пользователей (мок-данных больше нет).
+16. **Zabbix 7.0 service/problem_tags:** услуга с дочерними услугами НЕ может иметь
+    `problem_tags` («cannot have problem tags and children at the same time») — теги проблем
+    вешать ТОЛЬКО на листовые услуги (пример: лист 798 «Доступность по ping» в дереве
+    Q3MET ТЭСЦ-1). Item `icmpping` без параметра уходит в unsupported — цель задавать
+    в ключе: `icmpping[<ip>]`. `service.get` не поддерживает `selectAncestors`/`problem_count`.
 
 ---
 
