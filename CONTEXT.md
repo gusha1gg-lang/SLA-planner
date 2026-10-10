@@ -78,7 +78,7 @@
 - Полный синк: `POST /api/sync/full` → `{"slas":4,"services":6,"links":6}`; связи без дублей: Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, 1С→1С, SAP→SAP.
 - Prune работает (фейковые SLA/услуга/связь удалились при синке).
 - End-to-end push: работа ERP/1С → push → в Zabbix у ERP (slaid=6) создан `excluded_downtime "SLA Planner #1"`; работа удалена, downtime в Zabbix прибран.
-- `npx tsc --noEmit` — чисто. `pytest` — 15/15.
+- `npx tsc --noEmit` — чисто. `pytest` — 18/18.
 - **Ловушка:** `get_db` коммитит ПОСЛЕ формирования ответа (teardown dependency). Сразу следующий запрос (push/GET) может на доли секунды видеть старое состояние (404 Work not found / висящая удалённая работа) — это гонка, не баг.
 
 ### Моки убраны полностью (живые данные только) — не закоммичено
@@ -170,7 +170,7 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
   (корень услуги — темнее базового, highlight — светлее); перекраска живого графа без пересоздания
   сети — `nodesRef.update({id, color})` + сохранение в БД с debounce 400 мс (`applyNodeColors`).
   Пикеры видны только admin, legend-квадратики используют актуальные цвета.
-- Тесты pytest 15/15 (новую таблицу create_all создаёт автоматически), tsc чистый.
+- Тесты pytest 18/18 (новую таблицу create_all создаёт автоматически), tsc чистый.
 
 ### UI: страница переименована «Граф SLA» → «Модель здоровья» — ЗАКОММИЧЕНО
 - Меню (`Layout.tsx`), заголовок страницы (`GraphPage.tsx`), роль viewer (`UsersPage.tsx`),
