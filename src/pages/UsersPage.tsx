@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { User, UserRole } from '../types';
 import { useToast } from '../context/ToastContext';
 import { formatDate } from '../time';
+import Button from '../components/ui/Button';
 
 const roleColors: Record<string, string> = {
   admin: 'bg-danger-soft text-danger-fg',
@@ -123,10 +124,9 @@ export default function UsersPage() {
       <div className="bg-surface rounded-xl shadow-card border border-line overflow-hidden">
         <div className="p-5 border-b border-line flex items-center justify-between">
           <h2 className="text-lg font-semibold">Список пользователей</h2>
-          <button onClick={openCreate}
-            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700">
-            <UserPlus className="mr-2" />Добавить
-          </button>
+          <Button icon={UserPlus} onClick={openCreate}>
+            Добавить
+          </Button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -176,12 +176,12 @@ export default function UsersPage() {
                   </td>
                   <td className="px-5 py-3 text-muted">{formatDate(user.created_at)}</td>
                   <td className="px-5 py-3">
-                    <button onClick={() => openEdit(user)} className="text-accent hover:text-accent text-sm mr-3" title="Редактировать">
+                    <button onClick={() => openEdit(user)} className="text-accent hover:text-accent text-sm mr-3 transition-colors" title="Редактировать">
                       <Pencil />
                     </button>
                     {user.role !== 'admin' && (
                       <button onClick={() => toggleActive(user)}
-                        className={user.is_active ? 'text-danger-fg hover:text-danger-fg text-sm' : 'text-ok-fg hover:text-ok-fg text-sm'}
+                        className={user.is_active ? 'text-danger-fg hover:text-danger-fg text-sm transition-colors' : 'text-ok-fg hover:text-ok-fg text-sm transition-colors'}
                         title={user.is_active ? 'Заблокировать' : 'Разблокировать'}>
                         {user.is_active ? <Ban /> : <Check />}
                       </button>
@@ -196,11 +196,11 @@ export default function UsersPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 animate-overlay-in">
+          <div className="bg-surface rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in">
             <div className="p-5 border-b border-line flex items-center justify-between">
               <h2 className="text-lg font-semibold">{editingId === null ? 'Новый пользователь' : 'Редактировать пользователя'}</h2>
-              <button onClick={() => setShowModal(false)} className="text-faint hover:text-muted"><X /></button>
+              <button onClick={() => setShowModal(false)} className="text-faint hover:text-muted transition-colors"><X /></button>
             </div>
 
             <div className="p-5 space-y-4">
@@ -245,12 +245,12 @@ export default function UsersPage() {
             </div>
 
             <div className="p-5 border-t border-line flex justify-end gap-2">
-              <button onClick={() => setShowModal(false)}
-                className="px-4 py-2 rounded-lg text-sm bg-surface-2 text-content hover:bg-line">Отмена</button>
-              <button onClick={handleSave} disabled={saving}
-                className="px-4 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50">
-                {saving ? 'Сохранение…' : 'Сохранить'}
-              </button>
+              <Button variant="secondary" onClick={() => setShowModal(false)}>
+                Отмена
+              </Button>
+              <Button onClick={handleSave} loading={saving}>
+                Сохранить
+              </Button>
             </div>
           </div>
         </div>

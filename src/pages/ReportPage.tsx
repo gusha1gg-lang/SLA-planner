@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { SLA, PlannedWork } from '../types';
 import { useToast } from '../context/ToastContext';
 import { mskDateKey } from '../time';
+import Button from '../components/ui/Button';
 
 export default function ReportPage() {
   const { showToast } = useToast();
@@ -68,17 +69,13 @@ export default function ReportPage() {
           <h1 className="text-2xl font-bold text-content">SLA-отчёт</h1>
           <p className="text-muted mt-1">Статистика доступности и исключений простоя</p>
         </div>
-        <button
-          onClick={exportToCSV}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
-        >
-          <FileSpreadsheet />
+        <Button variant="success" icon={FileSpreadsheet} onClick={exportToCSV}>
           Экспорт CSV
-        </button>
+        </Button>
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 stagger">
         <div className="bg-surface rounded-xl p-5 shadow-card border border-line">
           <p className="text-sm text-muted">Всего работ</p>
           <p className="text-3xl font-bold text-content mt-1">{totalWorks}</p>

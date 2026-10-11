@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext';
 import { formatDateTimeShort, toMskInputValue, mskInputToDate, mskDateKey } from '../time';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
+import Button from '../components/ui/Button';
 
 export default function WorksPage() {
   const { showToast } = useToast();
@@ -98,18 +99,17 @@ export default function WorksPage() {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex bg-surface-2 rounded-lg p-1">
-            <button onClick={() => setView('table')} className={`px-3 py-1.5 rounded-md text-sm ${view === 'table' ? 'bg-surface shadow-card' : ''}`}>
+            <button onClick={() => setView('table')} className={`px-3 py-1.5 rounded-md text-sm transition-colors ${view === 'table' ? 'bg-surface shadow-card' : 'hover:bg-surface'}`}>
               <List className="mr-1" />Таблица
             </button>
-            <button onClick={() => setView('calendar')} className={`px-3 py-1.5 rounded-md text-sm ${view === 'calendar' ? 'bg-surface shadow-card' : ''}`}>
+            <button onClick={() => setView('calendar')} className={`px-3 py-1.5 rounded-md text-sm transition-colors ${view === 'calendar' ? 'bg-surface shadow-card' : 'hover:bg-surface'}`}>
               <Calendar className="mr-1" />Календарь
             </button>
           </div>
           {can(PERMISSIONS.worksEdit) && (
-            <button onClick={() => { setEditingWork(null); setShowForm(true); }}
-              className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 transition">
-              <Plus className="mr-2" />Создать работу
-            </button>
+            <Button icon={Plus} onClick={() => { setEditingWork(null); setShowForm(true); }}>
+              Создать работу
+            </Button>
           )}
         </div>
       </div>
@@ -163,19 +163,19 @@ export default function WorksPage() {
                     <div className="flex items-center gap-2">
                       {can(PERMISSIONS.worksEdit) && work.status === 'draft' && (
                         <button onClick={() => handlePushToZabbix(work.id)}
-                          className="text-accent hover:text-accent text-xs font-medium" title="Отправить">
+                          className="text-accent hover:text-accent text-xs font-medium transition-colors" title="Отправить">
                           <UploadCloud className="mr-1" />Отправить
                         </button>
                       )}
                       {can(PERMISSIONS.worksEdit) && (
                         <button onClick={() => { setEditingWork(work); setShowForm(true); }}
-                          className="text-muted hover:text-content" title="Редактировать">
+                          className="text-muted hover:text-content transition-colors" title="Редактировать">
                           <Pencil />
                         </button>
                       )}
                       {can(PERMISSIONS.worksDelete) && (
                         <button onClick={() => handleDelete(work.id)}
-                          className="text-danger-fg hover:text-danger-fg" title="Удалить">
+                          className="text-danger-fg hover:text-danger-fg transition-colors" title="Удалить">
                           <Trash2 />
                         </button>
                       )}
@@ -201,12 +201,12 @@ export default function WorksPage() {
         <div className="bg-surface rounded-xl shadow-card border border-line p-5">
           <div className="flex items-center justify-between mb-4">
             <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else setCalMonth(calMonth - 1); }}
-              className="p-2 hover:bg-surface-2 rounded-lg"><ChevronLeft /></button>
+              className="p-2 hover:bg-surface-2 rounded-lg transition-colors"><ChevronLeft /></button>
             <h3 className="text-lg font-semibold">
               {new Date(calYear, calMonth).toLocaleString('ru-RU', { month: 'long', year: 'numeric' })}
             </h3>
             <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else setCalMonth(calMonth + 1); }}
-              className="p-2 hover:bg-surface-2 rounded-lg"><ChevronRight /></button>
+              className="p-2 hover:bg-surface-2 rounded-lg transition-colors"><ChevronRight /></button>
           </div>
           <div className="grid grid-cols-7 gap-px bg-line rounded-lg overflow-hidden">
             {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(d => (
@@ -345,11 +345,11 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-overlay-in">
+      <div className="bg-surface rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in">
         <div className="p-5 border-b border-line flex items-center justify-between">
           <h2 className="text-lg font-semibold">{work ? 'Редактировать работу' : 'Новая плановая работа'}</h2>
-          <button onClick={onClose} className="text-faint hover:text-muted"><X /></button>
+          <button onClick={onClose} className="text-faint hover:text-muted transition-colors"><X /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
@@ -415,11 +415,12 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-line">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-muted hover:text-content">Отмена</button>
-            <button type="submit" disabled={saving}
-              className="bg-brand-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50">
-              {saving ? 'Сохранение...' : work ? 'Обновить' : 'Создать'}
-            </button>
+            <Button variant="ghost" onClick={onClose}>
+              Отмена
+            </Button>
+            <Button type="submit" loading={saving}>
+              {work ? 'Обновить' : 'Создать'}
+            </Button>
           </div>
         </form>
       </div>

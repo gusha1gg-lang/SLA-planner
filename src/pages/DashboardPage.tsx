@@ -65,7 +65,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 stagger">
         <div className="bg-surface rounded-xl p-5 shadow-card border border-line">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-accent-soft flex items-center justify-center">
@@ -79,8 +79,8 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
         </div>
         <div className="bg-surface rounded-xl p-5 shadow-card border border-line">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-              <Server className="text-purple-600" />
+            <div className="w-10 h-10 rounded-lg bg-tag-soft flex items-center justify-center">
+              <Server className="text-tag-fg" />
             </div>
             <div>
               <p className="text-2xl font-bold">{services.length}</p>
@@ -154,7 +154,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
         <div className="p-5 border-b border-line">
           <h2 className="text-lg font-semibold">SLA-объекты</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 stagger">
           {slas.map(sla => (
             <div key={sla.id} onClick={() => onNavigate('sla-detail', { id: sla.zabbix_slaid })}
               className="border border-line rounded-lg p-4 cursor-pointer hover:border-accent-line hover:shadow-md transition">

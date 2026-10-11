@@ -108,7 +108,8 @@ export default function Layout({ currentPage, onNavigate, onSync, children }: La
       {/* Основная область */}
       <main className="flex-1 ml-64">
         <StatusBar onSync={onSync} />
-        <div className="p-6 animate-fade-in">{children}</div>
+        {/* key={currentPage} — при смене страницы контент появляется заново (анимация). */}
+        <div key={currentPage} className="p-6 animate-fade-in-up">{children}</div>
       </main>
     </div>
   );

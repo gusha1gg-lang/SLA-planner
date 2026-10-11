@@ -9,7 +9,7 @@ const ACTION_ICONS: Record<string, { Icon: LucideIcon; cls: string }> = {
   create: { Icon: Plus, cls: 'text-ok-fg' },
   update: { Icon: Pencil, cls: 'text-accent' },
   delete: { Icon: Trash2, cls: 'text-danger-fg' },
-  sync: { Icon: RefreshCw, cls: 'text-purple-600' },
+  sync: { Icon: RefreshCw, cls: 'text-tag-fg' },
   login: { Icon: LogIn, cls: 'text-muted' },
 };
 

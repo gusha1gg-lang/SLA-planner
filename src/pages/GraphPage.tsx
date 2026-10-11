@@ -11,6 +11,7 @@ import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { buildHealthModels, HealthModel } from '../healthModels';
 import { PERMISSIONS } from '../permissions';
+import Button from '../components/ui/Button';
 
 /** Данные, отображаемые для выбранной модели здоровья. */
 interface ScopedView {
@@ -803,41 +804,44 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
               <div className="flex items-center gap-2">
                 {editMode ? (
                   <>
-                    <button
+                    <Button
+                      variant="success"
+                      size="sm"
+                      icon={Save}
                       onClick={handleSaveLayout}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 transition"
                       title="Сохранить раскладку для всех и выйти из редактирования"
                     >
-                      <Save className="text-xs" />
                       Сохранить
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={X}
                       onClick={handleCancelEdit}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-surface-2 text-content rounded-md hover:bg-line transition"
                       title="Отменить изменения и вернуть сохранённую раскладку"
                     >
-                      <X className="text-xs" />
                       Отмена
-                    </button>
+                    </Button>
                   </>
                 ) : (
-                  <button
+                  <Button
+                    size="sm"
+                    icon={PenLine}
                     onClick={handleEnterEdit}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-brand-600 text-white rounded-md hover:bg-brand-700 transition"
                     title="Включить перемещение узлов графа"
                   >
-                    <PenLine className="text-xs" />
                     Редактировать граф
-                  </button>
+                  </Button>
                 )}
-                <button
+                <Button
+                  variant="danger-soft"
+                  size="sm"
+                  icon={Undo2}
                   onClick={handleResetLayout}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-danger-soft text-danger-fg rounded-md hover:bg-danger-soft transition"
                   title="Сбросить раскладку модели к стандартной (для всех пользователей)"
                 >
-                  <Undo2 className="text-xs" />
                   Сбросить раскладку
-                </button>
+                </Button>
               </div>
             )}
           </div>

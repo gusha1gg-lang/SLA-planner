@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AlertTriangle, CheckCircle2, Plug, Save, Server, Settings, ShieldCheck } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
+import Button from '../components/ui/Button';
 
 export default function SettingsPage() {
   const { showToast } = useToast();
@@ -56,9 +57,9 @@ export default function SettingsPage() {
               className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none font-mono text-sm" />
             <p className="text-xs text-faint mt-1">Используется в заголовке Authorization: Bearer</p>
           </div>
-          <button onClick={handleTestConnection} className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700">
-            <Plug className="mr-2" />Проверить подключение
-          </button>
+          <Button icon={Plug} onClick={handleTestConnection}>
+            Проверить подключение
+          </Button>
         </div>
       </div>
 
@@ -108,9 +109,9 @@ export default function SettingsPage() {
       </div>
 
       <div className="flex justify-end">
-        <button onClick={handleSave} className="bg-brand-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-brand-700">
-          <Save className="mr-2" />Сохранить настройки
-        </button>
+        <Button icon={Save} onClick={handleSave}>
+          Сохранить настройки
+        </Button>
       </div>
     </div>
   );

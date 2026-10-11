@@ -5,6 +5,7 @@ import { SLA, Service, ExcludedDowntime } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { PERMISSIONS } from '../permissions';
 import { formatDateTime } from '../time';
+import Button from './ui/Button';
 
 /**
  * Карточка деталей SLA (живые данные из Zabbix): SLO, расписание, исключения
@@ -106,13 +107,12 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
         </div>
         <div className="flex items-center gap-2">
           {can(PERMISSIONS.slaEdit) && (
-            <button onClick={() => setShowAddForm(true)}
-              className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700">
-              <Plus className="mr-2" />Добавить исключение
-            </button>
+            <Button icon={Plus} onClick={() => setShowAddForm(true)}>
+              Добавить исключение
+            </Button>
           )}
           {onClose && (
-            <button onClick={onClose} className="text-faint hover:text-muted" title="Закрыть">
+            <button onClick={onClose} className="text-faint hover:text-muted transition-colors" title="Закрыть">
               <X />
             </button>
           )}
@@ -173,7 +173,7 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
                     {can(PERMISSIONS.slaEdit) && (
                       <td className="px-5 py-3">
                         <button onClick={() => handleRemoveDowntime(dt.name)}
-                          className="text-danger-fg hover:text-danger-fg" title="Удалить">
+                          className="text-danger-fg hover:text-danger-fg transition-colors" title="Удалить">
                           <Trash2 />
                         </button>
                       </td>
@@ -204,7 +204,7 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
                       <p className="font-medium text-content">{svc.name}</p>
                       <p className="text-xs text-muted">ID: {svc.zabbix_serviceid}</p>
                     </div>
-                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
+                    <span className="text-xs bg-tag-soft text-tag-fg px-2 py-1 rounded">
                       {svc.tags.find(t => t.tag === 'service')?.value}
                     </span>
                   </>
@@ -277,11 +277,11 @@ function AddDowntimeModal({ slaId, onClose, onAdd }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded-xl shadow-2xl w-full max-w-md">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-overlay-in">
+      <div className="bg-surface rounded-xl shadow-2xl w-full max-w-md animate-scale-in">
         <div className="p-5 border-b border-line flex items-center justify-between">
           <h2 className="text-lg font-semibold">Добавить исключение простоя</h2>
-          <button onClick={onClose} className="text-faint hover:text-muted">
+          <button onClick={onClose} className="text-faint hover:text-muted transition-colors">
             <X />
           </button>
         </div>
@@ -303,13 +303,12 @@ function AddDowntimeModal({ slaId, onClose, onAdd }: {
               className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-line">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-muted hover:text-content">
+            <Button variant="ghost" onClick={onClose}>
               Отмена
-            </button>
-            <button type="submit" disabled={saving}
-              className="bg-brand-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50">
-              {saving ? 'Добавление...' : 'Добавить'}
-            </button>
+            </Button>
+            <Button type="submit" loading={saving}>
+              Добавить
+            </Button>
           </div>
         </form>
       </div>

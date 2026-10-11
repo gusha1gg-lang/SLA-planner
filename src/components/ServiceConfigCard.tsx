@@ -140,7 +140,7 @@ export default function ServiceConfigCard({ serviceId, onClose, onSelectService 
             {config.status_label}
           </span>
           {onClose && (
-            <button onClick={onClose} className="text-faint hover:text-muted" title="Закрыть">
+            <button onClick={onClose} className="text-faint hover:text-muted transition-colors" title="Закрыть">
               <X />
             </button>
           )}

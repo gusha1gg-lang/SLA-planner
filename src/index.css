@@ -58,6 +58,10 @@
   --color-danger-soft: #fee2e2;
   --color-danger-line: #fecaca;
 
+  /* Метки/теги (например, тег `service`) — фиолетовый акцент. */
+  --color-tag-fg: #6d28d9;
+  --color-tag-soft: #f3e8ff;
+
   /* Мягкие тени. */
   --shadow-xs: 0 1px 2px rgba(16, 20, 26, 0.05);
   --shadow-card: 0 1px 2px rgba(16, 20, 26, 0.04), 0 1px 3px rgba(16, 20, 26, 0.06);
@@ -68,6 +72,8 @@
 
   --animate-fade-in-up: fade-in-up 0.32s cubic-bezier(0.2, 0, 0, 1) both;
   --animate-fade-in: fade-in 0.24s cubic-bezier(0.2, 0, 0, 1) both;
+  --animate-scale-in: scale-in 0.2s cubic-bezier(0.2, 0, 0, 1) both;
+  --animate-overlay-in: overlay-in 0.18s ease-out both;
 }
 
 /*
@@ -103,6 +109,9 @@
   --color-danger-soft: rgba(248, 113, 113, 0.16);
   --color-danger-line: rgba(248, 113, 113, 0.32);
 
+  --color-tag-fg: #c4b5fd;
+  --color-tag-soft: rgba(139, 92, 246, 0.18);
+
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.35);
   --shadow-card-hover: 0 8px 20px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
   --shadow-pop: 0 20px 48px rgba(0, 0, 0, 0.6);
@@ -116,6 +125,16 @@
 }
 
 @keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes overlay-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
@@ -198,3 +217,22 @@
 .animate-slide-in {
   animation: slide-in 0.25s var(--ease-standard);
 }
+
+/*
+ * Каскадное появление содержимого: контейнеру `.stagger` — дети появляются по очереди.
+ * Используется на карточках/списках (дашборд, работы), чтобы страница «оживала» мягко.
+ * При `prefers-reduced-motion` глобальный слой обнуляет длительность.
+ */
+.stagger > * {
+  animation: fade-in-up 0.3s cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }
+.stagger > *:nth-child(5) { animation-delay: 160ms; }
+.stagger > *:nth-child(6) { animation-delay: 200ms; }
+.stagger > *:nth-child(7) { animation-delay: 240ms; }
+.stagger > *:nth-child(8) { animation-delay: 280ms; }
+.stagger > *:nth-child(n + 9) { animation-delay: 320ms; }

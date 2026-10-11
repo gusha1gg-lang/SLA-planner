@@ -62,7 +62,7 @@ export default function ModelTree({ rootId, services, selectedServiceId, onSelec
           {kids.length > 0 ? (
             <button
               onClick={e => toggle(svc.zabbix_serviceid, e)}
-              className="w-4 flex-none text-faint hover:text-muted"
+              className="w-4 flex-none text-faint hover:text-muted transition-colors"
               title={isCollapsed ? 'Развернуть' : 'Свернуть'}
             >
               <ChevronRight className={`text-[10px] transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
@@ -75,7 +75,7 @@ export default function ModelTree({ rootId, services, selectedServiceId, onSelec
             style={{ background: statusColor(svc.status) }}
             title={`Статус: ${statusLabel(svc.status)}`}
           />
-          <span className={`truncate ${isRoot ? 'font-semibold text-purple-800' : 'text-content'}`}>
+          <span className={`truncate ${isRoot ? 'font-semibold text-tag-fg' : 'text-content'}`}>
             {svc.name}
           </span>
         </button>

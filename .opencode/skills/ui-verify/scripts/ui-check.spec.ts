@@ -235,3 +235,50 @@ test('Тема: переключение light/dark и сохранение по
   await page.getByLabel('Включить светлую тему').click();
   await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(false);
 });
+
+test('Кнопки: действия страниц — единый примитив Button (модалка «Новая работа»)', async ({ page }) => {
+  await page.goto('http://localhost:3000/');
+  await page.getByPlaceholder('admin / planner / viewer').fill('admin');
+  await page.getByPlaceholder('Пароль').fill('admin123');
+  await page.getByRole('button', { name: 'Войти' }).click();
+
+  await page.getByRole('button', { name: 'Плановые работы' }).click();
+  await expect(page.getByRole('heading', { name: 'Плановые работы', level: 1 })).toBeVisible();
+
+  // Кнопка-действие — примитив Button: единый класс микро-интеракций (ease-standard).
+  const create = page.getByRole('button', { name: 'Создать работу' });
+  await expect(create).toHaveClass(/ease-standard/);
+
+  await create.click();
+  await expect(page.getByRole('heading', { name: 'Новая плановая работа' })).toBeVisible();
+
+  // Кнопки футера модалки — тоже примитивы Button; submit — реальная отправка формы.
+  const submit = page.getByRole('button', { name: 'Создать', exact: true });
+  await expect(submit).toHaveClass(/ease-standard/);
+  await expect(submit).toHaveAttribute('type', 'submit');
+  await expect(page.getByRole('button', { name: 'Отмена', exact: true })).toHaveClass(/ease-standard/);
+
+  await page.screenshot({ path: '/tmp/opencode/ui-verify/buttons-modal.png' });
+});
+
+test('Анимации: модалка и карточки дашборда появляются плавно', async ({ page }) => {
+  await page.goto('http://localhost:3000/');
+  await page.getByPlaceholder('admin / planner / viewer').fill('admin');
+  await page.getByPlaceholder('Пароль').fill('admin123');
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await expect(page.getByRole('button', { name: 'Дашборд' })).toBeVisible();
+
+  // Каскадное появление карточек дашборда (.stagger > *).
+  const card = page.locator('.stagger > *').first();
+  await expect(card).toBeVisible();
+  expect(await card.evaluate(el => getComputedStyle(el).animationName)).toBe('fade-in-up');
+
+  // Модалка новой работы: оверлей и панель анимируются (overlay-in / scale-in).
+  await page.getByRole('button', { name: 'Плановые работы' }).click();
+  await page.getByRole('button', { name: 'Создать работу' }).click();
+  const overlay = page.locator('.animate-overlay-in').first();
+  const panel = page.locator('.animate-scale-in').first();
+  await expect(panel).toBeVisible();
+  expect(await overlay.evaluate(el => getComputedStyle(el).animationName)).toBe('overlay-in');
+  expect(await panel.evaluate(el => getComputedStyle(el).animationName)).toBe('scale-in');
+});

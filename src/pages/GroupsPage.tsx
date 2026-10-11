@@ -5,6 +5,7 @@ import { Group, Service, User } from '../types';
 import { buildHealthModels, HealthModel } from '../healthModels';
 import { PERMISSION_LABELS, PERMISSION_SECTIONS } from '../permissions';
 import { useToast } from '../context/ToastContext';
+import Button from '../components/ui/Button';
 
 interface GroupForm {
   name: string;
@@ -150,10 +151,9 @@ export default function GroupsPage() {
       <div className="bg-surface rounded-xl shadow-card border border-line overflow-hidden">
         <div className="p-5 border-b border-line flex items-center justify-between">
           <h2 className="text-lg font-semibold">Группы и права</h2>
-          <button onClick={openCreate}
-            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700">
-            <Plus className="mr-2" />Создать группу
-          </button>
+          <Button icon={Plus} onClick={openCreate}>
+            Создать группу
+          </Button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -201,7 +201,7 @@ export default function GroupsPage() {
                     </td>
                     <td className="px-5 py-3">
                       {group.all_models ? (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700" title="Группа видит все модели здоровья">все модели</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-ok-soft text-ok-fg" title="Группа видит все модели здоровья">все модели</span>
                       ) : group.model_ids.length === 0 ? (
                         <span className="text-faint">нет доступа</span>
                       ) : (
@@ -219,11 +219,11 @@ export default function GroupsPage() {
                     </td>
                     <td className="px-5 py-3 whitespace-nowrap">
                       <button onClick={() => openEdit(group)}
-                        className="text-accent hover:text-accent mr-3" title="Редактировать">
+                        className="text-accent hover:text-accent mr-3 transition-colors" title="Редактировать">
                         <Pencil />
                       </button>
                       {!group.is_system && (
-                        <button onClick={() => handleDelete(group)} className="text-danger-fg hover:text-danger-fg" title="Удалить">
+                        <button onClick={() => handleDelete(group)} className="text-danger-fg hover:text-danger-fg transition-colors" title="Удалить">
                           <Trash2 />
                         </button>
                       )}
@@ -241,11 +241,11 @@ export default function GroupsPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 animate-overlay-in">
+          <div className="bg-surface rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
             <div className="p-5 border-b border-line flex items-center justify-between">
               <h2 className="text-lg font-semibold">{editingId === null ? 'Новая группа' : 'Редактировать группу'}</h2>
-              <button onClick={() => setShowModal(false)} className="text-faint hover:text-muted"><X /></button>
+              <button onClick={() => setShowModal(false)} className="text-faint hover:text-muted transition-colors"><X /></button>
             </div>
 
             <div className="p-5 space-y-5">
@@ -327,7 +327,7 @@ export default function GroupsPage() {
                 <div className="flex items-center justify-between mb-1.5">
                   <p className="text-sm font-semibold text-content">Участники</p>
                   <button type="button" onClick={() => setAddMemberOpen(v => !v)}
-                    className="text-sm text-accent hover:text-accent">
+                    className="text-sm text-accent hover:text-accent transition-colors">
                     <Plus className="mr-1" />Добавить участника
                   </button>
                 </div>
@@ -344,14 +344,12 @@ export default function GroupsPage() {
                         <option key={u.id} value={u.id}>{u.username}</option>
                       ))}
                     </select>
-                    <button type="button" onClick={addMember} disabled={newMemberId === ''}
-                      className="px-3 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50">
+                    <Button size="sm" onClick={addMember} disabled={newMemberId === ''}>
                       Добавить
-                    </button>
-                    <button type="button" onClick={() => { setAddMemberOpen(false); setNewMemberId(''); }}
-                      className="px-3 py-2 rounded-lg text-sm bg-surface-2 text-muted hover:bg-line">
+                    </Button>
+                    <Button size="sm" variant="secondary" onClick={() => { setAddMemberOpen(false); setNewMemberId(''); }}>
                       Отмена
-                    </button>
+                    </Button>
                   </div>
                 )}
 
@@ -371,7 +369,7 @@ export default function GroupsPage() {
                             {u?.role === 'admin' && <span className="text-xs text-faint">(админ — группы не важны)</span>}
                           </span>
                           <button type="button" onClick={() => removeMember(id)}
-                            className="text-faint hover:text-danger-fg" title="Убрать из группы">
+                            className="text-faint hover:text-danger-fg transition-colors" title="Убрать из группы">
                             <X />
                           </button>
                         </div>
@@ -383,12 +381,12 @@ export default function GroupsPage() {
             </div>
 
             <div className="p-5 border-t border-line flex justify-end gap-2">
-              <button onClick={() => setShowModal(false)}
-                className="px-4 py-2 rounded-lg text-sm bg-surface-2 text-content hover:bg-line">Отмена</button>
-              <button onClick={handleSave} disabled={saving}
-                className="px-4 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50">
-                {saving ? 'Сохранение…' : 'Сохранить'}
-              </button>
+              <Button variant="secondary" onClick={() => setShowModal(false)}>
+                Отмена
+              </Button>
+              <Button onClick={handleSave} loading={saving}>
+                Сохранить
+              </Button>
             </div>
           </div>
         </div>
