@@ -1,117 +1,252 @@
-import React, { useState } from 'react';
-import { AlertTriangle, CheckCircle2, Plug, Save, Server, Settings, ShieldCheck } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Loader2, Server, Settings, ShieldCheck } from 'lucide-react';
+import { api } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import Button from '../components/ui/Button';
 
+type BackendStatus = 'ok' | 'error' | 'loading';
+type ZabbixStatus = 'connected' | 'disconnected' | 'unknown';
+
+interface SystemStatus {
+  backend: BackendStatus;
+  version: string;
+  zabbix: ZabbixStatus;
+  readOnly: boolean;
+  zabbixUrl: string;
+}
+
 export default function SettingsPage() {
+  const { isAdmin } = useAuth();
   const { showToast } = useToast();
-  const [zabbixUrl, setZabbixUrl] = useState('https://zabbix.example.com/api_jsonrpc.php');
-  const [zabbixToken, setZabbixToken] = useState('');
-  const [readOnly, setReadOnly] = useState(true);
+  const [status, setStatus] = useState<SystemStatus>({
+    backend: 'loading',
+    version: '...',
+    zabbix: 'unknown',
+    readOnly: true,
+    zabbixUrl: '',
+  });
   const [timezone, setTimezone] = useState('Europe/Moscow');
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadStatus();
+  }, [isAdmin]);
+
+  const loadStatus = async () => {
+    setLoading(true);
+    try {
+      const health = await api.health();
+      setStatus(prev => ({
+        ...prev,
+        backend: 'ok',
+        version: health.version || '0.1.0',
+      }));
+
+      if (isAdmin) {
+        try {
+          const res = await fetch('/api/zabbix/status');
+          if (res.ok) {
+            const data = await res.json();
+            setStatus(prev => ({
+              ...prev,
+              zabbix: data.connected ? 'connected' : 'disconnected',
+              readOnly: Boolean(data.read_only),
+              zabbixUrl: data.api_url || '',
+            }));
+          } else {
+            setStatus(prev => ({ ...prev, zabbix: 'disconnected' }));
+          }
+        } catch {
+          setStatus(prev => ({ ...prev, zabbix: 'unknown' }));
+        }
+      }
+    } catch {
+      setStatus(prev => ({ ...prev, backend: 'error' }));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSave = () => {
     setSaved(true);
     showToast('success', 'Настройки сохранены');
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  const handleTestConnection = async () => {
-    showToast('info', 'Проверка подключения к Zabbix...');
-    // В реальности — вызов API для проверки
-    setTimeout(() => {
-      showToast('warning', 'Zabbix не подключен (демо-режим)');
-    }, 1500);
+    setTimeout(() => setSaved(false), 1500);
   };
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-content">Настройки</h1>
-        <p className="text-muted mt-1">Конфигурация подключения к Zabbix и параметры системы</p>
+        <p className="text-muted mt-1">
+          Системные параметры и состояние подключения к Zabbix
+        </p>
       </div>
 
       {saved && (
-        <div className="bg-ok-soft border border-ok-line text-ok-fg px-4 py-3 rounded-lg text-sm">
-          <CheckCircle2 className="mr-2" />Настройки сохранены
+        <div className="bg-ok-soft border border-ok-line text-ok-fg px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4" />
+          Настройки сохранены
         </div>
       )}
 
-      {/* Zabbix Connection */}
+      {/* Система */}
       <div className="bg-surface rounded-xl shadow-card border border-line p-6">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Server className="text-accent" />Подключение к Zabbix
+          <Settings className="text-muted" />
+          Система
         </h2>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-content mb-1">API URL</label>
-            <input value={zabbixUrl} onChange={e => setZabbixUrl(e.target.value)}
-              className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none font-mono text-sm" />
-            <p className="text-xs text-faint mt-1">Endpoint JSON-RPC API Zabbix 7.0</p>
+        <div className="space-y-3 text-sm">
+          <div className="flex items-center justify-between py-2 border-b border-line/60 last:border-0">
+            <span className="text-muted">Название</span>
+            <span className="text-content font-medium">SLA Planner</span>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-content mb-1">API Token</label>
-            <input type="password" value={zabbixToken} onChange={e => setZabbixToken(e.target.value)}
-              placeholder="Bearer token для авторизации"
-              className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none font-mono text-sm" />
-            <p className="text-xs text-faint mt-1">Используется в заголовке Authorization: Bearer</p>
+          <div className="flex items-center justify-between py-2 border-b border-line/60 last:border-0">
+            <span className="text-muted">Версия</span>
+            <span className="text-content font-mono">{status.version}</span>
           </div>
-          <Button icon={Plug} onClick={handleTestConnection}>
-            Проверить подключение
-          </Button>
+          <div className="flex items-center justify-between py-2 border-b border-line/60 last:border-0">
+            <span className="text-muted">Статус бэкенда</span>
+            {loading ? (
+              <span className="flex items-center gap-1.5 text-muted">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Проверка...
+              </span>
+            ) : (
+              <span
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full font-medium ${
+                  status.backend === 'ok'
+                    ? 'bg-ok-soft text-ok-fg'
+                    : 'bg-danger-soft text-danger-fg'
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    status.backend === 'ok' ? 'bg-ok-fg' : 'bg-danger-fg'
+                  }`}
+                />
+                {status.backend === 'ok' ? 'Online' : 'Offline'}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Safety */}
-      <div className="bg-surface rounded-xl shadow-card border border-line p-6">
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <ShieldCheck className="text-ok-fg" />Безопасность
-        </h2>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-surface-2 rounded-lg">
-            <div>
-              <p className="font-medium text-content">Режим Read-Only</p>
-              <p className="text-sm text-muted">Запрещает любые записи в Zabbix (sla.update)</p>
+      {/* Zabbix */}
+      {isAdmin && (
+        <div className="bg-surface rounded-xl shadow-card border border-line p-6">
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Server className="text-accent" />
+            Zabbix
+          </h2>
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center justify-between py-2 border-b border-line/60 last:border-0">
+              <span className="text-muted">Подключение</span>
+              {loading ? (
+                <span className="flex items-center gap-1.5 text-muted">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Проверка...
+                </span>
+              ) : (
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full font-medium ${
+                    status.zabbix === 'connected'
+                      ? 'bg-ok-soft text-ok-fg'
+                      : status.zabbix === 'unknown'
+                      ? 'bg-surface-2 text-muted'
+                      : 'bg-danger-soft text-danger-fg'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      status.zabbix === 'connected'
+                        ? 'bg-ok-fg'
+                        : status.zabbix === 'unknown'
+                        ? 'bg-faint'
+                        : 'bg-danger-fg'
+                    }`}
+                  />
+                  {status.zabbix === 'connected'
+                    ? 'Подключён'
+                    : status.zabbix === 'unknown'
+                    ? 'Не определено'
+                    : 'Не подключён'}
+                </span>
+              )}
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" checked={readOnly} onChange={e => setReadOnly(e.target.checked)} className="sr-only peer" />
-              <div className="w-11 h-6 bg-line peer-focus:ring-4 peer-focus:ring-accent-line rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-line-strong after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
-            </label>
-          </div>
-          <div className="p-4 bg-warn-soft border border-warn-line rounded-lg">
-            <p className="text-sm text-warn-fg">
-              <AlertTriangle className="mr-2" />
-              <strong>Внимание:</strong> В режиме Read-Only портал НЕ может создавать исключения простоя в Zabbix.
-              Единственный пишущий метод — sla.update — заблокирован.
-            </p>
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 py-2 border-b border-line/60 last:border-0">
+              <span className="text-muted">API URL</span>
+              <span className="text-content font-mono text-xs sm:text-sm break-all text-right">
+                {status.zabbixUrl || '—'}
+              </span>
+            </div>
+
+            <div className="flex items-start justify-between gap-3 py-2 border-b border-line/60 last:border-0">
+              <div>
+                <p className="text-muted">Режим Read-Only</p>
+                <p className="text-xs text-faint mt-0.5">
+                  Блокирует любые записи в Zabbix (sla.update)
+                </p>
+              </div>
+              <span
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full font-medium shrink-0 ${
+                  status.readOnly
+                    ? 'bg-warn-soft text-warn-fg'
+                    : 'bg-ok-soft text-ok-fg'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                {status.readOnly ? 'Read-Only' : 'Read-Write'}
+              </span>
+            </div>
+
+            {status.readOnly && (
+              <div className="mt-3 p-3 bg-warn-soft border border-warn-line rounded-lg flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-warn-fg mt-0.5 shrink-0" />
+                <p className="text-xs text-warn-fg leading-relaxed">
+                  <strong>Внимание:</strong> В режиме Read-Only портал не может
+                  создавать исключения простоя в Zabbix. Единственный пишущий
+                  метод — <span className="font-mono">sla.update</span> —
+                  заблокирован.
+                </p>
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* General */}
+      {/* Общие */}
       <div className="bg-surface rounded-xl shadow-card border border-line p-6">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Settings className="text-muted" />Общие
+          <Settings className="text-muted" />
+          Общие
         </h2>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-content mb-1">Часовой пояс</label>
-            <select value={timezone} onChange={e => setTimezone(e.target.value)}
-              className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none">
+            <label className="block text-sm font-medium text-content mb-1">
+              Часовой пояс
+            </label>
+            <select
+              value={timezone}
+              onChange={e => setTimezone(e.target.value)}
+              className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none bg-surface"
+            >
               <option value="Europe/Moscow">Europe/Moscow (UTC+3)</option>
               <option value="UTC">UTC</option>
               <option value="Asia/Yekaterinburg">Asia/Yekaterinburg (UTC+5)</option>
               <option value="Asia/Novosibirsk">Asia/Novosibirsk (UTC+7)</option>
             </select>
+            <p className="text-xs text-faint mt-1">
+              Используется для отображения дат и времени в интерфейсе
+            </p>
           </div>
         </div>
-      </div>
 
-      <div className="flex justify-end">
-        <Button icon={Save} onClick={handleSave}>
-          Сохранить настройки
-        </Button>
+        <div className="flex justify-end mt-6">
+          <Button onClick={handleSave}>Сохранить настройки</Button>
+        </div>
       </div>
     </div>
   );
