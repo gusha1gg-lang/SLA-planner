@@ -70,6 +70,27 @@ export default function Layout({ currentPage, onNavigate, onSync, children }: La
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+          {/* Кнопка сворачивания/разворачивания — вверху списка, над остальными пунктами. */}
+          <button
+            onClick={toggleCollapsed}
+            title={collapsed ? 'Развернуть меню' : 'Свернуть меню'}
+            aria-label={collapsed ? 'Развернуть меню' : 'Свернуть меню'}
+            className={cn(
+              'group relative w-full flex items-center gap-3 rounded-lg text-slate-300 hover:bg-white/5 hover:text-white mb-1',
+              'transition-all duration-150 ease-standard',
+              collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5'
+            )}
+          >
+            <span
+              className={cn(
+                'absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-white/30',
+                'transition-all duration-200 ease-standard opacity-0 group-hover:opacity-40'
+              )}
+            />
+            {collapsed ? <PanelLeftOpen className="w-[18px] h-[18px]" /> : <PanelLeftClose className="w-[18px] h-[18px]" />}
+            {!collapsed && <span className="truncate">Свернуть меню</span>}
+          </button>
+
           {visibleItems.map(item => {
             const active = currentPage === item.id;
             const Icon = item.icon;
@@ -159,18 +180,7 @@ export default function Layout({ currentPage, onNavigate, onSync, children }: La
           )}
 
           {/* Свернуть / развернуть меню («закрепить» в полный вид). */}
-          <button
-            onClick={toggleCollapsed}
-            title={collapsed ? 'Развернуть меню' : 'Свернуть меню'}
-            aria-label={collapsed ? 'Развернуть меню' : 'Свернуть меню'}
-            className={cn(
-              'w-full flex items-center gap-3 rounded-lg text-slate-400 hover:bg-white/5 hover:text-white transition-colors duration-150',
-              collapsed ? 'justify-center px-0 py-2' : 'px-3 py-2'
-            )}
-          >
-            {collapsed ? <PanelLeftOpen className="w-[18px] h-[18px]" /> : <PanelLeftClose className="w-[18px] h-[18px]" />}
-            {!collapsed && <span className="text-sm">Свернуть меню</span>}
-          </button>
+          {/* удалено: теперь кнопка «Свернуть меню» находится над пунктами навигации */}
         </div>
       </aside>
 
