@@ -157,7 +157,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 stagger">
           {slas.map(sla => (
             <div key={sla.id} onClick={() => onNavigate('sla-detail', { id: sla.zabbix_slaid })}
-              className="border border-line rounded-lg p-4 cursor-pointer hover:border-accent-line hover:shadow-md transition">
+              className="border border-line rounded-lg p-4 cursor-pointer transition-all duration-200 ease-standard hover:-translate-y-0.5 hover:border-accent-line hover:shadow-card-hover">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold text-content">{sla.name}</h3>
                 <span className="text-xs bg-surface-2 text-muted px-2 py-1 rounded">ID: {sla.zabbix_slaid}</span>

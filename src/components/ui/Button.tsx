@@ -20,23 +20,23 @@ const base =
   'inline-flex items-center justify-center gap-2 font-medium rounded-lg select-none ' +
   'transition-all duration-150 ease-standard ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/45 focus-visible:ring-offset-1 ' +
-  'disabled:opacity-50 disabled:pointer-events-none';
+  'active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none';
 
 // Микро-интеракции: подсветка фона + лёгкий подъём на hover, «вжатие» на active.
 const variants: Record<Variant, string> = {
   primary:
-    'bg-brand-600 text-white shadow-xs hover:bg-brand-700 hover:shadow-card hover:-translate-y-px active:translate-y-0 active:bg-brand-800',
+    'bg-brand-600 text-white shadow-xs hover:bg-brand-700 hover:shadow-card hover:-translate-y-0.5 active:translate-y-0 active:bg-brand-800',
   secondary:
-    'bg-surface text-content border border-line hover:border-line-strong hover:bg-surface-2 hover:-translate-y-px hover:shadow-xs active:translate-y-0',
+    'bg-surface text-content border border-line hover:border-line-strong hover:bg-surface-2 hover:-translate-y-0.5 hover:shadow-xs active:translate-y-0',
   ghost: 'text-muted hover:bg-surface-2 hover:text-content',
   danger:
-    'bg-red-600 text-white shadow-xs hover:bg-red-700 hover:shadow-card hover:-translate-y-px active:translate-y-0 active:bg-red-800',
+    'bg-red-600 text-white shadow-xs hover:bg-red-700 hover:shadow-card hover:-translate-y-0.5 active:translate-y-0 active:bg-red-800',
   success:
-    'bg-green-600 text-white shadow-xs hover:bg-green-700 hover:shadow-card hover:-translate-y-px active:translate-y-0 active:bg-green-800',
+    'bg-green-600 text-white shadow-xs hover:bg-green-700 hover:shadow-card hover:-translate-y-0.5 active:translate-y-0 active:bg-green-800',
   warning:
-    'bg-yellow-600 text-white shadow-xs hover:bg-yellow-700 hover:shadow-card hover:-translate-y-px active:translate-y-0 active:bg-yellow-800',
+    'bg-yellow-600 text-white shadow-xs hover:bg-yellow-700 hover:shadow-card hover:-translate-y-0.5 active:translate-y-0 active:bg-yellow-800',
   'danger-soft':
-    'bg-danger-soft text-danger-fg hover:bg-danger-soft/80 hover:-translate-y-px active:translate-y-0',
+    'bg-danger-soft text-danger-fg hover:bg-danger-soft/80 hover:-translate-y-0.5 active:translate-y-0',
 };
 
 const sizes: Record<Size, string> = {

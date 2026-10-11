@@ -132,7 +132,7 @@ export default function StatusBar({ onSync }: StatusBarProps) {
           <button
             onClick={handleSync}
             disabled={syncing}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-accent-soft text-accent font-medium transition-all duration-150 ease-standard hover:bg-accent-soft hover:-translate-y-px disabled:opacity-50 disabled:pointer-events-none"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-accent-soft text-accent font-medium transition-all duration-150 ease-standard hover:bg-accent-soft hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:pointer-events-none"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
             {syncing ? 'Синхронизация...' : 'Синхр. с Zabbix'}
