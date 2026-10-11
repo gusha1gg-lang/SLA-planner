@@ -27,9 +27,9 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'graph', label: 'Модель здоровья', icon: Network, permission: PERMISSIONS.model },
   { id: 'works', label: 'Плановые работы', icon: CalendarDays, permission: PERMISSIONS.works },
   { id: 'report', label: 'SLA-отчёт', icon: BarChart3, permission: PERMISSIONS.reports },
-  { id: 'audit', label: 'Аудит-лог', icon: History, permission: PERMISSIONS.audit },
-  { id: 'users', label: 'Пользователи', icon: Users, adminOnly: true },
   { id: 'groups', label: 'Группы', icon: UsersRound, adminOnly: true },
+  { id: 'users', label: 'Пользователи', icon: Users, adminOnly: true },
+  { id: 'audit', label: 'Аудит-лог', icon: History, permission: PERMISSIONS.audit },
   { id: 'settings', label: 'Настройки', icon: Settings, adminOnly: true },
 ];
 
