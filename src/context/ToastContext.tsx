@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { X, CheckCircle2, AlertCircle, AlertTriangle, Info, type LucideIcon } from 'lucide-react';
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -33,18 +34,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
 
-  const icons: Record<ToastType, string> = {
-    success: 'fa-check-circle',
-    error: 'fa-exclamation-circle',
-    warning: 'fa-exclamation-triangle',
-    info: 'fa-info-circle',
+  const icons: Record<ToastType, LucideIcon> = {
+    success: CheckCircle2,
+    error: AlertCircle,
+    warning: AlertTriangle,
+    info: Info,
   };
 
   const colors: Record<ToastType, string> = {
     success: 'bg-green-500',
     error: 'bg-red-500',
     warning: 'bg-yellow-500',
-    info: 'bg-blue-500',
+    info: 'bg-brand-500',
   };
 
   return (
@@ -53,18 +54,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       
       {/* Toast container */}
       <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
-        {toasts.map(toast => (
-          <div
-            key={toast.id}
-            className={`${colors[toast.type]} text-white px-4 py-3 rounded-lg shadow-lg flex items-start gap-3 animate-slide-in`}
-          >
-            <i className={`fas ${icons[toast.type]} mt-0.5`}></i>
-            <p className="flex-1 text-sm">{toast.message}</p>
-            <button onClick={() => removeToast(toast.id)} className="text-white/70 hover:text-white">
-              <i className="fas fa-times"></i>
-            </button>
-          </div>
-        ))}
+        {toasts.map(toast => {
+          const Icon = icons[toast.type];
+          return (
+            <div
+              key={toast.id}
+              className={`${colors[toast.type]} text-white px-4 py-3 rounded-lg shadow-lg flex items-start gap-3 animate-slide-in`}
+            >
+              <Icon className="mt-0.5" />
+              <p className="flex-1 text-sm">{toast.message}</p>
+              <button onClick={() => removeToast(toast.id)} className="text-white/70 hover:text-white">
+                <X />
+              </button>
+            </div>
+          );
+        })}
       </div>
     </ToastContext.Provider>
   );

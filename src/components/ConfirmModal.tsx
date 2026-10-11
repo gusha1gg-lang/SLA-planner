@@ -1,4 +1,5 @@
 import React from 'react';
+import { AlertTriangle, AlertCircle, Info, type LucideIcon } from 'lucide-react';
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -23,28 +24,29 @@ export default function ConfirmModal({
 }: ConfirmModalProps) {
   if (!isOpen) return null;
 
-  const typeStyles = {
+  const typeStyles: Record<'danger' | 'warning' | 'info', { Icon: LucideIcon; iconColor: string; iconBg: string; buttonBg: string }> = {
     danger: {
-      icon: 'fa-exclamation-triangle',
+      Icon: AlertTriangle,
       iconColor: 'text-red-600',
       iconBg: 'bg-red-100',
       buttonBg: 'bg-red-600 hover:bg-red-700',
     },
     warning: {
-      icon: 'fa-exclamation-circle',
+      Icon: AlertCircle,
       iconColor: 'text-yellow-600',
       iconBg: 'bg-yellow-100',
       buttonBg: 'bg-yellow-600 hover:bg-yellow-700',
     },
     info: {
-      icon: 'fa-info-circle',
-      iconColor: 'text-blue-600',
-      iconBg: 'bg-blue-100',
-      buttonBg: 'bg-blue-600 hover:bg-blue-700',
+      Icon: Info,
+      iconColor: 'text-brand-600',
+      iconBg: 'bg-brand-100',
+      buttonBg: 'bg-brand-600 hover:bg-brand-700',
     },
   };
 
   const style = typeStyles[type];
+  const Icon = style.Icon;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -52,7 +54,7 @@ export default function ConfirmModal({
         <div className="p-6">
           <div className="flex items-start gap-4">
             <div className={`w-12 h-12 rounded-full ${style.iconBg} flex items-center justify-center flex-shrink-0`}>
-              <i className={`fas ${style.icon} ${style.iconColor} text-xl`}></i>
+              <Icon className={`${style.iconColor} text-xl`} />
             </div>
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>

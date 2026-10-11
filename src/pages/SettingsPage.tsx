@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AlertTriangle, CheckCircle2, Plug, Save, Server, Settings, ShieldCheck } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
 export default function SettingsPage() {
@@ -32,31 +33,31 @@ export default function SettingsPage() {
 
       {saved && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
-          <i className="fas fa-check-circle mr-2"></i>Настройки сохранены
+          <CheckCircle2 className="mr-2" />Настройки сохранены
         </div>
       )}
 
       {/* Zabbix Connection */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <i className="fas fa-server text-blue-600"></i>Подключение к Zabbix
+          <Server className="text-brand-600" />Подключение к Zabbix
         </h2>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">API URL</label>
             <input value={zabbixUrl} onChange={e => setZabbixUrl(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm" />
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none font-mono text-sm" />
             <p className="text-xs text-gray-400 mt-1">Endpoint JSON-RPC API Zabbix 7.0</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">API Token</label>
             <input type="password" value={zabbixToken} onChange={e => setZabbixToken(e.target.value)}
               placeholder="Bearer token для авторизации"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm" />
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none font-mono text-sm" />
             <p className="text-xs text-gray-400 mt-1">Используется в заголовке Authorization: Bearer</p>
           </div>
-          <button onClick={handleTestConnection} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
-            <i className="fas fa-plug mr-2"></i>Проверить подключение
+          <button onClick={handleTestConnection} className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700">
+            <Plug className="mr-2" />Проверить подключение
           </button>
         </div>
       </div>
@@ -64,7 +65,7 @@ export default function SettingsPage() {
       {/* Safety */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <i className="fas fa-shield-alt text-green-600"></i>Безопасность
+          <ShieldCheck className="text-green-600" />Безопасность
         </h2>
         <div className="space-y-4">
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
@@ -74,12 +75,12 @@ export default function SettingsPage() {
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" checked={readOnly} onChange={e => setReadOnly(e.target.checked)} className="sr-only peer" />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:ring-4 peer-focus:ring-blue-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              <div className="w-11 h-6 bg-gray-200 peer-focus:ring-4 peer-focus:ring-brand-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div>
             </label>
           </div>
           <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-sm text-yellow-800">
-              <i className="fas fa-exclamation-triangle mr-2"></i>
+              <AlertTriangle className="mr-2" />
               <strong>Внимание:</strong> В режиме Read-Only портал НЕ может создавать исключения простоя в Zabbix.
               Единственный пишущий метод — sla.update — заблокирован.
             </p>
@@ -90,13 +91,13 @@ export default function SettingsPage() {
       {/* General */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <i className="fas fa-cog text-gray-600"></i>Общие
+          <Settings className="text-gray-600" />Общие
         </h2>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Часовой пояс</label>
             <select value={timezone} onChange={e => setTimezone(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none">
               <option value="Europe/Moscow">Europe/Moscow (UTC+3)</option>
               <option value="UTC">UTC</option>
               <option value="Asia/Yekaterinburg">Asia/Yekaterinburg (UTC+5)</option>
@@ -107,8 +108,8 @@ export default function SettingsPage() {
       </div>
 
       <div className="flex justify-end">
-        <button onClick={handleSave} className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700">
-          <i className="fas fa-save mr-2"></i>Сохранить настройки
+        <button onClick={handleSave} className="bg-brand-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-brand-700">
+          <Save className="mr-2" />Сохранить настройки
         </button>
       </div>
     </div>

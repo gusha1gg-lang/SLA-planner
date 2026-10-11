@@ -1,4 +1,5 @@
 import React from 'react';
+import { ArrowLeft } from 'lucide-react';
 import SLADetailCard from '../components/SLADetailCard';
 
 interface SLADetailPageProps {
@@ -10,7 +11,7 @@ export default function SLADetailPage({ slaId, onBack }: SLADetailPageProps) {
   return (
     <div className="space-y-4">
       <button onClick={onBack} className="text-gray-500 hover:text-gray-700">
-        <i className="fas fa-arrow-left mr-2"></i>Назад
+        <ArrowLeft className="mr-2" />Назад
       </button>
       <SLADetailCard slaId={slaId} />
     </div>

@@ -1,7 +1,23 @@
 import React, { useEffect, useState } from 'react';
+import { Loader2, Search, Plus, Pencil, Trash2, RefreshCw, LogIn, Circle, type LucideIcon } from 'lucide-react';
 import { api } from '../api/client';
 import { AuditLogEntry } from '../types';
 import { formatDateTime } from '../time';
+
+/** Иконка действия в аудит-логе (действие → иконка + цвет). */
+const ACTION_ICONS: Record<string, { Icon: LucideIcon; cls: string }> = {
+  create: { Icon: Plus, cls: 'text-green-600' },
+  update: { Icon: Pencil, cls: 'text-brand-600' },
+  delete: { Icon: Trash2, cls: 'text-red-600' },
+  sync: { Icon: RefreshCw, cls: 'text-purple-600' },
+  login: { Icon: LogIn, cls: 'text-gray-600' },
+};
+
+function ActionIcon({ action }: { action: string }) {
+  const entry = ACTION_ICONS[action];
+  const Icon = entry?.Icon ?? Circle;
+  return <Icon className={entry?.cls ?? 'text-gray-400'} />;
+}
 
 export default function AuditPage() {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
@@ -17,20 +33,12 @@ export default function AuditPage() {
     } finally { setLoading(false); }
   };
 
-  const actionIcons: Record<string, string> = {
-    create: 'fa-plus text-green-600',
-    update: 'fa-edit text-blue-600',
-    delete: 'fa-trash text-red-600',
-    sync: 'fa-sync text-purple-600',
-    login: 'fa-sign-in-alt text-gray-600',
-  };
-
   const filteredLogs = filter
     ? logs.filter(l => l.action.includes(filter) || l.entity_type.includes(filter) || l.username.includes(filter))
     : logs;
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><i className="fas fa-spinner fa-spin text-3xl text-blue-600"></i></div>;
+    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-brand-600 animate-spin" /></div>;
   }
 
   return (
@@ -42,12 +50,12 @@ export default function AuditPage() {
 
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
-          <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={filter}
             onChange={e => setFilter(e.target.value)}
             placeholder="Фильтр по действию, типу, пользователю..."
-            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
           />
         </div>
         <span className="text-sm text-gray-500">{filteredLogs.length} записей</span>
@@ -70,7 +78,7 @@ export default function AuditPage() {
             {filteredLogs.map(log => (
               <tr key={log.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3">
-                  <i className={`fas ${actionIcons[log.action] || 'fa-circle text-gray-400'}`}></i>
+                  <ActionIcon action={log.action} />
                 </td>
                 <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
                   {formatDateTime(log.created_at)}
@@ -92,7 +100,7 @@ export default function AuditPage() {
                 </td>
                 <td className="px-4 py-3">
                   <details className="text-xs">
-                    <summary className="cursor-pointer text-blue-600 hover:text-blue-800">JSON</summary>
+                    <summary className="cursor-pointer text-brand-600 hover:text-brand-800">JSON</summary>
                     <pre className="mt-1 bg-gray-50 p-2 rounded text-xs overflow-x-auto max-w-xs">
                       {JSON.stringify(log.payload, null, 2)}
                     </pre>

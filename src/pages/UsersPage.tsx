@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Ban, Check, Loader2, Pencil, User as UserIcon, UserPlus, X } from 'lucide-react';
 import { api } from '../api/client';
 import { User, UserRole } from '../types';
 import { useToast } from '../context/ToastContext';
@@ -6,7 +7,7 @@ import { formatDate } from '../time';
 
 const roleColors: Record<string, string> = {
   admin: 'bg-red-100 text-red-700',
-  user: 'bg-blue-100 text-blue-700',
+  user: 'bg-brand-100 text-brand-700',
 };
 
 const roleLabels: Record<string, string> = {
@@ -96,7 +97,7 @@ export default function UsersPage() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><i className="fas fa-spinner fa-spin text-3xl text-blue-600"></i></div>;
+    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-brand-600 animate-spin" /></div>;
   }
 
   return (
@@ -123,8 +124,8 @@ export default function UsersPage() {
         <div className="p-5 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Список пользователей</h2>
           <button onClick={openCreate}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
-            <i className="fas fa-user-plus mr-2"></i>Добавить
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700">
+            <UserPlus className="mr-2" />Добавить
           </button>
         </div>
         <div className="overflow-x-auto">
@@ -145,7 +146,7 @@ export default function UsersPage() {
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
-                        <i className="fas fa-user text-slate-500 text-xs"></i>
+                        <UserIcon className="text-slate-500 text-xs" />
                       </div>
                       <span className="font-medium">{user.username}</span>
                     </div>
@@ -175,14 +176,14 @@ export default function UsersPage() {
                   </td>
                   <td className="px-5 py-3 text-gray-600">{formatDate(user.created_at)}</td>
                   <td className="px-5 py-3">
-                    <button onClick={() => openEdit(user)} className="text-blue-600 hover:text-blue-800 text-sm mr-3" title="Редактировать">
-                      <i className="fas fa-edit"></i>
+                    <button onClick={() => openEdit(user)} className="text-brand-600 hover:text-brand-800 text-sm mr-3" title="Редактировать">
+                      <Pencil />
                     </button>
                     {user.role !== 'admin' && (
                       <button onClick={() => toggleActive(user)}
                         className={user.is_active ? 'text-red-500 hover:text-red-700 text-sm' : 'text-green-600 hover:text-green-800 text-sm'}
                         title={user.is_active ? 'Заблокировать' : 'Разблокировать'}>
-                        <i className={`fas ${user.is_active ? 'fa-ban' : 'fa-check'}`}></i>
+                        {user.is_active ? <Ban /> : <Check />}
                       </button>
                     )}
                   </td>
@@ -199,7 +200,7 @@ export default function UsersPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-lg font-semibold">{editingId === null ? 'Новый пользователь' : 'Редактировать пользователя'}</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600"><i className="fas fa-times"></i></button>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600"><X /></button>
             </div>
 
             <div className="p-5 space-y-4">
@@ -207,7 +208,7 @@ export default function UsersPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Имя пользователя</label>
                 <input value={form.username} disabled={editingId !== null}
                   onChange={e => setForm({ ...form, username: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-500" />
               </div>
 
               <div>
@@ -216,13 +217,13 @@ export default function UsersPage() {
                 </label>
                 <input type="password" value={form.password}
                   onChange={e => setForm({ ...form, password: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Роль</label>
                 <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value as UserRole })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
                   <option value="user">пользователь (права из групп)</option>
                   <option value="admin">администратор (полные права)</option>
                 </select>
@@ -247,7 +248,7 @@ export default function UsersPage() {
               <button onClick={() => setShowModal(false)}
                 className="px-4 py-2 rounded-lg text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">Отмена</button>
               <button onClick={handleSave} disabled={saving}
-                className="px-4 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+                className="px-4 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50">
                 {saving ? 'Сохранение…' : 'Сохранить'}
               </button>
             </div>

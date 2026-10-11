@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import LoginPage from './pages/LoginPage';
@@ -23,7 +24,7 @@ const SLADetailPage = lazy(() => import('./pages/SLADetailPage'));
 function PageLoader() {
   return (
     <div className="flex items-center justify-center h-64">
-      <i className="fas fa-spinner fa-spin text-3xl text-blue-600"></i>
+      <Loader2 className="text-3xl text-brand-600 animate-spin" />
     </div>
   );
 }

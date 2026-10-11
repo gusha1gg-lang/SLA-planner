@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { FileSpreadsheet, Loader2 } from 'lucide-react';
 import { api } from '../api/client';
 import { SLA, PlannedWork } from '../types';
 import { useToast } from '../context/ToastContext';
@@ -48,7 +49,7 @@ export default function ReportPage() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><i className="fas fa-spinner fa-spin text-3xl text-blue-600"></i></div>;
+    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-brand-600 animate-spin" /></div>;
   }
 
   const totalWorks = works.length;
@@ -71,7 +72,7 @@ export default function ReportPage() {
           onClick={exportToCSV}
           className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
         >
-          <i className="fas fa-file-csv"></i>
+          <FileSpreadsheet />
           Экспорт CSV
         </button>
       </div>
@@ -88,7 +89,7 @@ export default function ReportPage() {
         </div>
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <p className="text-sm text-gray-500">Запланировано</p>
-          <p className="text-3xl font-bold text-blue-600 mt-1">{plannedWorks}</p>
+          <p className="text-3xl font-bold text-brand-600 mt-1">{plannedWorks}</p>
         </div>
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <p className="text-sm text-gray-500">Общее время простоя</p>
@@ -132,7 +133,7 @@ export default function ReportPage() {
                     <td className="px-5 py-3 text-green-600">{slaDone.length}</td>
                     <td className="px-5 py-3">{slaDowntime.toFixed(1)}</td>
                     <td className="px-5 py-3">
-                      <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                      <span className="bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full text-xs font-medium">
                         {slaWorks.filter(w => w.status === 'planned' || w.status === 'done').length}
                       </span>
                     </td>

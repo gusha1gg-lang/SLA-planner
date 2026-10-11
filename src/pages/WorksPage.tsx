@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { AlertTriangle, Calendar, ChevronLeft, ChevronRight, List, Loader2, Pencil, Plus, Trash2, UploadCloud, X } from 'lucide-react';
 import { api } from '../api/client';
 import { SLA, Service, PlannedWork, WorkStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -33,7 +34,7 @@ export default function WorksPage() {
   };
 
   const statusColors: Record<string, string> = {
-    draft: 'bg-gray-100 text-gray-700', planned: 'bg-blue-100 text-blue-700',
+    draft: 'bg-gray-100 text-gray-700', planned: 'bg-brand-100 text-brand-700',
     active: 'bg-yellow-100 text-yellow-700', done: 'bg-green-100 text-green-700',
     cancelled: 'bg-gray-100 text-gray-500', sync_error: 'bg-red-100 text-red-700',
   };
@@ -85,7 +86,7 @@ export default function WorksPage() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><i className="fas fa-spinner fa-spin text-3xl text-blue-600"></i></div>;
+    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-brand-600 animate-spin" /></div>;
   }
 
   return (
@@ -98,16 +99,16 @@ export default function WorksPage() {
         <div className="flex items-center gap-3">
           <div className="flex bg-gray-100 rounded-lg p-1">
             <button onClick={() => setView('table')} className={`px-3 py-1.5 rounded-md text-sm ${view === 'table' ? 'bg-white shadow-sm' : ''}`}>
-              <i className="fas fa-list mr-1"></i>Таблица
+              <List className="mr-1" />Таблица
             </button>
             <button onClick={() => setView('calendar')} className={`px-3 py-1.5 rounded-md text-sm ${view === 'calendar' ? 'bg-white shadow-sm' : ''}`}>
-              <i className="fas fa-calendar mr-1"></i>Календарь
+              <Calendar className="mr-1" />Календарь
             </button>
           </div>
           {can(PERMISSIONS.worksEdit) && (
             <button onClick={() => { setEditingWork(null); setShowForm(true); }}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition">
-              <i className="fas fa-plus mr-2"></i>Создать работу
+              className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 transition">
+              <Plus className="mr-2" />Создать работу
             </button>
           )}
         </div>
@@ -117,7 +118,7 @@ export default function WorksPage() {
       <div className="flex gap-2 flex-wrap">
         {(['all', 'draft', 'planned', 'active', 'done', 'cancelled', 'sync_error'] as const).map(s => (
           <button key={s} onClick={() => setFilter(s)}
-            className={`px-3 py-1.5 rounded-lg text-sm ${filter === s ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+            className={`px-3 py-1.5 rounded-lg text-sm ${filter === s ? 'bg-brand-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
             {s === 'all' ? 'Все' : statusLabels[s]}
             <span className="ml-1.5 opacity-70">
               {s === 'all' ? works.length : works.filter(w => w.status === s).length}
@@ -162,20 +163,20 @@ export default function WorksPage() {
                     <div className="flex items-center gap-2">
                       {can(PERMISSIONS.worksEdit) && work.status === 'draft' && (
                         <button onClick={() => handlePushToZabbix(work.id)}
-                          className="text-blue-600 hover:text-blue-800 text-xs font-medium" title="Отправить">
-                          <i className="fas fa-cloud-upload-alt mr-1"></i>Отправить
+                          className="text-brand-600 hover:text-brand-800 text-xs font-medium" title="Отправить">
+                          <UploadCloud className="mr-1" />Отправить
                         </button>
                       )}
                       {can(PERMISSIONS.worksEdit) && (
                         <button onClick={() => { setEditingWork(work); setShowForm(true); }}
                           className="text-gray-500 hover:text-gray-700" title="Редактировать">
-                          <i className="fas fa-edit"></i>
+                          <Pencil />
                         </button>
                       )}
                       {can(PERMISSIONS.worksDelete) && (
                         <button onClick={() => handleDelete(work.id)}
                           className="text-red-500 hover:text-red-700" title="Удалить">
-                          <i className="fas fa-trash"></i>
+                          <Trash2 />
                         </button>
                       )}
                     </div>
@@ -200,12 +201,12 @@ export default function WorksPage() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-4">
             <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else setCalMonth(calMonth - 1); }}
-              className="p-2 hover:bg-gray-100 rounded-lg"><i className="fas fa-chevron-left"></i></button>
+              className="p-2 hover:bg-gray-100 rounded-lg"><ChevronLeft /></button>
             <h3 className="text-lg font-semibold">
               {new Date(calYear, calMonth).toLocaleString('ru-RU', { month: 'long', year: 'numeric' })}
             </h3>
             <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else setCalMonth(calMonth + 1); }}
-              className="p-2 hover:bg-gray-100 rounded-lg"><i className="fas fa-chevron-right"></i></button>
+              className="p-2 hover:bg-gray-100 rounded-lg"><ChevronRight /></button>
           </div>
           <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-lg overflow-hidden">
             {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(d => (
@@ -219,12 +220,12 @@ export default function WorksPage() {
               const dayWorks = getWorksForDay(day);
               const isToday = day === new Date().getDate() && calMonth === new Date().getMonth() && calYear === new Date().getFullYear();
               return (
-                <div key={day} className={`bg-white p-2 min-h-[80px] ${isToday ? 'ring-2 ring-blue-500 ring-inset' : ''}`}>
-                  <div className={`text-sm font-medium mb-1 ${isToday ? 'text-blue-600' : 'text-gray-700'}`}>{day}</div>
+                <div key={day} className={`bg-white p-2 min-h-[80px] ${isToday ? 'ring-2 ring-brand-500 ring-inset' : ''}`}>
+                  <div className={`text-sm font-medium mb-1 ${isToday ? 'text-brand-600' : 'text-gray-700'}`}>{day}</div>
                   {dayWorks.slice(0, 2).map(w => (
                     <div key={w.id} className={`text-xs px-1.5 py-0.5 rounded mb-0.5 truncate ${
                       w.status === 'done' ? 'bg-green-100 text-green-700' :
-                      w.status === 'planned' ? 'bg-blue-100 text-blue-700' :
+                      w.status === 'planned' ? 'bg-brand-100 text-brand-700' :
                       w.status === 'draft' ? 'bg-gray-100 text-gray-600' :
                       'bg-yellow-100 text-yellow-700'
                     }`}>{w.title}</div>
@@ -348,26 +349,26 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="p-5 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-lg font-semibold">{work ? 'Редактировать работу' : 'Новая плановая работа'}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><i className="fas fa-times"></i></button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Название *</label>
             <input value={title} onChange={e => setTitle(e.target.value)} required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
               placeholder="Например: ТО базы данных" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Описание</label>
             <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
               placeholder="Детали работы..." />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">SLA *</label>
               <select value={slaId} onChange={e => setSlaId(e.target.value)} required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none">
                 <option value="">Выберите SLA</option>
                 {slas.map(s => <option key={s.id} value={s.id}>{s.name} (SLO {s.slo}%)</option>)}
               </select>
@@ -384,7 +385,7 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
                 onChange={e => setServiceId(e.target.value)} 
                 required
                 disabled={!slaId}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
               >
                 <option value="">
                   {!slaId ? 'Сначала выберите SLA' : 
@@ -395,7 +396,7 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
               </select>
               {slaId && filteredServices.length === 0 && (
                 <p className="text-xs text-orange-600 mt-1">
-                  <i className="fas fa-exclamation-triangle mr-1"></i>
+                  <AlertTriangle className="mr-1" />
                   Для выбранного SLA нет услуг.
                 </p>
               )}
@@ -405,18 +406,18 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Начало (МСК) *</label>
               <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Окончание (МСК) *</label>
               <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button type="button" onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-800">Отмена</button>
             <button type="submit" disabled={saving}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
+              className="bg-brand-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50">
               {saving ? 'Сохранение...' : work ? 'Обновить' : 'Создать'}
             </button>
           </div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { AlertTriangle, CalendarX2, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { api } from '../api/client';
 import { SLA, Service, ExcludedDowntime } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -80,13 +81,13 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><i className="fas fa-spinner fa-spin text-3xl text-blue-600"></i></div>;
+    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-brand-600 animate-spin" /></div>;
   }
 
   if (error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700 text-sm">
-        <i className="fas fa-exclamation-triangle mr-2"></i>{error}
+        <AlertTriangle className="mr-2" />{error}
       </div>
     );
   }
@@ -106,13 +107,13 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
         <div className="flex items-center gap-2">
           {can(PERMISSIONS.slaEdit) && (
             <button onClick={() => setShowAddForm(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
-              <i className="fas fa-plus mr-2"></i>Добавить исключение
+              className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700">
+              <Plus className="mr-2" />Добавить исключение
             </button>
           )}
           {onClose && (
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600" title="Закрыть">
-              <i className="fas fa-times"></i>
+              <X />
             </button>
           )}
         </div>
@@ -130,7 +131,7 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
         </div>
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <p className="text-sm text-gray-500">Связанных услуг</p>
-          <p className="text-3xl font-bold text-blue-600 mt-1">{services.length}</p>
+          <p className="text-3xl font-bold text-brand-600 mt-1">{services.length}</p>
         </div>
       </div>
 
@@ -145,7 +146,7 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
 
         {excludedDowntimes.length === 0 ? (
           <div className="p-8 text-center text-gray-400">
-            <i className="fas fa-calendar-times text-4xl mb-3"></i>
+            <CalendarX2 className="text-4xl mb-3" />
             <p>Нет исключений простоя</p>
           </div>
         ) : (
@@ -173,7 +174,7 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
                       <td className="px-5 py-3">
                         <button onClick={() => handleRemoveDowntime(dt.name)}
                           className="text-red-500 hover:text-red-700" title="Удалить">
-                          <i className="fas fa-trash"></i>
+                          <Trash2 />
                         </button>
                       </td>
                     )}
@@ -212,7 +213,7 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
                   <button
                     key={svc.id}
                     onClick={() => onSelectService(svc.zabbix_serviceid)}
-                    className="border border-gray-200 rounded-lg p-3 flex items-center justify-between gap-2 text-left hover:border-blue-300 hover:bg-blue-50/50 transition"
+                    className="border border-gray-200 rounded-lg p-3 flex items-center justify-between gap-2 text-left hover:border-brand-300 hover:bg-brand-50/50 transition"
                     title="Показать услугу в графе"
                   >
                     {inner}
@@ -281,32 +282,32 @@ function AddDowntimeModal({ slaId, onClose, onAdd }: {
         <div className="p-5 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Добавить исключение простоя</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <i className="fas fa-times"></i>
+            <X />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Название (опционально)</label>
             <input value={name} onChange={e => setName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
               placeholder="Автоматически: SLA Planner #..." />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Начало (UTC) *</label>
             <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Окончание (UTC) *</label>
             <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button type="button" onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-800">
               Отмена
             </button>
             <button type="submit" disabled={saving}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
+              className="bg-brand-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50">
               {saving ? 'Добавление...' : 'Добавить'}
             </button>
           </div>

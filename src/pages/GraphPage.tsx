@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Loader2, Lock, MousePointer2, Network as NetworkIcon, PenLine, Save, Undo2, X } from 'lucide-react';
 import { api } from '../api/client';
 import { SLA, Service } from '../types';
 import ServiceConfigCard from '../components/ServiceConfigCard';
@@ -708,7 +709,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><i className="fas fa-spinner fa-spin text-3xl text-blue-600"></i></div>;
+    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-brand-600 animate-spin" /></div>;
   }
 
   const noData = services.length === 0;
@@ -757,7 +758,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
 
       {noData ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 text-center">
-          <i className="fas fa-project-diagram text-4xl text-gray-300 mb-3"></i>
+          <NetworkIcon className="text-4xl text-gray-300 mb-3" />
           <p className="text-gray-500">Данных пока нет.</p>
           {isAdmin && (
             <p className="text-gray-400 text-sm mt-1">Нажмите «Синхр. с Zabbix» (правая кнопка вверху), чтобы загрузить SLA и услуги.</p>
@@ -765,7 +766,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
         </div>
       ) : models.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 text-center">
-          <i className="fas fa-lock text-4xl text-gray-300 mb-3"></i>
+          <Lock className="text-4xl text-gray-300 mb-3" />
           <p className="text-gray-500">Нет доступных моделей здоровья.</p>
           <p className="text-gray-400 text-sm mt-1">
             Доступ к моделям здоровья выдаётся группами. Обратитесь к администратору, чтобы вас добавили в нужную группу.
@@ -785,7 +786,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
                 setSelectedServiceId('');
                 applyModel(e.target.value);
               }}
-              className="border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-xl"
+              className="border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 max-w-xl"
             >
               {models.map(m => (
                 <option key={m.rootId} value={m.rootId}>
@@ -807,7 +808,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
                       className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 transition"
                       title="Сохранить раскладку для всех и выйти из редактирования"
                     >
-                      <i className="fas fa-save text-xs"></i>
+                      <Save className="text-xs" />
                       Сохранить
                     </button>
                     <button
@@ -815,17 +816,17 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
                       className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition"
                       title="Отменить изменения и вернуть сохранённую раскладку"
                     >
-                      <i className="fas fa-times text-xs"></i>
+                      <X className="text-xs" />
                       Отмена
                     </button>
                   </>
                 ) : (
                   <button
                     onClick={handleEnterEdit}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-brand-600 text-white rounded-md hover:bg-brand-700 transition"
                     title="Включить перемещение узлов графа"
                   >
-                    <i className="fas fa-pen text-xs"></i>
+                    <PenLine className="text-xs" />
                     Редактировать граф
                   </button>
                 )}
@@ -834,7 +835,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition"
                   title="Сбросить раскладку модели к стандартной (для всех пользователей)"
                 >
-                  <i className="fas fa-undo text-xs"></i>
+                  <Undo2 className="text-xs" />
                   Сбросить раскладку
                 </button>
               </div>
@@ -844,17 +845,17 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
           <p className="text-xs text-gray-500">
             {editMode ? (
               <>
-                <i className="fas fa-hand-pointer mr-1 text-gray-400"></i>
+                <MousePointer2 className="mr-1 text-gray-400" />
                 Режим редактирования: перетащите узлы на новые места и нажмите «Сохранить» — раскладка станет общей для всех пользователей. Потянув услугу, её поддерево едет следом.
               </>
             ) : canEditGraph ? (
               <>
-                <i className="fas fa-lock mr-1 text-gray-400"></i>
+                <Lock className="mr-1 text-gray-400" />
                 Граф в режиме просмотра. Нажмите «Редактировать граф», чтобы перемещать узлы.
               </>
             ) : (
               <>
-                <i className="fas fa-lock mr-1 text-gray-400"></i>
+                <Lock className="mr-1 text-gray-400" />
                 Раскладку графа может изменять только пользователь с правом «Граф: редактирование».
               </>
             )}
@@ -867,7 +868,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
               {savedLayout === null && scoped.model && (
                 <div className="absolute inset-0 flex items-center justify-center bg-white/70">
                   <div className="flex items-center gap-2 text-gray-500 text-sm">
-                    <i className="fas fa-spinner fa-spin text-xl text-blue-600"></i>
+                    <Loader2 className="text-xl text-brand-600 animate-spin" />
                     Загрузка раскладки…
                   </div>
                 </div>
@@ -906,7 +907,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
             />
           ) : (
             <div className="bg-white rounded-xl shadow-sm border border-dashed border-gray-200 p-8 text-center text-gray-400">
-              <i className="fas fa-mouse-pointer text-2xl mb-2"></i>
+              <MousePointer2 className="text-2xl mb-2" />
               <p className="text-sm">
                 Кликните на SLA или услугу на графе — детали появятся здесь, под графом
               </p>

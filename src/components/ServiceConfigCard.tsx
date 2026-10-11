@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { AlertTriangle, Loader2, Lock, X } from 'lucide-react';
 import { api } from '../api/client';
 import { ServiceConfig } from '../types';
 import { formatDateTime } from '../time';
@@ -103,7 +104,7 @@ export default function ServiceConfigCard({ serviceId, onClose, onSelectService 
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center h-64">
         <span className="flex items-center gap-2 text-gray-500 text-sm">
-          <i className="fas fa-spinner fa-spin text-xl text-blue-600"></i>
+          <Loader2 className="text-xl text-brand-600 animate-spin" />
           Загрузка конфигурации…
         </span>
       </div>
@@ -113,7 +114,7 @@ export default function ServiceConfigCard({ serviceId, onClose, onSelectService 
   if (error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700 text-sm">
-        <i className="fas fa-exclamation-triangle mr-2"></i>{error}
+        <AlertTriangle className="mr-2" />{error}
       </div>
     );
   }
@@ -128,7 +129,7 @@ export default function ServiceConfigCard({ serviceId, onClose, onSelectService 
           <h2 className="text-xl font-bold text-gray-900">{config.name}</h2>
           <p className="text-gray-400 font-mono text-xs mt-0.5">
             id={config.serviceid}
-            {config.readonly && <span className="ml-3 text-amber-600"><i className="fas fa-lock mr-1"></i>только чтение</span>}
+            {config.readonly && <span className="ml-3 text-amber-600"><Lock className="mr-1" />только чтение</span>}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -140,7 +141,7 @@ export default function ServiceConfigCard({ serviceId, onClose, onSelectService 
           </span>
           {onClose && (
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600" title="Закрыть">
-              <i className="fas fa-times"></i>
+              <X />
             </button>
           )}
         </div>
@@ -158,7 +159,7 @@ export default function ServiceConfigCard({ serviceId, onClose, onSelectService 
                   key={p.serviceid}
                   onClick={() => onSelectService?.(p.serviceid)}
                   disabled={!onSelectService}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-100 hover:bg-blue-50 hover:text-blue-700 text-xs transition disabled:hover:bg-gray-100 disabled:hover:text-gray-800 disabled:cursor-default"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-100 hover:bg-brand-50 hover:text-brand-700 text-xs transition disabled:hover:bg-gray-100 disabled:hover:text-gray-800 disabled:cursor-default"
                 >
                   <span className="w-2 h-2 rounded-full flex-none" style={{ background: statusColor(p.status) }} />
                   {p.name}

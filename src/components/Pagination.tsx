@@ -1,4 +1,5 @@
 import React from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface PaginationProps {
   currentPage: number;
@@ -53,8 +54,8 @@ export default function Pagination({
   };
 
   return (
-    <div className="flex items-center justify-between px-6 py-3 bg-gray-50 border-t border-gray-200">
-      <div className="text-sm text-gray-600">
+    <div className="flex items-center justify-between px-6 py-3 bg-surface border-t border-line">
+      <div className="text-sm text-slate-600">
         {totalItems && (
           <>
             Показано <span className="font-medium">{startItem}-{endItem}</span> из{' '}
@@ -66,15 +67,15 @@ export default function Pagination({
         <button
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
-          className="px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-all duration-150 ease-standard disabled:opacity-40 disabled:pointer-events-none"
         >
-          <i className="fas fa-chevron-left"></i>
+          <ChevronLeft />
         </button>
 
         {getPageNumbers().map((page, idx) => {
           if (page === '...') {
             return (
-              <span key={`ellipsis-${idx}`} className="px-2 text-gray-400">
+              <span key={`ellipsis-${idx}`} className="px-2 text-slate-400">
                 ...
               </span>
             );
@@ -85,10 +86,10 @@ export default function Pagination({
             <button
               key={pageNum}
               onClick={() => onPageChange(pageNum)}
-              className={`px-3 py-1.5 text-sm rounded-lg transition ${
+              className={`px-3 py-1.5 text-sm rounded-lg transition-all duration-150 ease-standard ${
                 currentPage === pageNum
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-700 hover:bg-gray-100'
+                  ? 'bg-brand-600 text-white shadow-xs'
+                  : 'text-slate-700 hover:bg-slate-100'
               }`}
             >
               {pageNum}
@@ -99,9 +100,9 @@ export default function Pagination({
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
-          className="px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-all duration-150 ease-standard disabled:opacity-40 disabled:pointer-events-none"
         >
-          <i className="fas fa-chevron-right"></i>
+          <ChevronRight />
         </button>
       </div>
     </div>

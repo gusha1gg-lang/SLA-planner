@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { Service } from '../types';
 import { statusColor, statusLabel } from './ServiceConfigCard';
 
@@ -55,7 +56,7 @@ export default function ModelTree({ rootId, services, selectedServiceId, onSelec
           onClick={() => onSelect(svc.zabbix_serviceid)}
           title={`${svc.name} (id=${svc.zabbix_serviceid})`}
           className={`w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left text-sm transition ${
-            isSelected ? 'bg-blue-50 ring-1 ring-blue-300' : 'hover:bg-gray-50'
+            isSelected ? 'bg-brand-50 ring-1 ring-brand-300' : 'hover:bg-gray-50'
           }`}
         >
           {kids.length > 0 ? (
@@ -64,7 +65,7 @@ export default function ModelTree({ rootId, services, selectedServiceId, onSelec
               className="w-4 flex-none text-gray-400 hover:text-gray-600"
               title={isCollapsed ? 'Развернуть' : 'Свернуть'}
             >
-              <i className={`fas fa-chevron-right text-[10px] transition-transform ${isCollapsed ? '' : 'rotate-90'}`}></i>
+              <ChevronRight className={`text-[10px] transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
             </button>
           ) : (
             <span className="w-4 flex-none"></span>

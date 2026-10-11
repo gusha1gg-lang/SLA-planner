@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { CircleUser, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { api } from '../api/client';
 import { Group, Service, User } from '../types';
 import { buildHealthModels, HealthModel } from '../healthModels';
@@ -133,7 +134,7 @@ export default function GroupsPage() {
   const userName = (id: number) => users.find(u => u.id === id)?.username || `#${id}`;
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><i className="fas fa-spinner fa-spin text-3xl text-blue-600"></i></div>;
+    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-brand-600 animate-spin" /></div>;
   }
 
   return (
@@ -150,8 +151,8 @@ export default function GroupsPage() {
         <div className="p-5 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Группы и права</h2>
           <button onClick={openCreate}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
-            <i className="fas fa-plus mr-2"></i>Создать группу
+            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700">
+            <Plus className="mr-2" />Создать группу
           </button>
         </div>
         <div className="overflow-x-auto">
@@ -175,7 +176,7 @@ export default function GroupsPage() {
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
                         <button onClick={() => openEdit(group)}
-                          className="font-medium text-blue-700 hover:text-blue-900 hover:underline text-left"
+                          className="font-medium text-brand-700 hover:text-brand-900 hover:underline text-left"
                           title="Редактировать группу">
                           {group.name}
                         </button>
@@ -191,7 +192,7 @@ export default function GroupsPage() {
                       ) : (
                         <div className="flex flex-wrap gap-1 max-w-md">
                           {group.permissions.map(p => (
-                            <span key={p} className="px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700">
+                            <span key={p} className="px-2 py-0.5 rounded-full text-xs bg-brand-50 text-brand-700">
                               {PERMISSION_LABELS[p] || p}
                             </span>
                           ))}
@@ -218,12 +219,12 @@ export default function GroupsPage() {
                     </td>
                     <td className="px-5 py-3 whitespace-nowrap">
                       <button onClick={() => openEdit(group)}
-                        className="text-blue-600 hover:text-blue-800 mr-3" title="Редактировать">
-                        <i className="fas fa-edit"></i>
+                        className="text-brand-600 hover:text-brand-800 mr-3" title="Редактировать">
+                        <Pencil />
                       </button>
                       {!group.is_system && (
                         <button onClick={() => handleDelete(group)} className="text-red-500 hover:text-red-700" title="Удалить">
-                          <i className="fas fa-trash"></i>
+                          <Trash2 />
                         </button>
                       )}
                     </td>
@@ -244,7 +245,7 @@ export default function GroupsPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-lg font-semibold">{editingId === null ? 'Новая группа' : 'Редактировать группу'}</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600"><i className="fas fa-times"></i></button>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600"><X /></button>
             </div>
 
             <div className="p-5 space-y-5">
@@ -252,12 +253,12 @@ export default function GroupsPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Название</label>
                   <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Описание</label>
                   <input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
                 </div>
               </div>
 
@@ -326,8 +327,8 @@ export default function GroupsPage() {
                 <div className="flex items-center justify-between mb-1.5">
                   <p className="text-sm font-semibold text-gray-700">Участники</p>
                   <button type="button" onClick={() => setAddMemberOpen(v => !v)}
-                    className="text-sm text-blue-600 hover:text-blue-800">
-                    <i className="fas fa-plus mr-1"></i>Добавить участника
+                    className="text-sm text-brand-600 hover:text-brand-800">
+                    <Plus className="mr-1" />Добавить участника
                   </button>
                 </div>
 
@@ -336,7 +337,7 @@ export default function GroupsPage() {
                     <select
                       value={newMemberId}
                       onChange={e => setNewMemberId(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                     >
                       <option value="">Выберите пользователя…</option>
                       {users.filter(u => !form.member_ids.includes(u.id)).map(u => (
@@ -344,7 +345,7 @@ export default function GroupsPage() {
                       ))}
                     </select>
                     <button type="button" onClick={addMember} disabled={newMemberId === ''}
-                      className="px-3 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+                      className="px-3 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50">
                       Добавить
                     </button>
                     <button type="button" onClick={() => { setAddMemberOpen(false); setNewMemberId(''); }}
@@ -365,13 +366,13 @@ export default function GroupsPage() {
                       return (
                         <div key={id} className="flex items-center justify-between px-3 py-2">
                           <span className="flex items-center gap-2 text-sm text-gray-800">
-                            <i className="fas fa-user-circle text-gray-300"></i>
+                            <CircleUser className="text-gray-300" />
                             {u?.username || `#${id}`}
                             {u?.role === 'admin' && <span className="text-xs text-gray-400">(админ — группы не важны)</span>}
                           </span>
                           <button type="button" onClick={() => removeMember(id)}
                             className="text-gray-400 hover:text-red-500" title="Убрать из группы">
-                            <i className="fas fa-times"></i>
+                            <X />
                           </button>
                         </div>
                       );
@@ -385,7 +386,7 @@ export default function GroupsPage() {
               <button onClick={() => setShowModal(false)}
                 className="px-4 py-2 rounded-lg text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">Отмена</button>
               <button onClick={handleSave} disabled={saving}
-                className="px-4 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+                className="px-4 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50">
                 {saving ? 'Сохранение…' : 'Сохранить'}
               </button>
             </div>

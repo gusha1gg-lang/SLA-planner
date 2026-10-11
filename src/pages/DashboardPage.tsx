@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { AlertTriangle, CalendarCheck, Clock, Loader2, Percent, Server, ShieldCheck } from 'lucide-react';
 import { api } from '../api/client';
 import { SLA, Service, PlannedWork } from '../types';
 import { useToast } from '../context/ToastContext';
@@ -36,7 +37,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
 
   const statusColors: Record<string, string> = {
     draft: 'bg-gray-100 text-gray-700',
-    planned: 'bg-blue-100 text-blue-700',
+    planned: 'bg-brand-100 text-brand-700',
     active: 'bg-yellow-100 text-yellow-700',
     done: 'bg-green-100 text-green-700',
     cancelled: 'bg-gray-100 text-gray-500',
@@ -53,7 +54,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><i className="fas fa-spinner fa-spin text-3xl text-blue-600"></i></div>;
+    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-brand-600 animate-spin" /></div>;
   }
 
   return (
@@ -67,8 +68,8 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-              <i className="fas fa-shield-alt text-blue-600"></i>
+            <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center">
+              <ShieldCheck className="text-brand-600" />
             </div>
             <div>
               <p className="text-2xl font-bold">{slas.length}</p>
@@ -79,7 +80,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-              <i className="fas fa-server text-purple-600"></i>
+              <Server className="text-purple-600" />
             </div>
             <div>
               <p className="text-2xl font-bold">{services.length}</p>
@@ -90,7 +91,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-              <i className="fas fa-calendar-check text-green-600"></i>
+              <CalendarCheck className="text-green-600" />
             </div>
             <div>
               <p className="text-2xl font-bold">{works.filter(w => w.status === 'planned').length}</p>
@@ -101,7 +102,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center">
-              <i className="fas fa-exclamation-triangle text-yellow-600"></i>
+              <AlertTriangle className="text-yellow-600" />
             </div>
             <div>
               <p className="text-2xl font-bold">{works.filter(w => w.status === 'sync_error').length}</p>
@@ -156,14 +157,14 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
           {slas.map(sla => (
             <div key={sla.id} onClick={() => onNavigate('sla-detail', { id: sla.zabbix_slaid })}
-              className="border border-gray-200 rounded-lg p-4 cursor-pointer hover:border-blue-300 hover:shadow-md transition">
+              className="border border-gray-200 rounded-lg p-4 cursor-pointer hover:border-brand-300 hover:shadow-md transition">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold text-gray-900">{sla.name}</h3>
                 <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">ID: {sla.zabbix_slaid}</span>
               </div>
               <div className="flex items-center gap-4 text-sm text-gray-500">
-                <span><i className="fas fa-percentage mr-1"></i>SLO: {sla.slo}%</span>
-                <span><i className="fas fa-clock mr-1"></i>{sla.schedule_type}</span>
+                <span><Percent className="mr-1" />SLO: {sla.slo}%</span>
+                <span><Clock className="mr-1" />{sla.schedule_type}</span>
               </div>
             </div>
           ))}

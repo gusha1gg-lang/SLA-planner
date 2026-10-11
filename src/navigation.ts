@@ -7,11 +7,15 @@
  * на текущей странице (раньше состояние жило только в React-состоянии и сбрасывалось).
  */
 import { PERMISSIONS } from './permissions';
+import {
+  LayoutDashboard, Network, CalendarDays, BarChart3, History, Users, UsersRound, Settings,
+  type LucideIcon,
+} from 'lucide-react';
 
 export interface NavItem {
   id: string;
   label: string;
-  icon: string;
+  icon: LucideIcon;
   /** Требуемое право (страница). */
   permission?: string;
   /** Только для роли admin (управление пользователями/группами/настройками). */
@@ -19,14 +23,14 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard', label: 'Дашборд', icon: 'fas fa-tachometer-alt', permission: PERMISSIONS.dashboard },
-  { id: 'graph', label: 'Модель здоровья', icon: 'fas fa-project-diagram', permission: PERMISSIONS.model },
-  { id: 'works', label: 'Плановые работы', icon: 'fas fa-calendar-alt', permission: PERMISSIONS.works },
-  { id: 'report', label: 'SLA-отчёт', icon: 'fas fa-chart-bar', permission: PERMISSIONS.reports },
-  { id: 'audit', label: 'Аудит-лог', icon: 'fas fa-history', permission: PERMISSIONS.audit },
-  { id: 'users', label: 'Пользователи', icon: 'fas fa-users-cog', adminOnly: true },
-  { id: 'groups', label: 'Группы', icon: 'fas fa-user-friends', adminOnly: true },
-  { id: 'settings', label: 'Настройки', icon: 'fas fa-cog', adminOnly: true },
+  { id: 'dashboard', label: 'Дашборд', icon: LayoutDashboard, permission: PERMISSIONS.dashboard },
+  { id: 'graph', label: 'Модель здоровья', icon: Network, permission: PERMISSIONS.model },
+  { id: 'works', label: 'Плановые работы', icon: CalendarDays, permission: PERMISSIONS.works },
+  { id: 'report', label: 'SLA-отчёт', icon: BarChart3, permission: PERMISSIONS.reports },
+  { id: 'audit', label: 'Аудит-лог', icon: History, permission: PERMISSIONS.audit },
+  { id: 'users', label: 'Пользователи', icon: Users, adminOnly: true },
+  { id: 'groups', label: 'Группы', icon: UsersRound, adminOnly: true },
+  { id: 'settings', label: 'Настройки', icon: Settings, adminOnly: true },
 ];
 
 const PAGE_BY_ID = new Map(NAV_ITEMS.map(item => [item.id, item]));
