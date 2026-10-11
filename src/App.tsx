@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import LoginPage from './pages/LoginPage';
 import Layout from './components/Layout';
+import ErrorBoundary from './components/ErrorBoundary';
 import { buildHash, isPageAllowed, readRoute, Route } from './navigation';
 
 /**
@@ -101,9 +102,11 @@ function AppContent() {
       onNavigate={(page) => navigateTo(page)}
       onSync={() => window.location.reload()}
     >
-      <Suspense fallback={<PageLoader />}>
-        {renderPage()}
-      </Suspense>
+      <ErrorBoundary resetKey={route.page}>
+        <Suspense fallback={<PageLoader />}>
+          {renderPage()}
+        </Suspense>
+      </ErrorBoundary>
     </Layout>
   );
 }

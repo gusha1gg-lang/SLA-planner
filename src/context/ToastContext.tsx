@@ -63,7 +63,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             >
               <Icon className="mt-0.5" />
               <p className="flex-1 text-sm">{toast.message}</p>
-              <button onClick={() => removeToast(toast.id)} className="text-white/70 hover:text-white">
+              <button onClick={() => removeToast(toast.id)} className="text-white/70 hover:text-white transition-colors" title="Закрыть">
                 <X />
               </button>
             </div>

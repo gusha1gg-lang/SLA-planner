@@ -6,11 +6,13 @@
     <title>SLA Planner — Планировщик плановых работ</title>
     <script>
       // Тема до загрузки бандла — чтобы не было вспышки светлой темы при reload.
+      // Приоритет: сохранённый выбор; иначе системная схема (как в ThemeContext).
       (function () {
         try {
-          if (localStorage.getItem('sla_theme') === 'dark') {
-            document.documentElement.classList.add('dark');
-          }
+          var saved = localStorage.getItem('sla_theme');
+          var dark = saved === 'dark'
+            || (saved !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
         } catch (e) {}
       })();
     </script>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CalendarX2, Loader2, Plus, Trash2, X } from 'lucide-react';
 import { api } from '../api/client';
 import { SLA, Service, ExcludedDowntime } from '../types';
@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { PERMISSIONS } from '../permissions';
 import { formatDateTime } from '../time';
 import Button from './ui/Button';
+import { useModalA11y } from '../hooks/useModalA11y';
 
 /**
  * Карточка деталей SLA (живые данные из Zabbix): SLO, расписание, исключения
@@ -255,6 +256,9 @@ function AddDowntimeModal({ slaId, onClose, onAdd }: {
   const [endDate, setEndDate] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const panelRef = useRef<HTMLDivElement>(null);
+  useModalA11y(true, panelRef, onClose);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -277,11 +281,16 @@ function AddDowntimeModal({ slaId, onClose, onAdd }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-overlay-in">
-      <div className="bg-surface rounded-xl shadow-2xl w-full max-w-md animate-scale-in">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-overlay-in" onClick={onClose}>
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        onClick={e => e.stopPropagation()}
+        className="bg-surface rounded-xl shadow-2xl w-full max-w-md animate-scale-in outline-none"
+      >
         <div className="p-5 border-b border-line flex items-center justify-between">
           <h2 className="text-lg font-semibold">Добавить исключение простоя</h2>
-          <button onClick={onClose} className="text-faint hover:text-muted transition-colors">
+          <button onClick={onClose} className="text-faint hover:text-muted transition-colors" title="Закрыть">
             <X />
           </button>
         </div>

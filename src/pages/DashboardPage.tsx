@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, CalendarCheck, Clock, Loader2, Percent, Server, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CalendarCheck, Clock, Loader2, Percent, Server, ShieldCheck } from 'lucide-react';
 import { api } from '../api/client';
 import { SLA, Service, PlannedWork } from '../types';
 import { useToast } from '../context/ToastContext';
@@ -56,6 +56,9 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
   if (loading) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-accent animate-spin" /></div>;
   }
+
+  // «Последние» работы: на дашборде показываем только свежие, чтобы таблица не разрасталась.
+  const recentWorks = works.slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -114,8 +117,15 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
 
       {/* Recent works */}
       <div className="bg-surface rounded-xl shadow-card border border-line">
-        <div className="p-5 border-b border-line">
+        <div className="p-5 border-b border-line flex items-center justify-between">
           <h2 className="text-lg font-semibold">Последние плановые работы</h2>
+          <button
+            onClick={() => onNavigate('works')}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:text-accent transition-colors"
+          >
+            Все работы
+            <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -129,7 +139,7 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {works.map(work => (
+              {recentWorks.map(work => (
                 <tr key={work.id} className="hover:bg-surface-2">
                   <td className="px-5 py-3 font-medium">{work.title}</td>
                   <td className="px-5 py-3 text-muted">{work.sla_name}</td>
@@ -144,6 +154,11 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
                   </td>
                 </tr>
               ))}
+              {recentWorks.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-5 py-8 text-center text-faint">Плановых работ пока нет</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

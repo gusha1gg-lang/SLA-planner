@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { AlertTriangle, AlertCircle, Info } from 'lucide-react';
 import Button from './ui/Button';
+import { useModalA11y } from '../hooks/useModalA11y';
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -23,6 +24,10 @@ export default function ConfirmModal({
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  // Esc / клик по фону / фокус-трап — общее поведение модалок.
+  useModalA11y(isOpen, panelRef, onCancel);
+
   if (!isOpen) return null;
 
   const typeStyles: Record<
@@ -53,8 +58,13 @@ export default function ConfirmModal({
   const Icon = style.Icon;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-overlay-in">
-      <div className="bg-surface rounded-xl shadow-2xl w-full max-w-md animate-scale-in">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-overlay-in" onClick={onCancel}>
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        onClick={e => e.stopPropagation()}
+        className="bg-surface rounded-xl shadow-2xl w-full max-w-md animate-scale-in outline-none"
+      >
         <div className="p-6">
           <div className="flex items-start gap-4">
             <div className={`w-12 h-12 rounded-full ${style.iconBg} flex items-center justify-center flex-shrink-0`}>

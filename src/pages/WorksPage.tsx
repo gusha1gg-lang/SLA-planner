@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Calendar, ChevronLeft, ChevronRight, List, Loader2, Pencil, Plus, Trash2, UploadCloud, X } from 'lucide-react';
 import { api } from '../api/client';
 import { SLA, Service, PlannedWork, WorkStatus } from '../types';
@@ -9,6 +9,7 @@ import { formatDateTimeShort, toMskInputValue, mskInputToDate, mskDateKey } from
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
 import Button from '../components/ui/Button';
+import { useModalA11y } from '../hooks/useModalA11y';
 
 export default function WorksPage() {
   const { showToast } = useToast();
@@ -294,6 +295,10 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
   const [saving, setSaving] = useState(false);
   const [filteredServices, setFilteredServices] = useState<Service[]>([]);
 
+  const panelRef = useRef<HTMLDivElement>(null);
+  // Окно рендерится только когда открыто — Esc/фон/фокус-трап включаем сразу.
+  useModalA11y(true, panelRef, onClose);
+
   // Фильтрация услуг по выбранному SLA
   useEffect(() => {
     if (!slaId) {
@@ -345,11 +350,16 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-overlay-in">
-      <div className="bg-surface rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-overlay-in" onClick={onClose}>
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        onClick={e => e.stopPropagation()}
+        className="bg-surface rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in outline-none"
+      >
         <div className="p-5 border-b border-line flex items-center justify-between">
           <h2 className="text-lg font-semibold">{work ? 'Редактировать работу' : 'Новая плановая работа'}</h2>
-          <button onClick={onClose} className="text-faint hover:text-muted transition-colors"><X /></button>
+          <button onClick={onClose} className="text-faint hover:text-muted transition-colors" title="Закрыть"><X /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>

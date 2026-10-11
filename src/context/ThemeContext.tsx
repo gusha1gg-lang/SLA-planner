@@ -12,13 +12,18 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | null>(null);
 
-/** Начальная тема: сохранённый выбор, иначе светлая (корпоративный дефолт). */
+/** Начальная тема: сохранённый выбор, иначе — системная схема (корпоративный дефолт — светлая). */
 function initialTheme(): Theme {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved === 'dark' || saved === 'light') return saved;
   } catch {
     /* localStorage может быть недоступен — не критично */
+  }
+  try {
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
+  } catch {
+    /* matchMedia может быть недоступен — не критично */
   }
   return 'light';
 }

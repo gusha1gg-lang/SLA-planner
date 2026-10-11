@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CircleUser, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { api } from '../api/client';
 import { Group, Service, User } from '../types';
@@ -6,6 +6,7 @@ import { buildHealthModels, HealthModel } from '../healthModels';
 import { PERMISSION_LABELS, PERMISSION_SECTIONS } from '../permissions';
 import { useToast } from '../context/ToastContext';
 import Button from '../components/ui/Button';
+import { useModalA11y } from '../hooks/useModalA11y';
 
 interface GroupForm {
   name: string;
@@ -31,6 +32,10 @@ export default function GroupsPage() {
   /** Как в Grafana: участник добавляется через «+» (раскрывается выбор пользователя). */
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [newMemberId, setNewMemberId] = useState<number | ''>('');
+
+  // Esc / клик по фону / фокус-трап для окна группы.
+  const modalRef = useRef<HTMLDivElement>(null);
+  useModalA11y(showModal, modalRef, () => setShowModal(false));
 
   useEffect(() => { loadData(); }, []);
 
@@ -241,11 +246,16 @@ export default function GroupsPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 animate-overlay-in">
-          <div className="bg-surface rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 animate-overlay-in" onClick={() => setShowModal(false)}>
+          <div
+            ref={modalRef}
+            tabIndex={-1}
+            onClick={e => e.stopPropagation()}
+            className="bg-surface rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in outline-none"
+          >
             <div className="p-5 border-b border-line flex items-center justify-between">
               <h2 className="text-lg font-semibold">{editingId === null ? 'Новая группа' : 'Редактировать группу'}</h2>
-              <button onClick={() => setShowModal(false)} className="text-faint hover:text-muted transition-colors"><X /></button>
+              <button onClick={() => setShowModal(false)} className="text-faint hover:text-muted transition-colors" title="Закрыть"><X /></button>
             </div>
 
             <div className="p-5 space-y-5">
