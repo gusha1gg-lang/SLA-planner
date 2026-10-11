@@ -3,6 +3,7 @@ import { CalendarDays, LayoutDashboard, Network, ShieldCheck } from 'lucide-reac
 import { useAuth } from '../context/AuthContext';
 import BrandMark from '../components/BrandMark';
 import Button from '../components/ui/Button';
+import ThemeToggle from '../components/ThemeToggle';
 
 const FEATURES = [
   { icon: Network, text: 'Модель здоровья сервисов и связи услуг' },
@@ -30,12 +31,15 @@ export default function LoginPage() {
   };
 
   const inputClass =
-    'w-full h-10 px-3.5 rounded-lg border border-line bg-white text-sm text-slate-900 ' +
-    'placeholder:text-slate-400 outline-none transition-all duration-150 ease-standard ' +
+    'w-full h-10 px-3.5 rounded-lg border border-line bg-surface text-sm text-content ' +
+    'placeholder:text-faint outline-none transition-all duration-150 ease-standard ' +
     'focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20';
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[1.05fr_1fr]">
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeToggle />
+      </div>
       {/* Брендовая панель (только на широких экранах). */}
       <aside className="relative hidden lg:flex flex-col justify-between bg-slate-950 p-12 overflow-hidden">
         <div
@@ -89,26 +93,26 @@ export default function LoginPage() {
           <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
             <BrandMark className="w-10 h-10" />
             <div>
-              <p className="font-semibold text-lg leading-tight text-slate-900">SLA Planner</p>
-              <p className="text-slate-500 text-xs">ОМК-ИТ</p>
+              <p className="font-semibold text-lg leading-tight text-content">SLA Planner</p>
+              <p className="text-muted text-xs">ОМК-ИТ</p>
             </div>
           </div>
 
           <div className="bg-surface rounded-2xl border border-line shadow-card p-8">
             <div className="mb-6">
-              <h2 className="text-xl font-semibold text-slate-900">Вход в портал</h2>
-              <p className="text-sm text-slate-500 mt-1">Введите учётные данные, выданные администратором</p>
+              <h2 className="text-xl font-semibold text-content">Вход в портал</h2>
+              <p className="text-sm text-muted mt-1">Введите учётные данные, выданные администратором</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                <div className="bg-danger-soft border border-danger-line text-danger-fg px-4 py-3 rounded-lg text-sm">
                   {error}
                 </div>
               )}
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="username">
+                <label className="block text-sm font-medium text-content mb-1.5" htmlFor="username">
                   Логин
                 </label>
                 <input
@@ -124,7 +128,7 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="password">
+                <label className="block text-sm font-medium text-content mb-1.5" htmlFor="password">
                   Пароль
                 </label>
                 <input
@@ -145,12 +149,12 @@ export default function LoginPage() {
             </form>
           </div>
 
-          <div className="mt-5 p-4 bg-white/60 border border-line rounded-xl">
-            <p className="text-xs text-slate-500 font-medium mb-2">Тестовые учётные записи</p>
-            <div className="text-xs text-slate-600 space-y-1">
-              <p><span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">admin</span> / <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">admin123</span> — полный доступ</p>
-              <p><span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">planner</span> / <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">planner123</span> — создание работ</p>
-              <p><span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">viewer</span> / <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">viewer123</span> — только просмотр</p>
+          <div className="mt-5 p-4 bg-surface-2 border border-line rounded-xl">
+            <p className="text-xs text-muted font-medium mb-2">Тестовые учётные записи</p>
+            <div className="text-xs text-muted space-y-1">
+              <p><span className="font-mono bg-surface px-1.5 py-0.5 rounded border border-line">admin</span> / <span className="font-mono bg-surface px-1.5 py-0.5 rounded border border-line">admin123</span> — полный доступ</p>
+              <p><span className="font-mono bg-surface px-1.5 py-0.5 rounded border border-line">planner</span> / <span className="font-mono bg-surface px-1.5 py-0.5 rounded border border-line">planner123</span> — создание работ</p>
+              <p><span className="font-mono bg-surface px-1.5 py-0.5 rounded border border-line">viewer</span> / <span className="font-mono bg-surface px-1.5 py-0.5 rounded border border-line">viewer123</span> — только просмотр</p>
             </div>
           </div>
         </div>

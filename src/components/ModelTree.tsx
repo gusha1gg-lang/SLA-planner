@@ -56,13 +56,13 @@ export default function ModelTree({ rootId, services, selectedServiceId, onSelec
           onClick={() => onSelect(svc.zabbix_serviceid)}
           title={`${svc.name} (id=${svc.zabbix_serviceid})`}
           className={`w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left text-sm transition ${
-            isSelected ? 'bg-brand-50 ring-1 ring-brand-300' : 'hover:bg-gray-50'
+            isSelected ? 'bg-accent-soft ring-1 ring-accent-line' : 'hover:bg-surface-2'
           }`}
         >
           {kids.length > 0 ? (
             <button
               onClick={e => toggle(svc.zabbix_serviceid, e)}
-              className="w-4 flex-none text-gray-400 hover:text-gray-600"
+              className="w-4 flex-none text-faint hover:text-muted"
               title={isCollapsed ? 'Развернуть' : 'Свернуть'}
             >
               <ChevronRight className={`text-[10px] transition-transform ${isCollapsed ? '' : 'rotate-90'}`} />
@@ -75,12 +75,12 @@ export default function ModelTree({ rootId, services, selectedServiceId, onSelec
             style={{ background: statusColor(svc.status) }}
             title={`Статус: ${statusLabel(svc.status)}`}
           />
-          <span className={`truncate ${isRoot ? 'font-semibold text-purple-800' : 'text-gray-800'}`}>
+          <span className={`truncate ${isRoot ? 'font-semibold text-purple-800' : 'text-content'}`}>
             {svc.name}
           </span>
         </button>
         {!isCollapsed && kids.length > 0 && (
-          <div className="ml-[14px] pl-2 border-l border-gray-200">
+          <div className="ml-[14px] pl-2 border-l border-line">
             {kids.map(kid => renderNode(kid, depth + 1))}
           </div>
         )}

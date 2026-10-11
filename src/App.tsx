@@ -24,7 +24,7 @@ const SLADetailPage = lazy(() => import('./pages/SLADetailPage'));
 function PageLoader() {
   return (
     <div className="flex items-center justify-center h-64">
-      <Loader2 className="text-3xl text-brand-600 animate-spin" />
+      <Loader2 className="text-3xl text-accent animate-spin" />
     </div>
   );
 }

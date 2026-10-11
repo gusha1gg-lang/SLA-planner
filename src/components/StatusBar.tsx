@@ -90,7 +90,7 @@ export default function StatusBar({ onSync }: StatusBarProps) {
             status.backend === 'loading' ? 'bg-yellow-500 animate-pulse' :
             'bg-red-500'
           }`}></span>
-          <span className="text-gray-600">
+          <span className="text-muted">
             Сервер: {status.backend === 'ok' ? 'Online' : status.backend === 'loading' ? '...' : 'Offline'}
           </span>
         </div>
@@ -101,16 +101,16 @@ export default function StatusBar({ onSync }: StatusBarProps) {
             <div className="flex items-center gap-1.5">
               <span className={`w-2 h-2 rounded-full ${
                 status.zabbix === 'connected' ? 'bg-green-500' :
-                status.zabbix === 'unknown' ? 'bg-gray-400' :
+                status.zabbix === 'unknown' ? 'bg-faint' :
                 'bg-red-400'
               }`}></span>
-              <span className="text-gray-600">
+              <span className="text-muted">
                 Zabbix: {status.zabbix === 'connected' ? 'Подключен' : status.zabbix === 'unknown' ? '—' : 'Не подключен'}
               </span>
             </div>
 
             {status.readOnly && (
-              <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+              <span className="bg-warn-soft text-warn-fg px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
                 <Lock className="w-3 h-3" />
                 Read-Only
               </span>
@@ -118,13 +118,13 @@ export default function StatusBar({ onSync }: StatusBarProps) {
           </>
         )}
 
-        <span className="text-gray-400">v{status.version}</span>
+        <span className="text-faint">v{status.version}</span>
       </div>
 
       {isAdmin && (
         <div className="flex items-center gap-3">
           {lastSync && (
-            <span className="text-gray-400">
+            <span className="text-faint">
               Последняя синхр.: {lastSync}
             </span>
           )}
@@ -132,7 +132,7 @@ export default function StatusBar({ onSync }: StatusBarProps) {
           <button
             onClick={handleSync}
             disabled={syncing}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-brand-50 text-brand-700 font-medium transition-all duration-150 ease-standard hover:bg-brand-100 hover:-translate-y-px disabled:opacity-50 disabled:pointer-events-none"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-accent-soft text-accent font-medium transition-all duration-150 ease-standard hover:bg-accent-soft hover:-translate-y-px disabled:opacity-50 disabled:pointer-events-none"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
             {syncing ? 'Синхронизация...' : 'Синхр. с Zabbix'}

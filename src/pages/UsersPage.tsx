@@ -6,8 +6,8 @@ import { useToast } from '../context/ToastContext';
 import { formatDate } from '../time';
 
 const roleColors: Record<string, string> = {
-  admin: 'bg-red-100 text-red-700',
-  user: 'bg-brand-100 text-brand-700',
+  admin: 'bg-danger-soft text-danger-fg',
+  user: 'bg-accent-soft text-accent',
 };
 
 const roleLabels: Record<string, string> = {
@@ -97,31 +97,31 @@ export default function UsersPage() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-brand-600 animate-spin" /></div>;
+    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-accent animate-spin" /></div>;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Пользователи</h1>
-        <p className="text-gray-500 mt-1">Учётные записи. Права и состав групп настраиваются на странице «Группы».</p>
+        <h1 className="text-2xl font-bold text-content">Пользователи</h1>
+        <p className="text-muted mt-1">Учётные записи. Права и состав групп настраиваются на странице «Группы».</p>
       </div>
 
       {/* Role descriptions */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+        <div className="bg-surface rounded-xl p-4 shadow-card border border-line">
           <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${roleColors.admin}`}>администратор</span>
-          <p className="text-sm text-gray-600 mt-2">Полные права без групп: синхронизация, граф, работы, пользователи и группы, настройки.</p>
+          <p className="text-sm text-muted mt-2">Полные права без групп: синхронизация, граф, работы, пользователи и группы, настройки.</p>
         </div>
-        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+        <div className="bg-surface rounded-xl p-4 shadow-card border border-line">
           <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${roleColors.user}`}>пользователь</span>
-          <p className="text-sm text-gray-600 mt-2">Права = сумма прав групп, в которых состоит пользователь (как команды в Grafana).</p>
+          <p className="text-sm text-muted mt-2">Права = сумма прав групп, в которых состоит пользователь (как команды в Grafana).</p>
         </div>
       </div>
 
       {/* Users table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+      <div className="bg-surface rounded-xl shadow-card border border-line overflow-hidden">
+        <div className="p-5 border-b border-line flex items-center justify-between">
           <h2 className="text-lg font-semibold">Список пользователей</h2>
           <button onClick={openCreate}
             className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700">
@@ -130,23 +130,23 @@ export default function UsersPage() {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50">
+            <thead className="bg-surface-2">
               <tr>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">Пользователь</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">Роль</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">Группы</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">Статус</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">Создан</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">Действия</th>
+                <th className="text-left px-5 py-3 font-medium text-muted">Пользователь</th>
+                <th className="text-left px-5 py-3 font-medium text-muted">Роль</th>
+                <th className="text-left px-5 py-3 font-medium text-muted">Группы</th>
+                <th className="text-left px-5 py-3 font-medium text-muted">Статус</th>
+                <th className="text-left px-5 py-3 font-medium text-muted">Создан</th>
+                <th className="text-left px-5 py-3 font-medium text-muted">Действия</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-line">
               {users.map(user => (
-                <tr key={user.id} className="hover:bg-gray-50">
+                <tr key={user.id} className="hover:bg-surface-2">
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
-                        <UserIcon className="text-slate-500 text-xs" />
+                      <div className="w-8 h-8 rounded-full bg-line flex items-center justify-center">
+                        <UserIcon className="text-muted text-xs" />
                       </div>
                       <span className="font-medium">{user.username}</span>
                     </div>
@@ -158,30 +158,30 @@ export default function UsersPage() {
                   </td>
                   <td className="px-5 py-3">
                     {user.role === 'admin' ? (
-                      <span className="text-gray-400">— (полные права)</span>
+                      <span className="text-faint">— (полные права)</span>
                     ) : user.groups.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
                         {user.groups.map(g => (
-                          <span key={g.id} className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">{g.name}</span>
+                          <span key={g.id} className="px-2 py-0.5 rounded-full text-xs bg-surface-2 text-content">{g.name}</span>
                         ))}
                       </div>
                     ) : (
-                      <span className="text-gray-400">без групп</span>
+                      <span className="text-faint">без групп</span>
                     )}
                   </td>
                   <td className="px-5 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${user.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-xs ${user.is_active ? 'bg-ok-soft text-ok-fg' : 'bg-surface-2 text-muted'}`}>
                       {user.is_active ? 'Активен' : 'Заблокирован'}
                     </span>
                   </td>
-                  <td className="px-5 py-3 text-gray-600">{formatDate(user.created_at)}</td>
+                  <td className="px-5 py-3 text-muted">{formatDate(user.created_at)}</td>
                   <td className="px-5 py-3">
-                    <button onClick={() => openEdit(user)} className="text-brand-600 hover:text-brand-800 text-sm mr-3" title="Редактировать">
+                    <button onClick={() => openEdit(user)} className="text-accent hover:text-accent text-sm mr-3" title="Редактировать">
                       <Pencil />
                     </button>
                     {user.role !== 'admin' && (
                       <button onClick={() => toggleActive(user)}
-                        className={user.is_active ? 'text-red-500 hover:text-red-700 text-sm' : 'text-green-600 hover:text-green-800 text-sm'}
+                        className={user.is_active ? 'text-danger-fg hover:text-danger-fg text-sm' : 'text-ok-fg hover:text-ok-fg text-sm'}
                         title={user.is_active ? 'Заблокировать' : 'Разблокировать'}>
                         {user.is_active ? <Ban /> : <Check />}
                       </button>
@@ -197,56 +197,56 @@ export default function UsersPage() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+          <div className="bg-surface rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-5 border-b border-line flex items-center justify-between">
               <h2 className="text-lg font-semibold">{editingId === null ? 'Новый пользователь' : 'Редактировать пользователя'}</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600"><X /></button>
+              <button onClick={() => setShowModal(false)} className="text-faint hover:text-muted"><X /></button>
             </div>
 
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Имя пользователя</label>
+                <label className="block text-sm font-medium text-content mb-1">Имя пользователя</label>
                 <input value={form.username} disabled={editingId !== null}
                   onChange={e => setForm({ ...form, username: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                  className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm disabled:bg-surface-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Пароль {editingId !== null && <span className="text-gray-400 font-normal">(пусто — не менять)</span>}
+                <label className="block text-sm font-medium text-content mb-1">
+                  Пароль {editingId !== null && <span className="text-faint font-normal">(пусто — не менять)</span>}
                 </label>
                 <input type="password" value={form.password}
                   onChange={e => setForm({ ...form, password: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                  className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Роль</label>
+                <label className="block text-sm font-medium text-content mb-1">Роль</label>
                 <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value as UserRole })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500">
+                  className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand-500">
                   <option value="user">пользователь (права из групп)</option>
                   <option value="admin">администратор (полные права)</option>
                 </select>
               </div>
 
               {form.role === 'user' && (
-                <p className="text-sm text-gray-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                <p className="text-sm text-muted bg-surface-2 border border-line rounded-lg px-3 py-2">
                   Состав групп задаётся на странице «Группы» — там же определяются права и доступные
                   модели здоровья. Новый пользователь создаётся без групп.
                 </p>
               )}
 
               {editingId !== null && (
-                <label className="flex items-center gap-2 text-sm text-gray-700">
+                <label className="flex items-center gap-2 text-sm text-content">
                   <input type="checkbox" checked={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.checked })} />
                   Активен (снятие — блокировка входа)
                 </label>
               )}
             </div>
 
-            <div className="p-5 border-t border-gray-100 flex justify-end gap-2">
+            <div className="p-5 border-t border-line flex justify-end gap-2">
               <button onClick={() => setShowModal(false)}
-                className="px-4 py-2 rounded-lg text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">Отмена</button>
+                className="px-4 py-2 rounded-lg text-sm bg-surface-2 text-content hover:bg-line">Отмена</button>
               <button onClick={handleSave} disabled={saving}
                 className="px-4 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50">
                 {saving ? 'Сохранение…' : 'Сохранить'}

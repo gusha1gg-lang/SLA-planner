@@ -709,7 +709,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-brand-600 animate-spin" /></div>;
+    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-accent animate-spin" /></div>;
   }
 
   const noData = services.length === 0;
@@ -718,37 +718,37 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Модель здоровья</h1>
-          <p className="text-gray-500 mt-1">Модели здоровья: деревья услуг и связанные SLA</p>
+          <h1 className="text-2xl font-bold text-content">Модель здоровья</h1>
+          <p className="text-muted mt-1">Модели здоровья: деревья услуг и связанные SLA</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 text-sm text-gray-600">
+          <div className="flex items-center gap-1.5 text-sm text-muted">
             <span className="w-3 h-3 rounded" style={{ background: nodeColors.sla }}></span> SLA
           </div>
-          <div className="flex items-center gap-1.5 text-sm text-gray-600">
+          <div className="flex items-center gap-1.5 text-sm text-muted">
             <span className="w-3 h-3 rounded" style={{ background: shade(nodeColors.service, -0.15) }}></span> Модель (корень)
           </div>
-          <div className="flex items-center gap-1.5 text-sm text-gray-600">
+          <div className="flex items-center gap-1.5 text-sm text-muted">
             <span className="w-3 h-3 rounded-full" style={{ background: nodeColors.service }}></span> Услуга
           </div>
           {canEditGraph && (
-            <div className="flex items-center gap-3 border-l border-gray-200 pl-3">
-              <label className="flex items-center gap-1.5 text-sm text-gray-600" title="Цвет SLA — общий для всех моделей">
+            <div className="flex items-center gap-3 border-l border-line pl-3">
+              <label className="flex items-center gap-1.5 text-sm text-muted" title="Цвет SLA — общий для всех моделей">
                 <span className="font-medium">Цвет SLA</span>
                 <input
                   type="color"
                   value={nodeColors.sla}
                   onChange={e => handleColorChange('sla', e.target.value)}
-                  className="w-7 h-7 cursor-pointer rounded border border-gray-200 bg-white"
+                  className="w-7 h-7 cursor-pointer rounded border border-line bg-surface"
                 />
               </label>
-              <label className="flex items-center gap-1.5 text-sm text-gray-600" title="Цвет услуг — общий для всех моделей">
+              <label className="flex items-center gap-1.5 text-sm text-muted" title="Цвет услуг — общий для всех моделей">
                 <span className="font-medium">Цвет услуг</span>
                 <input
                   type="color"
                   value={nodeColors.service}
                   onChange={e => handleColorChange('service', e.target.value)}
-                  className="w-7 h-7 cursor-pointer rounded border border-gray-200 bg-white"
+                  className="w-7 h-7 cursor-pointer rounded border border-line bg-surface"
                 />
               </label>
             </div>
@@ -757,25 +757,25 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
       </div>
 
       {noData ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 text-center">
-          <NetworkIcon className="text-4xl text-gray-300 mb-3" />
-          <p className="text-gray-500">Данных пока нет.</p>
+        <div className="bg-surface rounded-xl shadow-card border border-line p-10 text-center">
+          <NetworkIcon className="text-4xl text-faint mb-3" />
+          <p className="text-muted">Данных пока нет.</p>
           {isAdmin && (
-            <p className="text-gray-400 text-sm mt-1">Нажмите «Синхр. с Zabbix» (правая кнопка вверху), чтобы загрузить SLA и услуги.</p>
+            <p className="text-faint text-sm mt-1">Нажмите «Синхр. с Zabbix» (правая кнопка вверху), чтобы загрузить SLA и услуги.</p>
           )}
         </div>
       ) : models.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 text-center">
-          <Lock className="text-4xl text-gray-300 mb-3" />
-          <p className="text-gray-500">Нет доступных моделей здоровья.</p>
-          <p className="text-gray-400 text-sm mt-1">
+        <div className="bg-surface rounded-xl shadow-card border border-line p-10 text-center">
+          <Lock className="text-4xl text-faint mb-3" />
+          <p className="text-muted">Нет доступных моделей здоровья.</p>
+          <p className="text-faint text-sm mt-1">
             Доступ к моделям здоровья выдаётся группами. Обратитесь к администратору, чтобы вас добавили в нужную группу.
           </p>
         </div>
       ) : (
         <>
           <div className="flex items-center gap-3 flex-wrap">
-            <label className="text-sm font-medium text-gray-700">
+            <label className="text-sm font-medium text-content">
               Модель здоровья:
             </label>
             <select
@@ -786,7 +786,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
                 setSelectedServiceId('');
                 applyModel(e.target.value);
               }}
-              className="border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 max-w-xl"
+              className="border border-line-strong rounded-md px-3 py-1.5 text-sm bg-surface shadow-card focus:outline-none focus:ring-2 focus:ring-brand-500 max-w-xl"
             >
               {models.map(m => (
                 <option key={m.rootId} value={m.rootId}>
@@ -795,8 +795,8 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
               ))}
             </select>
             {scoped.model && (
-              <span className="text-sm text-gray-500">
-                SLA: <b className="text-gray-700">{scoped.slas.length}</b> · Услуг: <b className="text-gray-700">{scoped.services.length}</b> из {scoped.model.serviceIds.size}
+              <span className="text-sm text-muted">
+                SLA: <b className="text-content">{scoped.slas.length}</b> · Услуг: <b className="text-content">{scoped.services.length}</b> из {scoped.model.serviceIds.size}
               </span>
             )}
             {canEditGraph && scoped.model && (
@@ -813,7 +813,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
                     </button>
                     <button
                       onClick={handleCancelEdit}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-surface-2 text-content rounded-md hover:bg-line transition"
                       title="Отменить изменения и вернуть сохранённую раскладку"
                     >
                       <X className="text-xs" />
@@ -832,7 +832,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
                 )}
                 <button
                   onClick={handleResetLayout}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-danger-soft text-danger-fg rounded-md hover:bg-danger-soft transition"
                   title="Сбросить раскладку модели к стандартной (для всех пользователей)"
                 >
                   <Undo2 className="text-xs" />
@@ -842,20 +842,20 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
             )}
           </div>
 
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted">
             {editMode ? (
               <>
-                <MousePointer2 className="mr-1 text-gray-400" />
+                <MousePointer2 className="mr-1 text-faint" />
                 Режим редактирования: перетащите узлы на новые места и нажмите «Сохранить» — раскладка станет общей для всех пользователей. Потянув услугу, её поддерево едет следом.
               </>
             ) : canEditGraph ? (
               <>
-                <Lock className="mr-1 text-gray-400" />
+                <Lock className="mr-1 text-faint" />
                 Граф в режиме просмотра. Нажмите «Редактировать граф», чтобы перемещать узлы.
               </>
             ) : (
               <>
-                <Lock className="mr-1 text-gray-400" />
+                <Lock className="mr-1 text-faint" />
                 Раскладку графа может изменять только пользователь с правом «Граф: редактирование».
               </>
             )}
@@ -863,12 +863,12 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
 
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-4 items-start">
             {/* Граф */}
-            <div className="relative bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden min-w-0">
+            <div className="relative bg-surface rounded-xl shadow-card border border-line overflow-hidden min-w-0">
               <div ref={containerRef} className="w-full h-[600px]" />
               {savedLayout === null && scoped.model && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/70">
-                  <div className="flex items-center gap-2 text-gray-500 text-sm">
-                    <Loader2 className="text-xl text-brand-600 animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center bg-surface/70">
+                  <div className="flex items-center gap-2 text-muted text-sm">
+                    <Loader2 className="text-xl text-accent animate-spin" />
                     Загрузка раскладки…
                   </div>
                 </div>
@@ -876,10 +876,10 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
             </div>
 
             {/* Структура модели — справа от графа */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 max-h-[50vh] lg:max-h-none lg:h-[600px] overflow-y-auto">
+            <div className="bg-surface rounded-xl shadow-card border border-line p-3 max-h-[50vh] lg:max-h-none lg:h-[600px] overflow-y-auto">
               <div className="flex items-center justify-between px-2 pb-2">
-                <h3 className="font-semibold text-gray-900 text-sm">Структура модели</h3>
-                <span className="text-xs text-gray-400">{scoped.services.length} услуг</span>
+                <h3 className="font-semibold text-content text-sm">Структура модели</h3>
+                <span className="text-xs text-faint">{scoped.services.length} услуг</span>
               </div>
               {scoped.model && (
                 <ModelTree
@@ -906,7 +906,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
               onSelectService={selectServiceByZid}
             />
           ) : (
-            <div className="bg-white rounded-xl shadow-sm border border-dashed border-gray-200 p-8 text-center text-gray-400">
+            <div className="bg-surface rounded-xl shadow-card border border-dashed border-line p-8 text-center text-faint">
               <MousePointer2 className="text-2xl mb-2" />
               <p className="text-sm">
                 Кликните на SLA или услугу на графе — детали появятся здесь, под графом

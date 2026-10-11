@@ -81,19 +81,19 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-brand-600 animate-spin" /></div>;
+    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-accent animate-spin" /></div>;
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700 text-sm">
+      <div className="bg-danger-soft border border-danger-line rounded-xl p-6 text-danger-fg text-sm">
         <AlertTriangle className="mr-2" />{error}
       </div>
     );
   }
 
   if (!sla) {
-    return <div className="text-center py-12 text-gray-500">SLA не найден</div>;
+    return <div className="text-center py-12 text-muted">SLA не найден</div>;
   }
 
   return (
@@ -101,8 +101,8 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
       {/* Шапка */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">{sla.name}</h2>
-          <p className="text-gray-500 mt-0.5 text-sm">ID SLA: {sla.zabbix_slaid}</p>
+          <h2 className="text-xl font-bold text-content">{sla.name}</h2>
+          <p className="text-muted mt-0.5 text-sm">ID SLA: {sla.zabbix_slaid}</p>
         </div>
         <div className="flex items-center gap-2">
           {can(PERMISSIONS.slaEdit) && (
@@ -112,7 +112,7 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
             </button>
           )}
           {onClose && (
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600" title="Закрыть">
+            <button onClick={onClose} className="text-faint hover:text-muted" title="Закрыть">
               <X />
             </button>
           )}
@@ -121,59 +121,59 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
 
       {/* SLA Info */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <p className="text-sm text-gray-500">SLO</p>
-          <p className="text-3xl font-bold text-green-600 mt-1">{sla.slo}%</p>
+        <div className="bg-surface rounded-xl p-5 shadow-card border border-line">
+          <p className="text-sm text-muted">SLO</p>
+          <p className="text-3xl font-bold text-ok-fg mt-1">{sla.slo}%</p>
         </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <p className="text-sm text-gray-500">Расписание</p>
+        <div className="bg-surface rounded-xl p-5 shadow-card border border-line">
+          <p className="text-sm text-muted">Расписание</p>
           <p className="text-xl font-semibold mt-1">{sla.schedule_type}</p>
         </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <p className="text-sm text-gray-500">Связанных услуг</p>
-          <p className="text-3xl font-bold text-brand-600 mt-1">{services.length}</p>
+        <div className="bg-surface rounded-xl p-5 shadow-card border border-line">
+          <p className="text-sm text-muted">Связанных услуг</p>
+          <p className="text-3xl font-bold text-accent mt-1">{services.length}</p>
         </div>
       </div>
 
       {/* Excluded Downtimes */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="p-5 border-b border-gray-100">
+      <div className="bg-surface rounded-xl shadow-card border border-line">
+        <div className="p-5 border-b border-line">
           <h3 className="text-lg font-semibold">Исключения простоя (Excluded Downtimes)</h3>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-muted mt-1">
             Окна планового простоя, которые не учитываются в SLA-отчётности
           </p>
         </div>
 
         {excludedDowntimes.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">
+          <div className="p-8 text-center text-faint">
             <CalendarX2 className="text-4xl mb-3" />
             <p>Нет исключений простоя</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-surface-2">
                 <tr>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Название</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Начало</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Окончание</th>
-                  <th className="text-left px-5 py-3 font-medium text-gray-500">Длительность</th>
+                  <th className="text-left px-5 py-3 font-medium text-muted">Название</th>
+                  <th className="text-left px-5 py-3 font-medium text-muted">Начало</th>
+                  <th className="text-left px-5 py-3 font-medium text-muted">Окончание</th>
+                  <th className="text-left px-5 py-3 font-medium text-muted">Длительность</th>
                   {can(PERMISSIONS.slaEdit) && (
-                    <th className="text-left px-5 py-3 font-medium text-gray-500">Действия</th>
+                    <th className="text-left px-5 py-3 font-medium text-muted">Действия</th>
                   )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-line">
                 {excludedDowntimes.map((dt, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
+                  <tr key={idx} className="hover:bg-surface-2">
                     <td className="px-5 py-3 font-medium">{dt.name}</td>
-                    <td className="px-5 py-3 text-gray-600">{formatUnixTime(dt.period_from)}</td>
-                    <td className="px-5 py-3 text-gray-600">{formatUnixTime(dt.period_to)}</td>
-                    <td className="px-5 py-3 text-gray-600">{calculateDuration(dt.period_from, dt.period_to)}</td>
+                    <td className="px-5 py-3 text-muted">{formatUnixTime(dt.period_from)}</td>
+                    <td className="px-5 py-3 text-muted">{formatUnixTime(dt.period_to)}</td>
+                    <td className="px-5 py-3 text-muted">{calculateDuration(dt.period_from, dt.period_to)}</td>
                     {can(PERMISSIONS.slaEdit) && (
                       <td className="px-5 py-3">
                         <button onClick={() => handleRemoveDowntime(dt.name)}
-                          className="text-red-500 hover:text-red-700" title="Удалить">
+                          className="text-danger-fg hover:text-danger-fg" title="Удалить">
                           <Trash2 />
                         </button>
                       </td>
@@ -187,22 +187,22 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
       </div>
 
       {/* Related Services */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="p-5 border-b border-gray-100">
+      <div className="bg-surface rounded-xl shadow-card border border-line">
+        <div className="p-5 border-b border-line">
           <h3 className="text-lg font-semibold">Связанные услуги</h3>
-          <p className="text-sm text-gray-500 mt-1">Услуги, привязанные к этому SLA через теги</p>
+          <p className="text-sm text-muted mt-1">Услуги, привязанные к этому SLA через теги</p>
         </div>
         <div className="p-5">
           {services.length === 0 ? (
-            <p className="text-gray-400 text-sm">К SLA не привязано ни одной услуги</p>
+            <p className="text-faint text-sm">К SLA не привязано ни одной услуги</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {services.map(svc => {
                 const inner = (
                   <>
                     <div>
-                      <p className="font-medium text-gray-900">{svc.name}</p>
-                      <p className="text-xs text-gray-500">ID: {svc.zabbix_serviceid}</p>
+                      <p className="font-medium text-content">{svc.name}</p>
+                      <p className="text-xs text-muted">ID: {svc.zabbix_serviceid}</p>
                     </div>
                     <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
                       {svc.tags.find(t => t.tag === 'service')?.value}
@@ -213,13 +213,13 @@ export default function SLADetailCard({ slaId, onClose, onSelectService }: SLADe
                   <button
                     key={svc.id}
                     onClick={() => onSelectService(svc.zabbix_serviceid)}
-                    className="border border-gray-200 rounded-lg p-3 flex items-center justify-between gap-2 text-left hover:border-brand-300 hover:bg-brand-50/50 transition"
+                    className="border border-line rounded-lg p-3 flex items-center justify-between gap-2 text-left hover:border-accent-line hover:bg-accent-soft/50 transition"
                     title="Показать услугу в графе"
                   >
                     {inner}
                   </button>
                 ) : (
-                  <div key={svc.id} className="border border-gray-200 rounded-lg p-3 flex items-center justify-between gap-2">
+                  <div key={svc.id} className="border border-line rounded-lg p-3 flex items-center justify-between gap-2">
                     {inner}
                   </div>
                 );
@@ -278,32 +278,32 @@ function AddDowntimeModal({ slaId, onClose, onAdd }: {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+      <div className="bg-surface rounded-xl shadow-2xl w-full max-w-md">
+        <div className="p-5 border-b border-line flex items-center justify-between">
           <h2 className="text-lg font-semibold">Добавить исключение простоя</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} className="text-faint hover:text-muted">
             <X />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Название (опционально)</label>
+            <label className="block text-sm font-medium text-content mb-1">Название (опционально)</label>
             <input value={name} onChange={e => setName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
+              className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
               placeholder="Автоматически: SLA Planner #..." />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Начало (UTC) *</label>
+            <label className="block text-sm font-medium text-content mb-1">Начало (UTC) *</label>
             <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
+              className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Окончание (UTC) *</label>
+            <label className="block text-sm font-medium text-content mb-1">Окончание (UTC) *</label>
             <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
+              className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
           </div>
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-800">
+          <div className="flex justify-end gap-3 pt-4 border-t border-line">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-muted hover:text-content">
               Отмена
             </button>
             <button type="submit" disabled={saving}

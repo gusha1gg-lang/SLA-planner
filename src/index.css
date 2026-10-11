@@ -1,23 +1,22 @@
 @import "tailwindcss";
 
-/*
- * Дизайн-система портала (корпоративный «промышленный» стиль).
+/* Ручное переключение темы: `dark:`-вариант срабатывает по классу `.dark` на <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/**
+ * Дизайн-система портала — светлая и тёмная темы на семантических токенах.
  *
- * Опорные принципы:
- *  - нейтральная основа (слейт) + один сдержанный акцент `brand` (стальной синий);
- *  - никаких ярких градиентных заливок — статусы (зелёный/жёлтый/красный)
- *    применяются только по смыслу (SLA, ошибки), не для декора;
- *   — все токены объявлены здесь, чтобы новые экраны использовали `brand-*`,
- *     `bg-surface`, `border-line` и т.п. вместо «магических» цветов.
+ * Идея: страницы используют НЕ «голые» tailwind-цвета (gray/white), а семантику
+ * (`bg-surface`, `text-muted`, `border-line`, `text-accent`, `bg-ok-soft`…).
+ * Значения токенов меняются под `.dark` — поэтому одна и та же вёрстка
+ * корректно выглядит в обеих темах.
  *
- * Шрифт Inter подключён локально (`@fontsource/inter` в main.tsx) —
- * никаких внешних CDN: портал должен работать в закрытом контуре.
+ * Фирменный акцент — сдержанный стальной синий `brand-*` (кнопки/активная навигация).
+ * Текст и «мягкие» плашки статусов — через `accent`/`ok`/`warn`/`danger`
+ * (в тёмной теме светлее, чтобы оставаться читаемыми).
  */
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Roboto, "Helvetica Neue", Arial, sans-serif;
-
-  /* Фирменный акцент — сдержанный стальной синий (не «яркий» blue-600). */
+  /* Фирменная палитра (не меняется темой). */
   --color-brand-50: #f1f5fa;
   --color-brand-100: #e0e9f4;
   --color-brand-200: #c1d3e9;
@@ -30,22 +29,85 @@
   --color-brand-900: #243553;
   --color-brand-950: #172034;
 
-  /* Поверхности и границы — единый словарь вместо россыпи gray-*. */
+  /* Поверхности / текст / границы — светлая тема. */
   --color-canvas: #eef1f5;
   --color-surface: #ffffff;
+  --color-surface-2: #f8fafc;
   --color-line: #e2e7ee;
+  --color-line-strong: #cbd5e1;
+  --color-content: #1a2029;
+  --color-muted: #5b6675;
+  --color-faint: #8b95a5;
 
-  /* Мягкие тени (использовать редко — только для подъёма интерактива). */
+  /* Акцент для текста/ссылок/мягких плашек. */
+  --color-accent: #2a4875;
+  --color-accent-soft: #eef4fb;
+  --color-accent-line: #c1d3e9;
+
+  /* Статусы: сплошной цвет (точки/кнопки) + текст + мягкий фон + граница. */
+  --color-ok: #16a34a;
+  --color-ok-fg: #15803d;
+  --color-ok-soft: #dcfce7;
+  --color-ok-line: #bbf7d0;
+  --color-warn: #d97706;
+  --color-warn-fg: #b45309;
+  --color-warn-soft: #fef3c7;
+  --color-warn-line: #fde68a;
+  --color-danger: #dc2626;
+  --color-danger-fg: #b91c1c;
+  --color-danger-soft: #fee2e2;
+  --color-danger-line: #fecaca;
+
+  /* Мягкие тени. */
   --shadow-xs: 0 1px 2px rgba(16, 20, 26, 0.05);
   --shadow-card: 0 1px 2px rgba(16, 20, 26, 0.04), 0 1px 3px rgba(16, 20, 26, 0.06);
   --shadow-card-hover: 0 6px 16px rgba(16, 20, 26, 0.09), 0 2px 5px rgba(16, 20, 26, 0.06);
   --shadow-pop: 0 16px 40px rgba(16, 20, 26, 0.16);
 
-  /* Единая кривая анимаций — «спокойное» движение для интерфейса. */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 
   --animate-fade-in-up: fade-in-up 0.32s cubic-bezier(0.2, 0, 0, 1) both;
   --animate-fade-in: fade-in 0.24s cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+/*
+ * Тёмная тема. Блок намеренно вне @layer — нелейерные стили приоритетнее
+ * слоёных theme-переменных Tailwind, поэтому переопределение надёжно.
+ */
+.dark {
+  color-scheme: dark;
+
+  --color-canvas: #0b1017;
+  --color-surface: #141b26;
+  --color-surface-2: #1b2431;
+  --color-line: #273041;
+  --color-line-strong: #38445a;
+  --color-content: #e7ecf3;
+  --color-muted: #9aa7b8;
+  --color-faint: #6f7b8c;
+
+  --color-accent: #8fbce8;
+  --color-accent-soft: rgba(63, 108, 174, 0.18);
+  --color-accent-line: rgba(63, 108, 174, 0.42);
+
+  --color-ok: #22c55e;
+  --color-ok-fg: #4ade80;
+  --color-ok-soft: rgba(34, 197, 94, 0.15);
+  --color-ok-line: rgba(34, 197, 94, 0.32);
+  --color-warn: #f59e0b;
+  --color-warn-fg: #fcd34d;
+  --color-warn-soft: rgba(245, 158, 11, 0.15);
+  --color-warn-line: rgba(245, 158, 11, 0.32);
+  --color-danger: #f87171;
+  --color-danger-fg: #fca5a5;
+  --color-danger-soft: rgba(248, 113, 113, 0.16);
+  --color-danger-line: rgba(248, 113, 113, 0.32);
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-card-hover: 0 8px 20px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 20px 48px rgba(0, 0, 0, 0.6);
+
+  --animate-fade-in-up: fade-in-up 0.32s cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 @keyframes fade-in-up {
@@ -63,22 +125,31 @@
     color-scheme: light;
   }
 
+  html.dark {
+    color-scheme: dark;
+  }
+
   body {
     margin: 0;
     background-color: var(--color-canvas);
-    color: #1a2029;
+    color: var(--color-content);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Единое кольцо фокуса по всему порталу (доступность + аккуратный вид). */
+  /* Формы наследуют цвет текста темы (иначе в тёмной теме ввод не виден). */
+  input,
+  select,
+  textarea {
+    color: inherit;
+  }
+
   :focus-visible {
     outline: 2px solid var(--color-brand-500);
     outline-offset: 2px;
   }
 
-  /* Уважаем настройку «уменьшить движение» (важно для рабочих АРМ). */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -91,10 +162,10 @@
   }
 }
 
-/* Скроллбар в тон графитовой оболочке. */
+/* Скроллбар в тон теме. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #c4ccd8 transparent;
+  scrollbar-color: var(--color-line-strong) transparent;
 }
 
 ::-webkit-scrollbar {
@@ -107,18 +178,18 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c4ccd8;
+  background: var(--color-line-strong);
   border: 3px solid transparent;
   background-clip: padding-box;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a7b4c4;
+  background: var(--color-faint);
   background-clip: padding-box;
 }
 
-/* Плавное появление тостов (используется ToastContext). */
+/* Тосты и прочие появления. */
 @keyframes slide-in {
   from { opacity: 0; transform: translateX(16px); }
   to { opacity: 1; transform: translateX(0); }

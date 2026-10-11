@@ -34,9 +34,9 @@ export default function WorksPage() {
   };
 
   const statusColors: Record<string, string> = {
-    draft: 'bg-gray-100 text-gray-700', planned: 'bg-brand-100 text-brand-700',
-    active: 'bg-yellow-100 text-yellow-700', done: 'bg-green-100 text-green-700',
-    cancelled: 'bg-gray-100 text-gray-500', sync_error: 'bg-red-100 text-red-700',
+    draft: 'bg-surface-2 text-content', planned: 'bg-accent-soft text-accent',
+    active: 'bg-warn-soft text-warn-fg', done: 'bg-ok-soft text-ok-fg',
+    cancelled: 'bg-surface-2 text-muted', sync_error: 'bg-danger-soft text-danger-fg',
   };
   const statusLabels: Record<string, string> = {
     draft: 'Черновик', planned: 'Запланировано', active: 'Активно',
@@ -86,22 +86,22 @@ export default function WorksPage() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-brand-600 animate-spin" /></div>;
+    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-accent animate-spin" /></div>;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Плановые работы</h1>
-          <p className="text-gray-500 mt-1">Управление исключениями простоя для SLA</p>
+          <h1 className="text-2xl font-bold text-content">Плановые работы</h1>
+          <p className="text-muted mt-1">Управление исключениями простоя для SLA</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex bg-gray-100 rounded-lg p-1">
-            <button onClick={() => setView('table')} className={`px-3 py-1.5 rounded-md text-sm ${view === 'table' ? 'bg-white shadow-sm' : ''}`}>
+          <div className="flex bg-surface-2 rounded-lg p-1">
+            <button onClick={() => setView('table')} className={`px-3 py-1.5 rounded-md text-sm ${view === 'table' ? 'bg-surface shadow-card' : ''}`}>
               <List className="mr-1" />Таблица
             </button>
-            <button onClick={() => setView('calendar')} className={`px-3 py-1.5 rounded-md text-sm ${view === 'calendar' ? 'bg-white shadow-sm' : ''}`}>
+            <button onClick={() => setView('calendar')} className={`px-3 py-1.5 rounded-md text-sm ${view === 'calendar' ? 'bg-surface shadow-card' : ''}`}>
               <Calendar className="mr-1" />Календарь
             </button>
           </div>
@@ -118,7 +118,7 @@ export default function WorksPage() {
       <div className="flex gap-2 flex-wrap">
         {(['all', 'draft', 'planned', 'active', 'done', 'cancelled', 'sync_error'] as const).map(s => (
           <button key={s} onClick={() => setFilter(s)}
-            className={`px-3 py-1.5 rounded-lg text-sm ${filter === s ? 'bg-brand-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+            className={`px-3 py-1.5 rounded-lg text-sm ${filter === s ? 'bg-brand-600 text-white' : 'bg-surface border border-line text-muted hover:bg-surface-2'}`}>
             {s === 'all' ? 'Все' : statusLabels[s]}
             <span className="ml-1.5 opacity-70">
               {s === 'all' ? works.length : works.filter(w => w.status === s).length}
@@ -128,31 +128,31 @@ export default function WorksPage() {
       </div>
 
       {view === 'table' ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-surface rounded-xl shadow-card border border-line overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50">
+            <thead className="bg-surface-2">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-500">Название</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-500">SLA / Услуга</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-500">Период</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-500">Статус</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-500">Действия</th>
+                <th className="text-left px-4 py-3 font-medium text-muted">Название</th>
+                <th className="text-left px-4 py-3 font-medium text-muted">SLA / Услуга</th>
+                <th className="text-left px-4 py-3 font-medium text-muted">Период</th>
+                <th className="text-left px-4 py-3 font-medium text-muted">Статус</th>
+                <th className="text-left px-4 py-3 font-medium text-muted">Действия</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-line">
               {paginatedWorks.map(work => (
-                <tr key={work.id} className="hover:bg-gray-50">
+                <tr key={work.id} className="hover:bg-surface-2">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900">{work.title}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">{work.downtime_marker}</div>
+                    <div className="font-medium text-content">{work.title}</div>
+                    <div className="text-xs text-faint mt-0.5">{work.downtime_marker}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="text-gray-700">{work.sla_name}</div>
-                    <div className="text-xs text-gray-400">{work.service_name}</div>
+                    <div className="text-content">{work.sla_name}</div>
+                    <div className="text-xs text-faint">{work.service_name}</div>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td className="px-4 py-3 text-muted">
                     <div>{formatDateTimeShort(work.started_at)}</div>
-                    <div className="text-xs text-gray-400">— {formatDateTimeShort(work.ended_at)}</div>
+                    <div className="text-xs text-faint">— {formatDateTimeShort(work.ended_at)}</div>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[work.status]}`}>
@@ -163,19 +163,19 @@ export default function WorksPage() {
                     <div className="flex items-center gap-2">
                       {can(PERMISSIONS.worksEdit) && work.status === 'draft' && (
                         <button onClick={() => handlePushToZabbix(work.id)}
-                          className="text-brand-600 hover:text-brand-800 text-xs font-medium" title="Отправить">
+                          className="text-accent hover:text-accent text-xs font-medium" title="Отправить">
                           <UploadCloud className="mr-1" />Отправить
                         </button>
                       )}
                       {can(PERMISSIONS.worksEdit) && (
                         <button onClick={() => { setEditingWork(work); setShowForm(true); }}
-                          className="text-gray-500 hover:text-gray-700" title="Редактировать">
+                          className="text-muted hover:text-content" title="Редактировать">
                           <Pencil />
                         </button>
                       )}
                       {can(PERMISSIONS.worksDelete) && (
                         <button onClick={() => handleDelete(work.id)}
-                          className="text-red-500 hover:text-red-700" title="Удалить">
+                          className="text-danger-fg hover:text-danger-fg" title="Удалить">
                           <Trash2 />
                         </button>
                       )}
@@ -184,7 +184,7 @@ export default function WorksPage() {
                 </tr>
               ))}
               {paginatedWorks.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Нет плановых работ</td></tr>
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-faint">Нет плановых работ</td></tr>
               )}
             </tbody>
           </table>
@@ -198,39 +198,39 @@ export default function WorksPage() {
         </div>
       ) : (
         /* Calendar View */
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <div className="bg-surface rounded-xl shadow-card border border-line p-5">
           <div className="flex items-center justify-between mb-4">
             <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else setCalMonth(calMonth - 1); }}
-              className="p-2 hover:bg-gray-100 rounded-lg"><ChevronLeft /></button>
+              className="p-2 hover:bg-surface-2 rounded-lg"><ChevronLeft /></button>
             <h3 className="text-lg font-semibold">
               {new Date(calYear, calMonth).toLocaleString('ru-RU', { month: 'long', year: 'numeric' })}
             </h3>
             <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else setCalMonth(calMonth + 1); }}
-              className="p-2 hover:bg-gray-100 rounded-lg"><ChevronRight /></button>
+              className="p-2 hover:bg-surface-2 rounded-lg"><ChevronRight /></button>
           </div>
-          <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-lg overflow-hidden">
+          <div className="grid grid-cols-7 gap-px bg-line rounded-lg overflow-hidden">
             {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(d => (
-              <div key={d} className="bg-gray-50 p-2 text-center text-xs font-medium text-gray-500">{d}</div>
+              <div key={d} className="bg-surface-2 p-2 text-center text-xs font-medium text-muted">{d}</div>
             ))}
             {Array.from({ length: firstDayOfWeek - 1 }, (_, i) => (
-              <div key={`empty-${i}`} className="bg-gray-50 p-2 min-h-[80px]"></div>
+              <div key={`empty-${i}`} className="bg-surface-2 p-2 min-h-[80px]"></div>
             ))}
             {Array.from({ length: daysInMonth }, (_, i) => {
               const day = i + 1;
               const dayWorks = getWorksForDay(day);
               const isToday = day === new Date().getDate() && calMonth === new Date().getMonth() && calYear === new Date().getFullYear();
               return (
-                <div key={day} className={`bg-white p-2 min-h-[80px] ${isToday ? 'ring-2 ring-brand-500 ring-inset' : ''}`}>
-                  <div className={`text-sm font-medium mb-1 ${isToday ? 'text-brand-600' : 'text-gray-700'}`}>{day}</div>
+                <div key={day} className={`bg-surface p-2 min-h-[80px] ${isToday ? 'ring-2 ring-brand-500 ring-inset' : ''}`}>
+                  <div className={`text-sm font-medium mb-1 ${isToday ? 'text-accent' : 'text-content'}`}>{day}</div>
                   {dayWorks.slice(0, 2).map(w => (
                     <div key={w.id} className={`text-xs px-1.5 py-0.5 rounded mb-0.5 truncate ${
-                      w.status === 'done' ? 'bg-green-100 text-green-700' :
-                      w.status === 'planned' ? 'bg-brand-100 text-brand-700' :
-                      w.status === 'draft' ? 'bg-gray-100 text-gray-600' :
-                      'bg-yellow-100 text-yellow-700'
+                      w.status === 'done' ? 'bg-ok-soft text-ok-fg' :
+                      w.status === 'planned' ? 'bg-accent-soft text-accent' :
+                      w.status === 'draft' ? 'bg-surface-2 text-muted' :
+                      'bg-warn-soft text-warn-fg'
                     }`}>{w.title}</div>
                   ))}
-                  {dayWorks.length > 2 && <div className="text-xs text-gray-400">+{dayWorks.length - 2} ещё</div>}
+                  {dayWorks.length > 2 && <div className="text-xs text-faint">+{dayWorks.length - 2} ещё</div>}
                 </div>
               );
             })}
@@ -346,38 +346,38 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+      <div className="bg-surface rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="p-5 border-b border-line flex items-center justify-between">
           <h2 className="text-lg font-semibold">{work ? 'Редактировать работу' : 'Новая плановая работа'}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X /></button>
+          <button onClick={onClose} className="text-faint hover:text-muted"><X /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Название *</label>
+            <label className="block text-sm font-medium text-content mb-1">Название *</label>
             <input value={title} onChange={e => setTitle(e.target.value)} required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
+              className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
               placeholder="Например: ТО базы данных" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Описание</label>
+            <label className="block text-sm font-medium text-content mb-1">Описание</label>
             <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
+              className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
               placeholder="Детали работы..." />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">SLA *</label>
+              <label className="block text-sm font-medium text-content mb-1">SLA *</label>
               <select value={slaId} onChange={e => setSlaId(e.target.value)} required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none">
+                className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none">
                 <option value="">Выберите SLA</option>
                 {slas.map(s => <option key={s.id} value={s.id}>{s.name} (SLO {s.slo}%)</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-content mb-1">
                 Услуга *
                 {slaId && filteredServices.length > 0 && (
-                  <span className="text-xs text-gray-500 ml-2">({filteredServices.length} доступно)</span>
+                  <span className="text-xs text-muted ml-2">({filteredServices.length} доступно)</span>
                 )}
               </label>
               <select 
@@ -385,7 +385,7 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
                 onChange={e => setServiceId(e.target.value)} 
                 required
                 disabled={!slaId}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none disabled:bg-surface-2 disabled:cursor-not-allowed"
               >
                 <option value="">
                   {!slaId ? 'Сначала выберите SLA' : 
@@ -395,7 +395,7 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
                 {filteredServices.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
               {slaId && filteredServices.length === 0 && (
-                <p className="text-xs text-orange-600 mt-1">
+                <p className="text-xs text-warn-fg mt-1">
                   <AlertTriangle className="mr-1" />
                   Для выбранного SLA нет услуг.
                 </p>
@@ -404,18 +404,18 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Начало (МСК) *</label>
+              <label className="block text-sm font-medium text-content mb-1">Начало (МСК) *</label>
               <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
+                className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Окончание (МСК) *</label>
+              <label className="block text-sm font-medium text-content mb-1">Окончание (МСК) *</label>
               <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
+                className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
             </div>
           </div>
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-gray-800">Отмена</button>
+          <div className="flex justify-end gap-3 pt-4 border-t border-line">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-muted hover:text-content">Отмена</button>
             <button type="submit" disabled={saving}
               className="bg-brand-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-brand-700 disabled:opacity-50">
               {saving ? 'Сохранение...' : work ? 'Обновить' : 'Создать'}

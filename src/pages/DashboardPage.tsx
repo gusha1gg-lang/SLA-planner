@@ -36,12 +36,12 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
   };
 
   const statusColors: Record<string, string> = {
-    draft: 'bg-gray-100 text-gray-700',
-    planned: 'bg-brand-100 text-brand-700',
-    active: 'bg-yellow-100 text-yellow-700',
-    done: 'bg-green-100 text-green-700',
-    cancelled: 'bg-gray-100 text-gray-500',
-    sync_error: 'bg-red-100 text-red-700',
+    draft: 'bg-surface-2 text-content',
+    planned: 'bg-accent-soft text-accent',
+    active: 'bg-warn-soft text-warn-fg',
+    done: 'bg-ok-soft text-ok-fg',
+    cancelled: 'bg-surface-2 text-muted',
+    sync_error: 'bg-danger-soft text-danger-fg',
   };
 
   const statusLabels: Record<string, string> = {
@@ -54,87 +54,87 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-brand-600 animate-spin" /></div>;
+    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-accent animate-spin" /></div>;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Дашборд</h1>
-        <p className="text-gray-500 mt-1">Обзор системы SLA Planner</p>
+        <h1 className="text-2xl font-bold text-content">Дашборд</h1>
+        <p className="text-muted mt-1">Обзор системы SLA Planner</p>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div className="bg-surface rounded-xl p-5 shadow-card border border-line">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center">
-              <ShieldCheck className="text-brand-600" />
+            <div className="w-10 h-10 rounded-lg bg-accent-soft flex items-center justify-center">
+              <ShieldCheck className="text-accent" />
             </div>
             <div>
               <p className="text-2xl font-bold">{slas.length}</p>
-              <p className="text-sm text-gray-500">SLA</p>
+              <p className="text-sm text-muted">SLA</p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div className="bg-surface rounded-xl p-5 shadow-card border border-line">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
               <Server className="text-purple-600" />
             </div>
             <div>
               <p className="text-2xl font-bold">{services.length}</p>
-              <p className="text-sm text-gray-500">Услуг</p>
+              <p className="text-sm text-muted">Услуг</p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div className="bg-surface rounded-xl p-5 shadow-card border border-line">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-              <CalendarCheck className="text-green-600" />
+            <div className="w-10 h-10 rounded-lg bg-ok-soft flex items-center justify-center">
+              <CalendarCheck className="text-ok-fg" />
             </div>
             <div>
               <p className="text-2xl font-bold">{works.filter(w => w.status === 'planned').length}</p>
-              <p className="text-sm text-gray-500">Запланировано</p>
+              <p className="text-sm text-muted">Запланировано</p>
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+        <div className="bg-surface rounded-xl p-5 shadow-card border border-line">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-yellow-100 flex items-center justify-center">
-              <AlertTriangle className="text-yellow-600" />
+            <div className="w-10 h-10 rounded-lg bg-warn-soft flex items-center justify-center">
+              <AlertTriangle className="text-warn-fg" />
             </div>
             <div>
               <p className="text-2xl font-bold">{works.filter(w => w.status === 'sync_error').length}</p>
-              <p className="text-sm text-gray-500">Ошибки</p>
+              <p className="text-sm text-muted">Ошибки</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Recent works */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="p-5 border-b border-gray-100">
+      <div className="bg-surface rounded-xl shadow-card border border-line">
+        <div className="p-5 border-b border-line">
           <h2 className="text-lg font-semibold">Последние плановые работы</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50">
+            <thead className="bg-surface-2">
               <tr>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">Название</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">SLA</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">Услуга</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">Период</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">Статус</th>
+                <th className="text-left px-5 py-3 font-medium text-muted">Название</th>
+                <th className="text-left px-5 py-3 font-medium text-muted">SLA</th>
+                <th className="text-left px-5 py-3 font-medium text-muted">Услуга</th>
+                <th className="text-left px-5 py-3 font-medium text-muted">Период</th>
+                <th className="text-left px-5 py-3 font-medium text-muted">Статус</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-line">
               {works.map(work => (
-                <tr key={work.id} className="hover:bg-gray-50">
+                <tr key={work.id} className="hover:bg-surface-2">
                   <td className="px-5 py-3 font-medium">{work.title}</td>
-                  <td className="px-5 py-3 text-gray-600">{work.sla_name}</td>
-                  <td className="px-5 py-3 text-gray-600">{work.service_name}</td>
-                  <td className="px-5 py-3 text-gray-600">
+                  <td className="px-5 py-3 text-muted">{work.sla_name}</td>
+                  <td className="px-5 py-3 text-muted">{work.service_name}</td>
+                  <td className="px-5 py-3 text-muted">
                     {formatDate(work.started_at)} — {formatDate(work.ended_at)}
                   </td>
                   <td className="px-5 py-3">
@@ -150,19 +150,19 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
       </div>
 
       {/* SLA list */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="p-5 border-b border-gray-100">
+      <div className="bg-surface rounded-xl shadow-card border border-line">
+        <div className="p-5 border-b border-line">
           <h2 className="text-lg font-semibold">SLA-объекты</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
           {slas.map(sla => (
             <div key={sla.id} onClick={() => onNavigate('sla-detail', { id: sla.zabbix_slaid })}
-              className="border border-gray-200 rounded-lg p-4 cursor-pointer hover:border-brand-300 hover:shadow-md transition">
+              className="border border-line rounded-lg p-4 cursor-pointer hover:border-accent-line hover:shadow-md transition">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-gray-900">{sla.name}</h3>
-                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">ID: {sla.zabbix_slaid}</span>
+                <h3 className="font-semibold text-content">{sla.name}</h3>
+                <span className="text-xs bg-surface-2 text-muted px-2 py-1 rounded">ID: {sla.zabbix_slaid}</span>
               </div>
-              <div className="flex items-center gap-4 text-sm text-gray-500">
+              <div className="flex items-center gap-4 text-sm text-muted">
                 <span><Percent className="mr-1" />SLO: {sla.slo}%</span>
                 <span><Clock className="mr-1" />{sla.schedule_type}</span>
               </div>

@@ -134,21 +134,21 @@ export default function GroupsPage() {
   const userName = (id: number) => users.find(u => u.id === id)?.username || `#${id}`;
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-brand-600 animate-spin" /></div>;
+    return <div className="flex items-center justify-center h-64"><Loader2 className="text-3xl text-accent animate-spin" /></div>;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Группы</h1>
-        <p className="text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-content">Группы</h1>
+        <p className="text-muted mt-1">
           Группа — это набор прав, область моделей здоровья и состав участников (как команды в Grafana).
           Нажмите на название группы, чтобы её отредактировать и добавить участников.
         </p>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+      <div className="bg-surface rounded-xl shadow-card border border-line overflow-hidden">
+        <div className="p-5 border-b border-line flex items-center justify-between">
           <h2 className="text-lg font-semibold">Группы и права</h2>
           <button onClick={openCreate}
             className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700">
@@ -157,42 +157,42 @@ export default function GroupsPage() {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50">
+            <thead className="bg-surface-2">
               <tr>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">Название</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">Права</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">Модели здоровья</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">Участники</th>
-                <th className="text-left px-5 py-3 font-medium text-gray-500">Действия</th>
+                <th className="text-left px-5 py-3 font-medium text-muted">Название</th>
+                <th className="text-left px-5 py-3 font-medium text-muted">Права</th>
+                <th className="text-left px-5 py-3 font-medium text-muted">Модели здоровья</th>
+                <th className="text-left px-5 py-3 font-medium text-muted">Участники</th>
+                <th className="text-left px-5 py-3 font-medium text-muted">Действия</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-line">
               {groups.map(group => {
                 const memberNames = group.member_ids
                   .map(id => users.find(u => u.id === id)?.username)
                   .filter(Boolean) as string[];
                 return (
-                  <tr key={group.id} className="hover:bg-gray-50 align-top">
+                  <tr key={group.id} className="hover:bg-surface-2 align-top">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
                         <button onClick={() => openEdit(group)}
-                          className="font-medium text-brand-700 hover:text-brand-900 hover:underline text-left"
+                          className="font-medium text-accent hover:text-accent hover:underline text-left"
                           title="Редактировать группу">
                           {group.name}
                         </button>
                         {group.is_system && (
-                          <span className="px-2 py-0.5 rounded-full text-[11px] bg-amber-100 text-amber-700" title="Системная группа, создаётся автоматически">системная</span>
+                          <span className="px-2 py-0.5 rounded-full text-[11px] bg-warn-soft text-warn-fg" title="Системная группа, создаётся автоматически">системная</span>
                         )}
                       </div>
-                      {group.description && <p className="text-xs text-gray-500 mt-0.5">{group.description}</p>}
+                      {group.description && <p className="text-xs text-muted mt-0.5">{group.description}</p>}
                     </td>
                     <td className="px-5 py-3">
                       {group.permissions.length === 0 ? (
-                        <span className="text-gray-400">нет прав</span>
+                        <span className="text-faint">нет прав</span>
                       ) : (
                         <div className="flex flex-wrap gap-1 max-w-md">
                           {group.permissions.map(p => (
-                            <span key={p} className="px-2 py-0.5 rounded-full text-xs bg-brand-50 text-brand-700">
+                            <span key={p} className="px-2 py-0.5 rounded-full text-xs bg-accent-soft text-accent">
                               {PERMISSION_LABELS[p] || p}
                             </span>
                           ))}
@@ -203,27 +203,27 @@ export default function GroupsPage() {
                       {group.all_models ? (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700" title="Группа видит все модели здоровья">все модели</span>
                       ) : group.model_ids.length === 0 ? (
-                        <span className="text-gray-400">нет доступа</span>
+                        <span className="text-faint">нет доступа</span>
                       ) : (
                         <div className="flex flex-wrap gap-1 max-w-md">
                           {group.model_ids.map(id => (
-                            <span key={id} className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">
+                            <span key={id} className="px-2 py-0.5 rounded-full text-xs bg-surface-2 text-content">
                               {models.find(m => m.rootId === id)?.rootName || `#${id}`}
                             </span>
                           ))}
                         </div>
                       )}
                     </td>
-                    <td className="px-5 py-3 text-gray-600">
-                      {memberNames.length === 0 ? <span className="text-gray-400">—</span> : `${memberNames.length}: ${memberNames.join(', ')}`}
+                    <td className="px-5 py-3 text-muted">
+                      {memberNames.length === 0 ? <span className="text-faint">—</span> : `${memberNames.length}: ${memberNames.join(', ')}`}
                     </td>
                     <td className="px-5 py-3 whitespace-nowrap">
                       <button onClick={() => openEdit(group)}
-                        className="text-brand-600 hover:text-brand-800 mr-3" title="Редактировать">
+                        className="text-accent hover:text-accent mr-3" title="Редактировать">
                         <Pencil />
                       </button>
                       {!group.is_system && (
-                        <button onClick={() => handleDelete(group)} className="text-red-500 hover:text-red-700" title="Удалить">
+                        <button onClick={() => handleDelete(group)} className="text-danger-fg hover:text-danger-fg" title="Удалить">
                           <Trash2 />
                         </button>
                       )}
@@ -232,7 +232,7 @@ export default function GroupsPage() {
                 );
               })}
               {groups.length === 0 && (
-                <tr><td colSpan={5} className="px-5 py-8 text-center text-gray-400">Групп пока нет</td></tr>
+                <tr><td colSpan={5} className="px-5 py-8 text-center text-faint">Групп пока нет</td></tr>
               )}
             </tbody>
           </table>
@@ -242,35 +242,35 @@ export default function GroupsPage() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+          <div className="bg-surface rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-5 border-b border-line flex items-center justify-between">
               <h2 className="text-lg font-semibold">{editingId === null ? 'Новая группа' : 'Редактировать группу'}</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600"><X /></button>
+              <button onClick={() => setShowModal(false)} className="text-faint hover:text-muted"><X /></button>
             </div>
 
             <div className="p-5 space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Название</label>
+                  <label className="block text-sm font-medium text-content mb-1">Название</label>
                   <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                    className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Описание</label>
+                  <label className="block text-sm font-medium text-content mb-1">Описание</label>
                   <input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                    className="w-full border border-line-strong rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
                 </div>
               </div>
 
               {/* Permissions */}
               <div className="space-y-3">
-                <p className="text-sm font-semibold text-gray-700">Права группы</p>
+                <p className="text-sm font-semibold text-content">Права группы</p>
                 {PERMISSION_SECTIONS.map(section => (
                   <div key={section.title}>
-                    <p className="text-xs font-medium text-gray-500 uppercase mb-1.5">{section.title}</p>
+                    <p className="text-xs font-medium text-muted uppercase mb-1.5">{section.title}</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {section.items.map(item => (
-                        <label key={item.key} className="flex items-start gap-2 p-2 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer">
+                        <label key={item.key} className="flex items-start gap-2 p-2 rounded-lg border border-line hover:bg-surface-2 cursor-pointer">
                           <input type="checkbox" className="mt-0.5"
                             checked={form.permissions.includes(item.key)}
                             onChange={() => setForm(prev => ({
@@ -280,8 +280,8 @@ export default function GroupsPage() {
                                 : [...prev.permissions, item.key],
                             }))} />
                           <span>
-                            <span className="block text-sm text-gray-800">{item.label}</span>
-                            <span className="block text-xs text-gray-400">{item.description}</span>
+                            <span className="block text-sm text-content">{item.label}</span>
+                            <span className="block text-xs text-faint">{item.description}</span>
                           </span>
                         </label>
                       ))}
@@ -292,28 +292,28 @@ export default function GroupsPage() {
 
               {/* Область моделей здоровья: группа видит все модели или только отмеченные */}
               <div>
-                <p className="text-sm font-semibold text-gray-700 mb-1.5">Модели здоровья</p>
-                <label className="flex items-center gap-2 p-2 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer">
+                <p className="text-sm font-semibold text-content mb-1.5">Модели здоровья</p>
+                <label className="flex items-center gap-2 p-2 rounded-lg border border-line hover:bg-surface-2 cursor-pointer">
                   <input type="checkbox"
                     checked={form.all_models}
                     onChange={() => setForm({ ...form, all_models: !form.all_models })} />
-                  <span className="text-sm text-gray-800">Все модели здоровья</span>
+                  <span className="text-sm text-content">Все модели здоровья</span>
                 </label>
                 {!form.all_models && (
                   models.length === 0 ? (
-                    <p className="text-sm text-gray-400 mt-2">Модели не загружены — выполните синхронизацию.</p>
+                    <p className="text-sm text-faint mt-2">Модели не загружены — выполните синхронизацию.</p>
                   ) : (
                     <>
-                      <p className="text-xs text-gray-500 mt-2 mb-1">
+                      <p className="text-xs text-muted mt-2 mb-1">
                         Отметьте модели, которые видит группа ({form.model_ids.length} из {models.length}):
                       </p>
-                      <div className="border border-gray-100 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto">
+                      <div className="border border-line rounded-lg divide-y divide-line max-h-56 overflow-y-auto">
                         {models.map(m => (
-                          <label key={m.rootId} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                          <label key={m.rootId} className="flex items-center gap-2 px-3 py-2 hover:bg-surface-2 cursor-pointer">
                             <input type="checkbox"
                               checked={form.model_ids.includes(m.rootId)}
                               onChange={() => toggleModel(m.rootId)} />
-                            <span className="text-sm text-gray-800 truncate" title={m.rootName}>{m.rootName}</span>
+                            <span className="text-sm text-content truncate" title={m.rootName}>{m.rootName}</span>
                           </label>
                         ))}
                       </div>
@@ -325,9 +325,9 @@ export default function GroupsPage() {
               {/* Участники: как в Grafana — список + «+ Добавить участника» */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <p className="text-sm font-semibold text-gray-700">Участники</p>
+                  <p className="text-sm font-semibold text-content">Участники</p>
                   <button type="button" onClick={() => setAddMemberOpen(v => !v)}
-                    className="text-sm text-brand-600 hover:text-brand-800">
+                    className="text-sm text-accent hover:text-accent">
                     <Plus className="mr-1" />Добавить участника
                   </button>
                 </div>
@@ -337,7 +337,7 @@ export default function GroupsPage() {
                     <select
                       value={newMemberId}
                       onChange={e => setNewMemberId(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      className="flex-1 border border-line-strong rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                     >
                       <option value="">Выберите пользователя…</option>
                       {users.filter(u => !form.member_ids.includes(u.id)).map(u => (
@@ -349,29 +349,29 @@ export default function GroupsPage() {
                       Добавить
                     </button>
                     <button type="button" onClick={() => { setAddMemberOpen(false); setNewMemberId(''); }}
-                      className="px-3 py-2 rounded-lg text-sm bg-gray-100 text-gray-600 hover:bg-gray-200">
+                      className="px-3 py-2 rounded-lg text-sm bg-surface-2 text-muted hover:bg-line">
                       Отмена
                     </button>
                   </div>
                 )}
 
                 {form.member_ids.length === 0 ? (
-                  <p className="text-sm text-gray-400 border border-dashed border-gray-200 rounded-lg px-3 py-3 text-center">
+                  <p className="text-sm text-faint border border-dashed border-line rounded-lg px-3 py-3 text-center">
                     Пока никого нет — добавьте участников через «+ Добавить участника».
                   </p>
                 ) : (
-                  <div className="border border-gray-100 rounded-lg divide-y divide-gray-100 max-h-56 overflow-y-auto">
+                  <div className="border border-line rounded-lg divide-y divide-line max-h-56 overflow-y-auto">
                     {form.member_ids.map(id => {
                       const u = users.find(x => x.id === id);
                       return (
                         <div key={id} className="flex items-center justify-between px-3 py-2">
-                          <span className="flex items-center gap-2 text-sm text-gray-800">
-                            <CircleUser className="text-gray-300" />
+                          <span className="flex items-center gap-2 text-sm text-content">
+                            <CircleUser className="text-faint" />
                             {u?.username || `#${id}`}
-                            {u?.role === 'admin' && <span className="text-xs text-gray-400">(админ — группы не важны)</span>}
+                            {u?.role === 'admin' && <span className="text-xs text-faint">(админ — группы не важны)</span>}
                           </span>
                           <button type="button" onClick={() => removeMember(id)}
-                            className="text-gray-400 hover:text-red-500" title="Убрать из группы">
+                            className="text-faint hover:text-danger-fg" title="Убрать из группы">
                             <X />
                           </button>
                         </div>
@@ -382,9 +382,9 @@ export default function GroupsPage() {
               </div>
             </div>
 
-            <div className="p-5 border-t border-gray-100 flex justify-end gap-2">
+            <div className="p-5 border-t border-line flex justify-end gap-2">
               <button onClick={() => setShowModal(false)}
-                className="px-4 py-2 rounded-lg text-sm bg-gray-100 text-gray-700 hover:bg-gray-200">Отмена</button>
+                className="px-4 py-2 rounded-lg text-sm bg-surface-2 text-content hover:bg-line">Отмена</button>
               <button onClick={handleSave} disabled={saving}
                 className="px-4 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50">
                 {saving ? 'Сохранение…' : 'Сохранить'}

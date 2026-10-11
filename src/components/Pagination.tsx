@@ -55,7 +55,7 @@ export default function Pagination({
 
   return (
     <div className="flex items-center justify-between px-6 py-3 bg-surface border-t border-line">
-      <div className="text-sm text-slate-600">
+      <div className="text-sm text-muted">
         {totalItems && (
           <>
             Показано <span className="font-medium">{startItem}-{endItem}</span> из{' '}
@@ -67,7 +67,7 @@ export default function Pagination({
         <button
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
-          className="px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-all duration-150 ease-standard disabled:opacity-40 disabled:pointer-events-none"
+          className="px-3 py-1.5 text-sm text-content hover:bg-surface-2 rounded-lg transition-all duration-150 ease-standard disabled:opacity-40 disabled:pointer-events-none"
         >
           <ChevronLeft />
         </button>
@@ -75,7 +75,7 @@ export default function Pagination({
         {getPageNumbers().map((page, idx) => {
           if (page === '...') {
             return (
-              <span key={`ellipsis-${idx}`} className="px-2 text-slate-400">
+              <span key={`ellipsis-${idx}`} className="px-2 text-faint">
                 ...
               </span>
             );
@@ -89,7 +89,7 @@ export default function Pagination({
               className={`px-3 py-1.5 text-sm rounded-lg transition-all duration-150 ease-standard ${
                 currentPage === pageNum
                   ? 'bg-brand-600 text-white shadow-xs'
-                  : 'text-slate-700 hover:bg-slate-100'
+                  : 'text-content hover:bg-surface-2'
               }`}
             >
               {pageNum}
@@ -100,7 +100,7 @@ export default function Pagination({
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
-          className="px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-all duration-150 ease-standard disabled:opacity-40 disabled:pointer-events-none"
+          className="px-3 py-1.5 text-sm text-content hover:bg-surface-2 rounded-lg transition-all duration-150 ease-standard disabled:opacity-40 disabled:pointer-events-none"
         >
           <ChevronRight />
         </button>

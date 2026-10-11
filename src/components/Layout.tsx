@@ -5,6 +5,7 @@ import { NAV_ITEMS } from '../navigation';
 import { cn } from '../lib/cn';
 import BrandMark from './BrandMark';
 import StatusBar from './StatusBar';
+import ThemeToggle from './ThemeToggle';
 
 interface LayoutProps {
   currentPage: string;
@@ -92,6 +93,7 @@ export default function Layout({ currentPage, onNavigate, onSync, children }: La
                 </p>
               )}
             </div>
+            <ThemeToggle variant="sidebar" />
             <button
               onClick={logout}
               className="text-slate-400 hover:text-white shrink-0 p-1 rounded-md hover:bg-white/10 transition-colors"

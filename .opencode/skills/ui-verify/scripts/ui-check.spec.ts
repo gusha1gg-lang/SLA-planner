@@ -212,3 +212,26 @@ test('Пользователи: при создании нет выбора гр
 
   await page.screenshot({ path: '/tmp/opencode/ui-verify/user-create.png' });
 });
+
+test('Тема: переключение light/dark и сохранение после F5', async ({ page }) => {
+  await page.goto('http://localhost:3000/');
+  await expect(page.getByRole('heading', { name: 'SLA Planner', level: 1 })).toBeVisible();
+
+  // По умолчанию — светлая тема.
+  expect(await page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(false);
+
+  // Переключатель на логине: светлая → тёмная.
+  await page.getByLabel('Включить тёмную тему').click();
+  await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(true);
+  // Фон страницы берётся из токена темы (тёмная канва), а не из хардкода.
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(11, 16, 23)');
+
+  // Выбор переживает F5 (localStorage + скрипт в index.html до бандла).
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(true);
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(11, 16, 23)');
+
+  // Обратно в светлую.
+  await page.getByLabel('Включить светлую тему').click();
+  await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(false);
+});
