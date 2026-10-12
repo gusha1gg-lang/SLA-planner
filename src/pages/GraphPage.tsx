@@ -540,31 +540,23 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
     if (model) applyModel(model.rootId);
   };
 
-  /** vis-id выбранного узла (в текущей модели) или null. */
+  /** vis-id выбранного узла-услуги (в текущей модели) или null. */
   const selectedVisId = useMemo(() => {
     if (selectedServiceId) {
       const svc = scoped.services.find(s => s.zabbix_serviceid === selectedServiceId);
       return svc ? `svc-${svc.id}` : null;
     }
-    if (selectedSlaId) {
-      const sla = scoped.slas.find(s => s.zabbix_slaid === selectedSlaId);
-      return sla ? `sla-${sla.id}` : null;
-    }
     return null;
-  }, [selectedServiceId, selectedSlaId, scoped.slas, scoped.services]);
+  }, [selectedServiceId, scoped.services]);
 
-  /** Выбранный узел для редактора цвета: node_key, подпись и тип. */
+  /** Выбранный узел-услуга для редактора цвета: node_key, подпись и тип. */
   const selectedNode = useMemo(() => {
     if (selectedServiceId) {
       const svc = scoped.services.find(s => s.zabbix_serviceid === selectedServiceId);
       if (svc) return { key: `svc:${svc.zabbix_serviceid}`, label: svc.name, type: 'service' as const };
     }
-    if (selectedSlaId) {
-      const sla = scoped.slas.find(s => s.zabbix_slaid === selectedSlaId);
-      if (sla) return { key: `sla:${sla.zabbix_slaid}`, label: sla.name, type: 'sla' as const };
-    }
     return null;
-  }, [selectedServiceId, selectedSlaId, scoped.services, scoped.slas]);
+  }, [selectedServiceId, scoped.services]);
 
   /** Подсветить выбранный узел (толще обводка + тень), предыдущий — вернуть к обычному виду. */
   const applySelectionHighlight = (nextVisId: string | null) => {
@@ -612,7 +604,6 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
     );
     const spacingX = Math.max(300, maxLabelLen * 7.4 + 70);
     const spacingY = 200;
-    const slaSpacingX = Math.max(280, maxLabelLen * 7.4 + 40);
 
     // Классическая раскладка дерева: листья слева направо,
     // внутренний узел — по центру своих детей.
@@ -640,41 +631,13 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
       }
     }
 
-    // Ряд SLA центрируем над деревом (y = 0), услуги — по глубине вниз
-    const svcXs = view.services.map(s => posX.get(s.zabbix_serviceid) ?? 0);
-    const minX = Math.min(...svcXs);
-    const maxX = Math.max(...svcXs);
-    const centerX = (minX + maxX) / 2;
-    const startSlaX = view.slas.length > 1
-      ? centerX - ((view.slas.length - 1) * slaSpacingX) / 2
-      : centerX;
+    // Услуги — по глубине вниз от корня. Узлы SLA на графе не показываем:
+    // имя SLA обычно совпадает с корневой услугой и визуально дублирует её;
+    // сведения по SLA модели — в панели справа (клик открывает карточку SLA под графом).
 
     idToKeyRef.current = new Map<string, string>();
 
     const nodes = new DataSet<any>([
-      ...view.slas.map((sla, i) => {
-        const id = `sla-${sla.id}`;
-        const key = `sla:${sla.zabbix_slaid}`;
-        idToKeyRef.current.set(id, key);
-        const savedPos = saved.get(key);
-        return {
-          id,
-          label: sla.name,
-          x: savedPos ? savedPos.x : startSlaX + i * slaSpacingX,
-          y: savedPos ? savedPos.y : 0,
-          // fixed не ставим: заморозку режима просмотра даёт interaction.dragNodes=false,
-          // иначе после «Сохранить» узлы становятся fixed и перестают двигаться даже в редактировании.
-          fixed: false,
-          shape: 'box',
-          color: slaNodeColor(nodeColorOverrides.get(key) || nodeColors.sla),
-          font: { color: '#ffffff', size: 14, face: 'Inter, sans-serif' },
-          borderWidth: 2,
-          _defaultBorderWidth: 2,
-          shadow: true,
-          _defaultShadow: true,
-          margin: 12,
-        };
-      }),
       ...view.services.map(svc => {
         const depth = view.depth.get(svc.zabbix_serviceid) ?? 1;
         const isRoot = depth === 1;
@@ -719,13 +682,6 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
     nodesRef.current = nodes;
 
     const edges = new DataSet<any>([
-      ...view.links.map(link => ({
-        from: `sla-${link.sla_id}`,
-        to: `svc-${link.service_id}`,
-        color: { color: '#94A3B8', highlight: '#3B82F6' },
-        width: 2,
-        arrows: { to: { enabled: true, scaleFactor: 0.5 } },
-      })),
       ...view.services
         .filter(s => s.parent_zabbix_serviceid)
         .map(s => {
@@ -777,14 +733,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
       // клик по узлу (вне режима редактирования) — выбираем ему и показываем детали под графом
       if (params.nodes.length > 0 && !editModeRef.current) {
         const nodeId = params.nodes[0];
-        if (nodeId.startsWith('sla-')) {
-          const dbId = nodeId.replace('sla-', '');
-          const sla = view.slas.find(s => s.id.toString() === dbId);
-          if (sla) {
-            setSelectedSlaId(sla.zabbix_slaid);
-            setSelectedServiceId('');
-          }
-        } else if (nodeId.startsWith('svc-')) {
+        if (nodeId.startsWith('svc-')) {
           const dbId = nodeId.replace('svc-', '');
           const svc = view.services.find(s => s.id.toString() === dbId);
           if (svc) {
@@ -812,12 +761,9 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-content">Модель здоровья</h1>
-          <p className="text-muted mt-1">Модели здоровья: деревья услуг и связанные SLA</p>
+          <p className="text-muted mt-1">Модели здоровья: деревья услуг. Информация по SLA модели — в панели справа</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 text-sm text-muted">
-            <span className="w-3 h-3 rounded" style={{ background: nodeColors.sla }}></span> SLA
-          </div>
           <div className="flex items-center gap-1.5 text-sm text-muted">
             <span className="w-3 h-3 rounded" style={{ background: shade(nodeColors.service, -0.15) }}></span> Модель (корень)
           </div>
@@ -826,15 +772,6 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
           </div>
           {canEditGraph && (
             <div className="flex items-center gap-3 border-l border-line pl-3">
-              <label className="flex items-center gap-1.5 text-sm text-muted" title="Базовый цвет SLA — применяется к SLA без своего цвета (общий для всех моделей)">
-                <span className="font-medium">Цвет SLA по умолчанию</span>
-                <input
-                  type="color"
-                  value={nodeColors.sla}
-                  onChange={e => handleColorChange('sla', e.target.value)}
-                  className="w-7 h-7 cursor-pointer rounded border border-line bg-surface"
-                />
-              </label>
               <label className="flex items-center gap-1.5 text-sm text-muted" title="Базовый цвет услуг — применяется к услугам без своего цвета (общий для всех моделей)">
                 <span className="font-medium">Цвет услуг по умолчанию</span>
                 <input
@@ -941,12 +878,11 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
           {canEditGraph && selectedNode && (
             <div className="flex items-center gap-3 flex-wrap bg-surface rounded-xl shadow-card border border-line px-3 py-2">
               <span className="text-sm text-content">
-                Цвет {selectedNode.type === 'sla' ? 'SLA' : 'услуги'} «<b>{selectedNode.label}</b>»:
+                Цвет услуги «<b>{selectedNode.label}</b>»:
               </span>
               <input
                 type="color"
-                value={nodeColorOverrides.get(selectedNode.key)
-                  || (selectedNode.type === 'sla' ? nodeColors.sla : nodeColors.service)}
+                value={nodeColorOverrides.get(selectedNode.key) || nodeColors.service}
                 onChange={e => handleNodeColorChange(selectedNode.key, e.target.value)}
                 className="w-8 h-8 cursor-pointer rounded border border-line bg-surface"
                 title="Задать этому узлу свой цвет (только для текущей модели)"
@@ -1000,24 +936,62 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
               )}
             </div>
 
-            {/* Структура модели — справа от графа */}
-            <div className="bg-surface rounded-xl shadow-card border border-line p-3 max-h-[50vh] lg:max-h-none lg:h-[600px] overflow-y-auto">
-              <div className="flex items-center justify-between px-2 pb-2">
-                <h3 className="font-semibold text-content text-sm">Структура модели</h3>
-                <span className="text-xs text-faint">{scoped.services.length} услуг</span>
+            {/* SLA модели + структура модели — справа от графа */}
+            <div className="bg-surface rounded-xl shadow-card border border-line flex flex-col max-h-[50vh] lg:max-h-none lg:h-[600px]">
+              {/* SLA модели: на графе узлы SLA не показываем (дублируют корневую услугу),
+                  сведения по SLA модели живут здесь — клик открывает карточку под графом. */}
+              <div className="p-3 border-b border-line">
+                <div className="flex items-center justify-between px-2 pb-2">
+                  <h3 className="font-semibold text-content text-sm">SLA модели</h3>
+                  <span className="text-xs text-faint">{scoped.slas.length}</span>
+                </div>
+                {scoped.slas.length === 0 ? (
+                  <p className="px-2 text-xs text-faint">У модели нет связанных SLA</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5 px-2">
+                    {scoped.slas.map(sla => {
+                      const active = selectedSlaId === sla.zabbix_slaid;
+                      return (
+                        <button
+                          key={sla.id}
+                          onClick={() => {
+                            setSelectedSlaId(sla.zabbix_slaid);
+                            setSelectedServiceId('');
+                          }}
+                          className={`text-xs px-2 py-1 rounded border transition ${
+                            active
+                              ? 'border-accent-line bg-accent-soft text-accent'
+                              : 'border-line bg-surface-2 text-muted hover:border-accent-line hover:text-content'
+                          }`}
+                          title="Показать детали SLA под графом"
+                        >
+                          {sla.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              {scoped.model && (
-                <ModelTree
-                  rootId={scoped.model.rootId}
-                  services={scoped.services}
-                  selectedServiceId={selectedServiceId}
-                  onSelect={selectServiceByZid}
-                />
-              )}
+
+              {/* Структура модели — дерево услуг (скроллится) */}
+              <div className="flex-1 overflow-y-auto p-3">
+                <div className="flex items-center justify-between px-2 pb-2">
+                  <h3 className="font-semibold text-content text-sm">Структура модели</h3>
+                  <span className="text-xs text-faint">{scoped.services.length} услуг</span>
+                </div>
+                {scoped.model && (
+                  <ModelTree
+                    rootId={scoped.model.rootId}
+                    services={scoped.services}
+                    selectedServiceId={selectedServiceId}
+                    onSelect={selectServiceByZid}
+                  />
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Детали выбранного узла (SLA или услуга) — под графом */}
+          {/* Детали выбранного SLA или услуги — под графом */}
           {selectedSlaId ? (
             <SLADetailCard
               slaId={selectedSlaId}
@@ -1034,7 +1008,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
             <div className="bg-surface rounded-xl shadow-card border border-dashed border-line p-8 text-center text-faint">
               <MousePointer2 className="text-2xl mb-2" />
               <p className="text-sm">
-                Кликните на SLA или услугу на графе — детали появятся здесь, под графом
+                Кликните услугу на графе или SLA в панели справа — детали появятся здесь, под графом
               </p>
             </div>
           )}

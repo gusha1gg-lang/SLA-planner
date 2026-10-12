@@ -25,12 +25,13 @@ test('Модель здоровья: логин → граф → дерево �
   await page.getByRole('button', { name: 'Модель здоровья' }).click();
   await expect(page.getByRole('heading', { name: 'Модель здоровья', level: 1 })).toBeVisible();
 
-  // 3. Граф отрисован (vis-network рисует canvas) + панель «Структура модели» справа
+  // 3. Граф отрисован (vis-network рисует canvas) + панели «SLA модели» и «Структура модели» справа
   await expect(page.locator('canvas')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'SLA модели', level: 3 })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Структура модели', level: 3 })).toBeVisible();
 
   // 4. Клик по узлу дерева → детали под графом (вместо пустой заглушки)
-  const emptyHint = page.getByText('Кликните на SLA или услугу на графе — детали появятся здесь, под графом');
+  const emptyHint = page.getByText('Кликните услугу на графе или SLA в панели справа — детали появятся здесь, под графом');
   await expect(emptyHint).toBeVisible();
   await page.locator('button[title*="(id="]').first().click();
   await expect(emptyHint).toHaveCount(0);
@@ -297,9 +298,10 @@ test('Модель здоровья: индивидуальный цвет уз�
   await page.getByRole('button', { name: 'Модель здоровья' }).click();
   await expect(page.locator('canvas')).toBeVisible();
 
-  // Базовые цвета (fallback) видны в шапке
-  await expect(page.getByText('Цвет SLA по умолчанию')).toBeVisible();
+  // Базовый цвет (fallback) услуг виден в шапке; на графе узлов SLA больше нет,
+  // поэтому «Цвет SLA по умолчанию» из шапки убран.
   await expect(page.getByText('Цвет услуг по умолчанию')).toBeVisible();
+  await expect(page.getByText('Цвет SLA по умолчанию')).toHaveCount(0);
 
   // Выбираем первую услугу в «Структуре модели» — появляется панель цвета узла
   await page.locator('button[title*="(id="]').first().click();
@@ -388,7 +390,7 @@ test('Модель здоровья: под услугой на графе ви�
     for (const id of Object.keys(net.body.nodes)) {
       const node = net.body.nodes[id];
       const label: string = node.options?.label ?? '';
-      if (label.includes('\n') === false) continue; // SLA-узлы статуса не несут
+      if (label.includes('\n') === false) continue; // не-услуги статуса не несут
       const pos = net.getPositions([id])[id];
       net.moveTo({ position: { x: pos.x, y: pos.y }, scale: 2.5, animation: false });
       await new Promise((r) => setTimeout(r, 140));
@@ -425,4 +427,46 @@ test('Модель здоровья: под услугой на графе ви�
   expect(problemCount, 'есть услуги в статусе «Высокая»').toBeGreaterThan(0);
 
   await page.screenshot({ path: '/tmp/opencode/ui-verify/node-status.png' });
+});
+
+test('Модель здоровья: SLA модели — в панели справа, узлов SLA на графе нет', async ({ page }) => {
+  await page.goto('http://localhost:3000/');
+  await page.getByPlaceholder('admin / planner / viewer').fill('admin');
+  await page.getByPlaceholder('Пароль').fill('admin123');
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await page.getByRole('button', { name: 'Модель здоровья' }).click();
+  await expect(page.locator('canvas')).toBeVisible();
+
+  // Модель со связями услуга↔SLA в живом Zabbix (Q3MET ТЭСЦ-1).
+  const select = page.locator('select');
+  const options = select.locator('option');
+  let target: string | null = null;
+  for (let i = 0, n = await options.count(); i < n; i++) {
+    const text = (await options.nth(i).innerText()).trim();
+    if (text.startsWith('Q3MET ТЭСЦ-1 ')) { target = await options.nth(i).getAttribute('value'); break; }
+  }
+  expect(target, 'в списке моделей есть Q3MET ТЭСЦ-1').not.toBeNull();
+  await select.selectOption(target!);
+  await expect(page.locator('canvas')).toBeVisible();
+
+  // Панель «SLA модели» видна, в ней есть хотя бы один чип SLA.
+  await expect(page.getByRole('heading', { name: 'SLA модели', level: 3 })).toBeVisible();
+  const chips = page.locator('button[title="Показать детали SLA под графом"]');
+  await expect.poll(() => chips.count(), { message: 'у модели есть чипы SLA' }).toBeGreaterThan(0);
+
+  // На графе нет узлов SLA: у каждого узла подпись — услуга со строкой статуса ('\n<b>…</b>').
+  const nodesWithoutStatus = await page.evaluate(() => {
+    const net = (window as any).__graphNetwork;
+    return Object.keys(net.body.nodes).filter(
+      id => !String(net.body.nodes[id].options?.label ?? '').includes('\n')
+    ).length;
+  });
+  expect(nodesWithoutStatus, 'узлы SLA убраны с графа').toBe(0);
+
+  // Клик по чипу SLA открывает карточку SLA под графом (SLO, исключения простоя, услуги).
+  await chips.first().click();
+  await expect(page.getByText('Исключения простоя (Excluded Downtimes)')).toBeVisible();
+  await expect(page.locator('h2.font-bold')).toBeVisible();
+
+  await page.screenshot({ path: '/tmp/opencode/ui-verify/sla-panel.png' });
 });
