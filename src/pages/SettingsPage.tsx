@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
+  Clock,
   Database,
   Loader2,
   RefreshCw,
@@ -14,7 +15,8 @@ import {
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { formatDateTime } from '../time';
+import { formatDateTime, formatDateTimeShort } from '../time';
+import type { SyncScheduler } from '../types';
 import Button from '../components/ui/Button';
 
 type BackendStatus = 'ok' | 'error' | 'loading';
@@ -68,11 +70,25 @@ export default function SettingsPage() {
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<LastSync | null>(readLastSync);
   const [counts, setCounts] = useState<AccessCounts | null>(null);
+  const [scheduler, setScheduler] = useState<SyncScheduler | null>(null);
 
   useEffect(() => {
     loadStatus();
-    if (isAdmin) loadCounts();
+    if (isAdmin) {
+      loadCounts();
+      loadScheduler();
+    }
   }, [isAdmin]);
+
+  /** Состояние автосинхронизации по расписанию (только admin). */
+  const loadScheduler = async () => {
+    try {
+      const st = await api.getSyncStatus();
+      setScheduler(st.scheduler);
+    } catch {
+      setScheduler(null);
+    }
+  };
 
   const loadStatus = async () => {
     setLoading(true);
@@ -317,6 +333,19 @@ export default function SettingsPage() {
               ) : (
                 <p className="mt-3 text-xs text-faint">
                   В этой сессии синхронизация ещё не запускалась.
+                </p>
+              )}
+
+              {scheduler && (
+                <p className="mt-2 flex items-center gap-1.5 text-xs text-faint">
+                  <Clock className="w-3.5 h-3.5" />
+                  {scheduler.enabled
+                    ? `Автосинхронизация: каждые ${scheduler.interval_minutes} мин${
+                        scheduler.next_run_at
+                          ? ` · следующая в ${formatDateTimeShort(scheduler.next_run_at)}`
+                          : ''
+                      }`
+                    : 'Автосинхронизация выключена'}
                 </p>
               )}
             </div>

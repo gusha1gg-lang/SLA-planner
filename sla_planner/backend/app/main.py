@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.database import init_db
-from app.services.sync import SyncInProgressError
+from app.services.sync import SyncInProgressError, start_auto_sync, stop_auto_sync
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,7 +20,9 @@ async def lifespan(app: FastAPI):
     """Startup / shutdown."""
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     await init_db()
+    start_auto_sync()
     yield
+    await stop_auto_sync()
     logger.info("Shutting down")
 
 

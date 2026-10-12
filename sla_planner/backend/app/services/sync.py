@@ -17,17 +17,22 @@
   (O(суммарное число тегов), а не O(число SLA × число услуг)).
 - Prune — сравнение ключей в Python + порционные DELETE
   (без гигантского NOT IN с тысячами параметров).
+
+Фоновый режим (2026-10-12): полный синк можно запускать в фоне (start_full_sync) —
+ручной запуск (POST /api/sync/full) и автосинк по расписанию (start_auto_sync,
+интервал SYNC_AUTO_INTERVAL_MINUTES) делят один лок и общий статус.
 """
 
 import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, insert, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import async_session
 from app.models.sla import SLA
 from app.models.service import Service
@@ -337,8 +342,14 @@ _sync_status: dict = {
 
 
 def get_sync_status() -> dict:
-    """Копия статуса фонового синка (для GET /api/sync/status)."""
-    return dict(_sync_status)
+    """Копия статуса фонового синка + состояние автосинка (для GET /api/sync/status)."""
+    state = dict(_sync_status)
+    state["scheduler"] = {
+        "enabled": _auto_enabled,
+        "interval_minutes": settings.SYNC_AUTO_INTERVAL_MINUTES,
+        "next_run_at": _auto_next_run,
+    }
+    return state
 
 
 async def _run_background_sync() -> None:
@@ -378,3 +389,67 @@ def start_full_sync() -> bool:
     task = asyncio.create_task(_run_background_sync())
     _sync_task = task
     return True
+
+
+# ── Автосинхронизация по расписанию (пункт 1 плана оптимизации) ──
+# Планировщик живёт в процессе (запускается из lifespan): раз в
+# SYNC_AUTO_INTERVAL_MINUTES минут стартует тот же фоновый полный синк
+# (start_full_sync) — поэтому он делит с ручным запуском лок (пункт 7) и статус
+# (пункт 6): параллельных синков не бывает, прогресс виден в GET /api/sync/status.
+_auto_sync_task: asyncio.Task | None = None
+_auto_enabled = False
+_auto_next_run: datetime | None = None
+
+
+async def _auto_sync_loop(interval_seconds: float) -> None:
+    """Планировщик: каждые interval_seconds запускать полный синк, если он не идёт."""
+    global _auto_next_run
+    try:
+        while True:
+            _auto_next_run = datetime.now(timezone.utc) + timedelta(seconds=interval_seconds)
+            await asyncio.sleep(interval_seconds)
+            _auto_next_run = None
+            try:
+                if start_full_sync():
+                    logger.info("Auto-sync: запущен полный синк (интервал %.0f c)", interval_seconds)
+                else:
+                    logger.info("Auto-sync: пропуск — синк уже выполняется")
+            except Exception:  # noqa: BLE001 — планировщик не должен умирать от одного сбоя
+                logger.exception("Auto-sync: не удалось запустить синк")
+    except asyncio.CancelledError:
+        logger.info("Auto-sync: остановлен")
+        raise
+
+
+def start_auto_sync() -> None:
+    """Запустить планировщик автосинка (вызывается из lifespan при старте).
+
+    Выключен, если SYNC_AUTO_ENABLED=false или интервал <= 0.
+    """
+    global _auto_sync_task, _auto_enabled
+    if not settings.SYNC_AUTO_ENABLED or settings.SYNC_AUTO_INTERVAL_MINUTES <= 0:
+        logger.info("Auto-sync: выключен (SYNC_AUTO_ENABLED=%s, интервал %d мин)",
+                    settings.SYNC_AUTO_ENABLED, settings.SYNC_AUTO_INTERVAL_MINUTES)
+        return
+    if _auto_sync_task and not _auto_sync_task.done():
+        return
+    _auto_enabled = True
+    _auto_sync_task = asyncio.create_task(
+        _auto_sync_loop(settings.SYNC_AUTO_INTERVAL_MINUTES * 60)
+    )
+    logger.info("Auto-sync: включён, интервал %d мин", settings.SYNC_AUTO_INTERVAL_MINUTES)
+
+
+async def stop_auto_sync() -> None:
+    """Остановить планировщик автосинка (вызывается из lifespan при остановке)."""
+    global _auto_sync_task, _auto_enabled, _auto_next_run
+    _auto_enabled = False
+    _auto_next_run = None
+    task = _auto_sync_task
+    _auto_sync_task = None
+    if task and not task.done():
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass

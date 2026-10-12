@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     ZABBIX_API_TOKEN: str = ""
     ZABBIX_READ_ONLY: bool = True  # На проде — True по умолчанию
 
+    # Автосинхронизация с Zabbix по расписанию (планировщик в lifespan)
+    SYNC_AUTO_ENABLED: bool = True
+    SYNC_AUTO_INTERVAL_MINUTES: int = 60  # 0 или ENABLED=false — выключить
+
     # Timezone
     DEFAULT_TIMEZONE: str = "Europe/Moscow"
 

@@ -994,6 +994,10 @@ async def test_sync_full_background_and_409(auth_headers, monkeypatch):
         running = await client.get("/api/sync/status", headers=auth_headers)
         assert running.status_code == 200
         assert running.json()["status"] == "running"
+        # Статус несёт и состояние автосинка (планировщик поднят только в lifespan).
+        sched = running.json()["scheduler"]
+        assert set(sched) == {"enabled", "interval_minutes", "next_run_at"}
+        assert isinstance(sched["interval_minutes"], int)
         second = await client.post("/api/sync/full", headers=auth_headers)
         assert second.status_code == 409
 

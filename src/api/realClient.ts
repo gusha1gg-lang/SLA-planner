@@ -64,13 +64,18 @@ class RealApiClient {
     return this.request<{ sla_id: number; service_id: number }[]>('/sla/service-links');
   }
 
+  /** Статус фонового синка и планировщика автосинхронизации. */
+  async getSyncStatus(): Promise<SyncStatus> {
+    return this.request<SyncStatus>('/sync/status');
+  }
+
   /** Полный синк с Zabbix: запуск фоновый (202), результат ждём через /sync/status.
    *  При уже идущем синке бэкенд отвечает 409 — ошибка с понятным текстом. */
   async syncFull(): Promise<SyncResult> {
     await this.request<{ status: 'started' }>('/sync/full', { method: 'POST' });
     // Поллинг статуса фонового синка: до 5 минут по 1 с, дальше — таймаут.
     for (let attempt = 0; attempt < 300; attempt++) {
-      const st = await this.request<SyncStatus>('/sync/status');
+      const st = await this.getSyncStatus();
       if (st.status === 'ok') {
         return st.result ?? { slas: 0, services: 0, links: 0 };
       }
@@ -284,7 +289,11 @@ export const api = {
     return await realApi.getSLAServiceLinks();
   },
 
-  async syncFull(): Promise<{ slas: number; services: number; links: number }> {
+  async getSyncStatus(): Promise<SyncStatus> {
+    return await realApi.getSyncStatus();
+  },
+
+  async syncFull(): Promise<SyncResult> {
     return await realApi.syncFull();
   },
 

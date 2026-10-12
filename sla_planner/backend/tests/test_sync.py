@@ -6,6 +6,7 @@ Run (из каталога sla_planner/backend):
     DATABASE_URL=sqlite+aiosqlite:///./test_sla.db venv/bin/python -m pytest tests/test_sync.py -v
 """
 
+import asyncio
 import json
 
 import pytest
@@ -186,3 +187,61 @@ async def test_full_sync_end_to_end(monkeypatch):
     assert len(links) == 1
     assert links[0].sla_id == slas[0].id
     assert links[0].service_id == services[0].id
+
+
+# ── Автосинхронизация по расписанию (пункт 1) ──
+
+
+@pytest.mark.asyncio
+async def test_auto_sync_loop_ticks(monkeypatch):
+    """Планировщик автосинка на каждом тике запускает полный синк."""
+    calls: list[int] = []
+    monkeypatch.setattr(sync_mod, "start_full_sync", lambda: (calls.append(1), True)[1])
+
+    task = asyncio.create_task(sync_mod._auto_sync_loop(0.01))
+    try:
+        await asyncio.sleep(0.06)
+    finally:
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    sync_mod._auto_next_run = None
+
+    assert len(calls) >= 1
+
+
+@pytest.mark.asyncio
+async def test_auto_sync_disabled_by_config(monkeypatch):
+    """SYNC_AUTO_ENABLED=false — планировщик не создаётся, статус это отражает."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SYNC_AUTO_ENABLED", False)
+    monkeypatch.setattr(sync_mod, "_auto_enabled", False)
+    monkeypatch.setattr(sync_mod, "_auto_sync_task", None)
+
+    sync_mod.start_auto_sync()
+
+    assert sync_mod._auto_sync_task is None
+    assert sync_mod.get_sync_status()["scheduler"]["enabled"] is False
+
+
+@pytest.mark.asyncio
+async def test_auto_sync_enabled_start_and_stop(monkeypatch):
+    """Включённый автосинк стартует задачу, статус отдаёт расписание, stop гасит её."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "SYNC_AUTO_ENABLED", True)
+    monkeypatch.setattr(settings, "SYNC_AUTO_INTERVAL_MINUTES", 60)
+    monkeypatch.setattr(sync_mod, "_auto_sync_task", None)
+
+    sync_mod.start_auto_sync()
+    try:
+        assert sync_mod._auto_sync_task is not None
+        scheduler = sync_mod.get_sync_status()["scheduler"]
+        assert scheduler["enabled"] is True
+        assert scheduler["interval_minutes"] == 60
+    finally:
+        await sync_mod.stop_auto_sync()
+
+    assert sync_mod._auto_sync_task is None
+    assert sync_mod._auto_enabled is False

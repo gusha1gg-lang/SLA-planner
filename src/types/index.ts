@@ -175,6 +175,13 @@ export interface SyncResult {
   links: number;
 }
 
+/** Статус автосинхронизации по расписанию (поле scheduler в SyncStatus). */
+export interface SyncScheduler {
+  enabled: boolean;
+  interval_minutes: number;
+  next_run_at: string | null;
+}
+
 /** Статус фонового полного синка. */
 export interface SyncStatus {
   /** idle | running | ok | error | skipped */
@@ -183,4 +190,5 @@ export interface SyncStatus {
   finished_at: string | null;
   result: SyncResult | null;
   error: string | null;
+  scheduler: SyncScheduler;
 }

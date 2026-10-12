@@ -33,11 +33,14 @@ async def sync_status(
     current_user: User = Depends(require_permission(P_SYNC)),
 ):
     """
-    Статус фонового синка: idle | running | ok | error | skipped.
-    При ok — result {slas, services, links}; при error — текст ошибки.
+    Статус фонового синка: idle | running | ok | error | skipped, состояние
+    автосинка (scheduler) и, при ok, result {slas, services, links}.
     Право: sync.run.
     """
     state = get_sync_status()
     state["started_at"] = iso_utc(state["started_at"])
     state["finished_at"] = iso_utc(state["finished_at"])
+    scheduler = state.get("scheduler")
+    if scheduler:
+        scheduler["next_run_at"] = iso_utc(scheduler["next_run_at"])
     return state
