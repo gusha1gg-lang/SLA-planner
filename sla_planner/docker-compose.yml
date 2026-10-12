@@ -1,9 +1,8 @@
-version: '3.8'
-
 services:
   # ── PostgreSQL ──
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: sla_planner
       POSTGRES_USER: sla_user

@@ -25,7 +25,8 @@
 | Frontend | React + Vite + TypeScript | :3000 | `npm run dev` (vite, proxy `/api` → :8000) |
 | Backend | Python + FastAPI + SQLAlchemy (async) | :8000 | `venv/bin/uvicorn app.main:app --reload` (из `sla_planner/backend`) |
 | Тестовый Zabbix | Zabbix 7.0 (web :8080, server :10051, postgres) | :8080 | docker stack |
-| БД сайта | SQLite | — | `sla_planner/backend/sla_planner.db` |
+| БД сайта (dev) | PostgreSQL 16 (docker compose, `postgres:16-alpine`) | :5432 | `docker compose up -d postgres` (из `sla_planner/`) |
+| БД тестов | SQLite (`aiosqlite`) | — | тесты сами ставят `DATABASE_URL` |
 
 **URLы:** сайт `http://<server-ip>:3000` · Zabbix `http://<server-ip>:8080` (реальные адреса убраны
 из репозитория — см. историю «Секреты вычищены…» и ловушку про opencode.json)
@@ -47,6 +48,36 @@
 ---
 
 ## 3. Что уже сделано (история)
+
+### Переезд на PostgreSQL (dev) + миграции как источник истины (2026-10-12)
+
+Решение пользователя: **остаёмся на Postgres** (в проде — БД, а не SQLite). Причина: синк пишет
+одной длинной транзакцией, а SQLite — один писатель (риск `database is locked`, N воркеров не
+масштабируются); Postgres даёт бэкапы/репликацию. Dev теперь тоже на Postgres; **тесты — по-прежнему
+на изолированной SQLite** (переопределяют `DATABASE_URL`, быстрее, ничего не меняем).
+
+- **Postgres поднят из существующего compose:** `postgres:16-alpine`, том `sla_planner_postgres_data`,
+  `sla_user/sla_password`, БД `sla_planner`, порт `5432`. Конфликта с Zabbix нет (его `zabbix-db` —
+  `postgres:15`, наружу не проброшен). В `docker-compose.yml` сервису `postgres` добавлен
+  `restart: unless-stopped` (иначе после ребута машины БД не поднималась) и убран устаревший `version:`.
+- **Драйвер:** `asyncpg` установлен в venv и раскомментирован в `requirements.txt`.
+  dev `DATABASE_URL` в `sla_planner/backend/.env` → `postgresql+asyncpg://sla_user:sla_password@localhost:5432/sla_planner`
+  (`.env` в `.gitignore`, в git не попадает).
+- **Миграции как источник истины.** На чистом Postgres прогнаны `001_initial → 005_group_models` —
+  все легли, `alembic_version = 005_group_models`. `Dockerfile` теперь перед стартом гоняет
+  `python -m alembic upgrade head && uvicorn …` (прольёт схему в проде сам). `init_db()`
+  (`create_all`) на старте оставлен dev-удобством.
+- **Найден и починен реальный баг Postgres-переносимости:** миграция `005_group_models` ставила
+  boolean-дефолт `server_default=sa.text("1")` и делала `UPDATE … SET all_models = 1`. SQLite это
+  прощал, **Postgres — нет** (`column "all_models" is of type boolean but expression is of type
+  integer`). Исправлено на `sa.true()` и `SET all_models = true`.
+- **Данные пересозданы (по решению пользователя):** `app.seed` (пользователи admin/planner/viewer +
+  системные группы), затем `POST /api/sync/full` → **`67 SLA / 711 услуг / 201 связь`** за 1.35 c.
+  Ручная раскладка графа/цвета из старой SQLite-БД НЕ переносились (осталась резервная копия
+  `sla_planner.db` в `/tmp/opencode/db-backup/`, если понадобится достать позиции).
+- Проверено: `/health` 200, frontend :3000 200, живой API (`/api/sla/` 67, `/api/services/` 711,
+  `/api/groups/` 2, `/api/users/` 3, `/api/graph/colors` дефолтные), браузерный смоук (дашборд +
+  «Модель здоровья» отрисовались), **pytest 41 passed** (на SQLite).
 
 ### Страница «Настройки» переделана: состояние системы + синк + сводка доступов (2026-10-11)
 
@@ -637,6 +668,16 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
 
 ## 4. Что надо сделать (TODO)
 
+- [x] **Переезд на PostgreSQL (2026-10-12)**: dev+прод на Postgres 16 (compose), миграции как
+      источник истины, `asyncpg`, фикс boolean-дефолта в `005`, данные пересозданы синком
+      (67/711/201). Резервная копия старой SQLite — `/tmp/opencode/db-backup/`.
+- [ ] **Оптимизация синхронизации (пункты 1–7, 2026-10-12)** — см. ловушку №29. Порядок:
+      3 (bulk-upsert `ON CONFLICT`) → 4 (связи O(N+M)) → 5 (prune чанками) → 2 (пагинация
+      `service.get`/`sla.get`) → 7 (лок от параллельных синков) → 6 (фоновый запуск) →
+      1 (автосинк по расписанию). Пункты 3–5 — один коммит по `sync.py`.
+- [ ] **Перенос данных из старой SQLite (опционально)** — если пользователю понадобится вернуть
+      ручную раскладку графа/цвета узлов: дамп в `/tmp/opencode/db-backup/sla_planner.sqlite.bak.*`
+      (таблицы `graph_node_positions`, `graph_node_styles`).
 - [x] **Модель прав «как в Grafana»** (2026-10-10): роли admin/user + группы с правами, страница
       «Группы», конвертация planner/viewer — реализовано (см. историю). Возможное развитие:
       аудит-лог по изменениям групп/прав; выдача прав на уровне отдельного объекта (сейчас — только
@@ -684,11 +725,12 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
 14. **По просьбе пользователя БД сайта очищена** (0 SLA / 0 услуг / 0 работ / чистая аудит-лог; пользователи сохранены) — чтобы он лично проверил кнопку синка с пустого состояния. Заполнить заново: у админа нажать «Синхр. с Zabbix» (→ 67 SLA / 711 услуг / 201 связь).
 15. **Alembic (с 2026-10-10):** URL берётся из `settings.DATABASE_URL` (не из `alembic.ini`); запуск
     только через `venv/bin/python -m alembic ...` (консольный `alembic` без `python -m` не видит
-    пакет `app`). Миграции: `001_initial` → `002_add_service_tags` → `003_graph_tables` → `004_groups`. Dev-БД,
-    наполненную через `create_all`, пометить `venv/bin/python -m alembic stamp head`, иначе
-    `upgrade` упадёт на существующих таблицах. `app/seed.py` — идемпотентный bootstrap пользователей
-    и системных групп (мок-данных больше нет). `alembic.op.create_table` НЕ принимает `checkfirst=`
-    — проверять существование таблиц через `sa.inspect(bind)`.
+    пакет `app`). Миграции: `001_initial` → `002_add_service_tags` → `003_graph_tables` → `004_groups`
+    → `005_group_models`. Dev-БД, наполненную через `create_all`, пометить
+    `venv/bin/python -m alembic stamp head`, иначе `upgrade` упадёт на существующих таблицах.
+    `app/seed.py` — идемпотентный bootstrap пользователей и системных групп (мок-данных больше нет).
+    `alembic.op.create_table` НЕ принимает `checkfirst=` — проверять существование таблиц через
+    `sa.inspect(bind)`.
 16. **Zabbix 7.0 service/problem_tags/триггеры:** услуга с дочерними услугами НЕ может иметь
     `problem_tags` («cannot have problem tags and children at the same time») — теги проблем
     вешать ТОЛЬКО на листовые услуги (пример: листья «Доступность по ping» 809/778/798
@@ -809,6 +851,24 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
     `Layout` через `key={currentPage}`), `animate-scale-in`/`animate-overlay-in` (модалки),
     `.stagger > *` (каскад карточек: дашборд, отчёт). `prefers-reduced-motion` гасит длительности
     глобально — новые анимации добавлять как CSS (`@keyframes` + токен `--animate-*`), не в JS.
+
+28. **PostgreSQL (dev+прод, с 2026-10-12).** БД — Postgres 16 в docker compose (том
+    `sla_planner_postgres_data`, `restart: unless-stopped`). Миграции — источник истины: `Dockerfile`
+    перед uvicorn гоняет `python -m alembic upgrade head`. **Postgres строже SQLite:** boolean-дефолты
+    только `sa.true()`/`sa.false()` (или `true`/`false` в `op.execute`) — литерал `1` Postgres
+    отвергает (на этом падала `005_group_models`); raw SQL в миграциях писать переносимо.
+    Один `alembic upgrade head` в async-`env.py` идёт **одной транзакцией**: если упал на N-й миграции —
+    откатывается ВСЁ (в БД не остаётся таблиц), чинить миграцию и перезапускать с нуля. Zabbix-стек
+    держит свой `postgres:15` (`zabbix-db`) — это ДРУГОЙ контейнер, наружу не проброшен, не путать с
+    БД сайта.
+29. **Пункты 1–7 по синхронизации (обсуждено 2026-10-12, ещё НЕ сделано).** Синк сейчас полностью
+    ручной и «наивный»: 1) нет автосинка по расписанию; 2) нет пагинации `service.get`/`sla.get`;
+    3) upsert — N+1 (по одному объекту); 4) связи SLA↔услуга строятся O(N×M) в Python (полный
+    delete+rebuild); 5) prune через гигантский `notin_`; 6) синк держит HTTP-запрос (нет фонового
+    запуска/прогресса); 7) нет блокировки от параллельных синков. Рекомендованный порядок:
+    Postgres (сделан) → 3 (bulk-upsert `ON CONFLICT`) → 4 (связи O(N+M)) → 5 (prune чанками) →
+    2 (пагинация) → 7 (лок) → 6 (фон) → 1 (автосинк). Файлы: `app/services/sync.py`,
+    `app/services/zabbix_client.py`.
 
 ---
 

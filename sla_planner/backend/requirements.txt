@@ -7,7 +7,7 @@ pydantic-settings>=2.5.2
 # Database
 sqlalchemy[asyncio]>=2.0.35
 aiosqlite>=0.20.0
-# asyncpg>=0.29.0  # PostgreSQL driver (раскомментируйте для продакшена)
+asyncpg>=0.29.0  # PostgreSQL driver (dev и прод; тесты работают на SQLite)
 alembic>=1.13.2
 
 # HTTP client (Zabbix API)

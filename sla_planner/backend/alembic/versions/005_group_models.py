@@ -35,8 +35,10 @@ def upgrade() -> None:
 
     with op.batch_alter_table("groups") as batch:
         if "all_models" not in cols:
+            # sa.true() даёт `true` на PostgreSQL и `1` на SQLite (литерал `1`
+            # PostgreSQL для boolean не принимает).
             batch.add_column(
-                sa.Column("all_models", sa.Boolean(), nullable=False, server_default=sa.text("1"))
+                sa.Column("all_models", sa.Boolean(), nullable=False, server_default=sa.true())
             )
         if "model_ids" not in cols:
             batch.add_column(
@@ -45,7 +47,7 @@ def upgrade() -> None:
 
     # Существующие группы — «все модели» (сохраняем прежнее поведение)
     if "all_models" not in cols and "groups" in sa.inspect(bind).get_table_names():
-        op.execute("UPDATE groups SET all_models = 1 WHERE all_models IS NULL")
+        op.execute("UPDATE groups SET all_models = true WHERE all_models IS NULL")
 
 
 def downgrade() -> None:

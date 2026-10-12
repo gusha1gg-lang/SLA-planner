@@ -15,7 +15,8 @@
 | Frontend | React + Vite + TypeScript | :3000 | `npm run dev` (vite, proxy `/api` → :8000) |
 | Backend | Python + FastAPI + SQLAlchemy (async) | :8000 | `venv/bin/uvicorn app.main:app --reload` (из `sla_planner/backend`) |
 | Тестовый Zabbix | Zabbix 7.0 (docker) | :8080 | стартует сам |
-| БД сайта | SQLite | — | `sla_planner/backend/sla_planner.db` |
+| БД сайта (dev) | PostgreSQL 16 (docker compose) | :5432 | `docker compose up -d postgres` (из `sla_planner/`) |
+| БД тестов | SQLite (`:memory:`/файл) | — | тесты сами ставят `DATABASE_URL` |
 
 Сайт живёт на реальной (прод-подобной) структуре: на тестовом Zabbix **67 SLA / 711 услуг / 68 моделей здоровья**.
 Пользователь тестирует UI вживую — **не ломать рабочее состояние, сайт должен оставаться доступным**.
@@ -57,12 +58,18 @@
 ## 3. Поднять dev-среду (после перезагрузки машины)
 
 ```bash
+# 1) БД: Postgres для dev (в проде — тот же сервис в compose)
+cd /opt/sla_planner1/sla_planner && docker compose up -d postgres
+# 2) backend (читает DATABASE_URL из sla_planner/backend/.env → Postgres)
 cd /opt/sla_planner1/sla_planner/backend && venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &
+# 3) frontend
 cd /opt/sla_planner1 && npm run dev &
 ```
 
 Проверка: `curl -s localhost:3000` и `curl -s localhost:8000/health` дают 200.
 Логи: `/tmp/opencode/uvicorn.log`, `/tmp/opencode/vite.log`.
+Если БД пустая (после перезагрузки/пересоздания): `venv/bin/python -m app.seed` (пользователи/группы),
+затем полный синк из Zabbix кнопкой admin или `POST /api/sync/full`.
 
 ## 4. Ключевые ловушки (подробности — CONTEXT.md §5)
 
@@ -80,15 +87,19 @@ cd /opt/sla_planner1 && npm run dev &
 - **Prune не срабатывает при пустом ответе Zabbix** — это защита от случайного удаления.
 - **test_version** проверяет `isinstance(..., bool)`, а не `is True` — локальный `.env` содержит `false`.
 - **Кнопка «Синхр. с Zabbix»** (admin) после синка перезагружает страницу (`window.location.reload()`).
-- **Схема БД: `create_all` + Alembic вместе.** На старте `app/main.py` вызывает `init_db()`
-  (`Base.metadata.create_all`) — таблицы появляются сами в dev и тестах. Alembic-миграции:
-  `001_initial`, `002_add_service_tags`, `003_graph_tables`, `004_groups`, `005_group_models`
-  (`alembic/env.py` берёт URL из `settings.DATABASE_URL`, а не из `alembic.ini`). Запуск:
-  `venv/bin/python -m alembic upgrade head`
-  (без `python -m` не видит пакет `app`). Dev-БД после `create_all` нужно пометить
-  `venv/bin/python -m alembic stamp head`, иначе `upgrade` упадёт на существующих таблицах.
+- **Схема БД: миграции — источник истины (Postgres); `create_all` — только dev-удобство.**
+  В проде `Dockerfile` сначала гоняет `python -m alembic upgrade head`, потом uvicorn. На старте
+  `app/main.py` всё ещё вызывает `init_db()` (`Base.metadata.create_all`) — в dev это создаёт
+  недостающие таблицы, но `alembic_version` при этом НЕ ставится: если таблицы завёл `create_all`,
+  пометь `venv/bin/python -m alembic stamp head`, иначе `upgrade` упадёт на «already exists».
+  Alembic-миграции: `001_initial`, `002_add_service_tags`, `003_graph_tables`, `004_groups`,
+  `005_group_models` (`alembic/env.py` берёт URL из `settings.DATABASE_URL`, не из `alembic.ini`).
+  Запуск: `venv/bin/python -m alembic upgrade head` (без `python -m` не видит пакет `app`).
   Важно: `create_all` НЕ добавляет колонки в уже существующие таблицы — при новых полях
   (как `groups.all_models`) обязательно прогонять миграцию, иначе работающий сайт даст 500.
+- **Postgres-переносимость в миграциях:** boolean-дефолты только через `sa.true()`/`sa.false()`
+  и `true`/`false` в `op.execute` — литерал `1` Postgres для boolean не принимает (SQLite прощал;
+  падало на `005_group_models`).
 - **Скрипты переноса в корне репо** (`import_test.py`, `fix_tree_uuid.py`, `delete_all_services.py`)
   работают с тестовым Zabbix. `import_test.py` без предварительного `delete_all_services.py`
   создаёт дубли. `zabbix_dump.json` — прод-дамп (в `.gitignore`) — в git не коммитить.
