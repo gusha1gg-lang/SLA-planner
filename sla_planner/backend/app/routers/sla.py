@@ -11,7 +11,7 @@ from app.models.user import User
 from app.routers.auth import get_current_user
 from app.models.sla_service_link import SlaServiceLink
 from app.permissions import P_SLA_EDIT, P_SYNC, require_permission
-from app.services.sync import sync_slas, sync_sla_service_links, sla_service_tags
+from app.services.sync import sync_slas, sync_sla_service_links, sla_service_tags, sync_lock
 from app.services.zabbix_client import zabbix_client, ZabbixError
 from app.timeutil import iso_utc
 
@@ -60,8 +60,9 @@ async def sync(
     current_user: User = Depends(require_permission(P_SYNC)),
 ):
     """Синхронизировать SLA из Zabbix (+ пересобрать связи). Право: sync.run."""
-    count = await sync_slas(db)
-    links = await sync_sla_service_links(db)
+    async with sync_lock(db):
+        count = await sync_slas(db)
+        links = await sync_sla_service_links(db)
     return {"synced": count, "links": links}
 
 

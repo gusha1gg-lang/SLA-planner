@@ -19,10 +19,12 @@
   (без гигантского NOT IN с тысячами параметров).
 """
 
+import asyncio
 import json
 import logging
+from contextlib import asynccontextmanager
 
-from sqlalchemy import delete, func, insert, select
+from sqlalchemy import delete, func, insert, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sla import SLA
@@ -36,6 +38,50 @@ logger = logging.getLogger(__name__)
 # Размер порции для bulk INSERT/DELETE — не упираемся в лимит параметров
 # диалекта (SQLite ~32k, PostgreSQL 65535 параметров).
 _BULK_CHUNK = 500
+
+
+class SyncInProgressError(Exception):
+    """Синхронизация уже выполняется (лок занят другим синком)."""
+
+
+# ── Лок от параллельных синков ──
+# Внутрипроцессный asyncio.Lock (у нас один воркер uvicorn — и в dev, и в prod)
+# + межпроцессный неблокирующий Postgres advisory lock (страховка на случай
+# `--workers N`). При занятом локе ОТКАЗЫВАЕМ (409), а не ждём: повторный синк
+# через секунды лишь продублирует работу, а висящий запрос рискует таймаутом.
+_sync_lock = asyncio.Lock()
+_SYNC_ADVISORY_KEY = 0x534C4150  # произвольный int8-ключ для pg_advisory lock
+
+
+async def _acquire_db_sync_lock(db: AsyncSession) -> bool:
+    """Взять межпроцессный advisory lock (Postgres) или считать его взятым (SQLite).
+
+    pg_try_advisory_xact_lock — НЕблокирующий: вернёт False, если лок держит другой
+    воркер/процесс. Освобождается коммитом/откатом транзакции (get_db коммитит
+    в teardown dependency), поэтому явного release не требуется.
+    """
+    if db.get_bind().dialect.name != "postgresql":
+        return True  # один воркер — asyncio.Lock покрывает
+    result = await db.execute(
+        text("SELECT pg_try_advisory_xact_lock(:key)"),
+        {"key": _SYNC_ADVISORY_KEY},
+    )
+    return bool(result.scalar())
+
+
+@asynccontextmanager
+async def sync_lock(db: AsyncSession):
+    """Контекст синхронизации: если другой синк уже выполняется — SyncInProgressError.
+
+    Используется в full_sync и в ручных синках (/api/sla/sync, /api/services/sync),
+    чтобы полный и частичные синки не пересекались между собой.
+    """
+    if _sync_lock.locked():
+        raise SyncInProgressError()
+    if not await _acquire_db_sync_lock(db):
+        raise SyncInProgressError()
+    async with _sync_lock:
+        yield
 
 
 def sla_service_tags(sla: SLA) -> list[str]:
@@ -261,8 +307,13 @@ async def sync_sla_service_links(db: AsyncSession) -> int:
 
 
 async def full_sync(db: AsyncSession) -> dict:
-    """Полная синхронизация: SLA → Services → Links (только живые данные)."""
-    sla_count = await sync_slas(db)
-    svc_count = await sync_services(db)
-    link_count = await sync_sla_service_links(db)
+    """Полная синхронизация: SLA → Services → Links (только живые данные).
+
+    Защищена от параллельных запусков (см. sync_lock): если синк уже идёт —
+    бросается SyncInProgressError (FastAPI-хендлер отдаёт 409).
+    """
+    async with sync_lock(db):
+        sla_count = await sync_slas(db)
+        svc_count = await sync_services(db)
+        link_count = await sync_sla_service_links(db)
     return {"slas": sla_count, "services": svc_count, "links": link_count}

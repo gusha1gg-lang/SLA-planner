@@ -961,6 +961,42 @@ async def test_zabbix_client_service_get_narrow_output():
     assert captured["params"]["selectParents"] == "extend"
 
 
+@pytest.mark.asyncio
+async def test_sync_full_409_when_already_running(auth_headers, monkeypatch):
+    """Параллельный full-синк отклоняется 409 (без ожидания); первый — 200."""
+    import asyncio
+    from app.services import sync as sync_mod
+
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def slow_sla_get():
+        entered.set()
+        await release.wait()
+        return []
+
+    async def empty_service_get():
+        return []
+
+    monkeypatch.setattr(sync_mod.zabbix_client, "sla_get", slow_sla_get)
+    monkeypatch.setattr(sync_mod.zabbix_client, "service_get", empty_service_get)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        first = asyncio.create_task(client.post("/api/sync/full", headers=auth_headers))
+        try:
+            await asyncio.wait_for(entered.wait(), timeout=5)
+            second = await client.post("/api/sync/full", headers=auth_headers)
+        finally:
+            release.set()
+        first_resp = await first
+
+    assert first_resp.status_code == 200
+    assert first_resp.json() == {"slas": 0, "services": 0, "links": 0}
+    assert second.status_code == 409
+    assert "уже выполняется" in second.json()["detail"]
+
+
 # ── Время: единый UTC-формат (иначе браузер трактует naive-время как локальное) ──
 
 

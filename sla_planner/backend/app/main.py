@@ -3,11 +3,13 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.database import init_db
+from app.services.sync import SyncInProgressError
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,6 +38,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── Ошибки: синк уже идёт → 409 с понятным сообщением, а не 500 ──
+
+@app.exception_handler(SyncInProgressError)
+async def sync_in_progress_handler(request: Request, exc: SyncInProgressError):
+    """Параллельный синк отклонить (лок занят другим синком или воркером)."""
+    return JSONResponse(status_code=409, content={"detail": "Синхронизация уже выполняется"})
 
 
 # ── Health & Version ──
