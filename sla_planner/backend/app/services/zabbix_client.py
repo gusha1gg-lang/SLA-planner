@@ -7,6 +7,10 @@ Zabbix JSON-RPC 7.0 Client
 - excluded_downtimes: массив {name, period_from, period_to} — все СТРОКАМИ, unixtime UTC
 - sla.update ПЕРЕЗАПИСЫВАЕТ весь массив excluded_downtimes
 - Связь SLA↔Service через теги (service_tags у SLA, tags у Service)
+- Zabbix 7.0 (проверено живьём, 2026-10-12): sla.get/service.get НЕ принимают `offset`
+  (в отличие от host.get) — классическая offset-пагинация для них невозможна.
+  Поэтому: точечные запросы по id (sla_get_by_id через `slaids`) и узкий `output`
+  (только нужные поля) вместо `extend` — меньше данных и времени, ниже риск таймаута.
 """
 
 import asyncio
@@ -133,10 +137,16 @@ class ZabbixClient:
 
     # ── Read methods ──
 
-    async def sla_get(self, select_excluded_downtimes: bool = True) -> list[dict]:
-        """Получить все SLA (включая service_tags для связи с услугами)."""
+    async def sla_get(self, select_excluded_downtimes: bool = False) -> list[dict]:
+        """Получить все SLA (service_tags — для связи с услугами).
+
+        `output` сужен до полей синка (slaid/name/slo/period) — `extend` таскал
+        лишние поля и увеличивал ответ. excluded_downtimes по умолчанию НЕ тянем:
+        они нужны только точечному `sla_get_by_id`, а в полном синке не используются.
+        offset Zabbix 7.0 для sla.get не принимает (см. докстринг модуля).
+        """
         params: dict[str, Any] = {
-            "output": "extend",
+            "output": ["slaid", "name", "slo", "period"],
             "selectServiceTags": "extend",  # теги для связи SLA↔Service
         }
         if select_excluded_downtimes:
@@ -144,21 +154,32 @@ class ZabbixClient:
         return await self._call("sla.get", params)
 
     async def sla_get_by_id(self, slaid: str) -> dict:
-        """Получить конкретный SLA по ID."""
-        result = await self.sla_get(select_excluded_downtimes=True)
-        sla = next((s for s in result if s["slaid"] == slaid), None)
-        if not sla:
+        """Получить конкретный SLA по ID — точечный запрос через фильтр `slaids`.
+
+        Раньше выкачивал ВСЕ SLA и искал в памяти; теперь Zabbix возвращает только
+        нужный (с полным output + excluded_downtimes для read-modify-write).
+        """
+        result = await self._call("sla.get", {
+            "output": "extend",
+            "slaids": [slaid],
+            "selectServiceTags": "extend",
+            "selectExcludedDowntimes": "extend",
+        })
+        if not result:
             raise ZabbixError(f"SLA {slaid} не найден")
-        return sla
+        return result[0]
 
     async def service_get(self, select_tags: bool = True) -> list[dict]:
         """Получить дерево услуг.
 
-        Иерархия в Zabbix 7.0 хранится в `parents`/`children` — поля
-        `parent_serviceid` у service.get НЕТ. Поэтому запрашиваем
-        selectParents, чтобы сохранить parent-child в БД портала.
+        `output` сужен до полей синка (serviceid/name/algorithm/sortorder/status) —
+        `extend` таскал лишние поля. offset Zabbix 7.0 для service.get не принимает
+        (см. докстринг модуля); иерархия — через `parents` (selectParents), поля
+        `parent_serviceid` у service.get НЕТ.
         """
-        params: dict[str, Any] = {"output": "extend"}
+        params: dict[str, Any] = {
+            "output": ["serviceid", "name", "algorithm", "sortorder", "status"],
+        }
         if select_tags:
             params["selectTags"] = "extend"
         params["selectParents"] = "extend"

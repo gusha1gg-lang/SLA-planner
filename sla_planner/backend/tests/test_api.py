@@ -879,6 +879,88 @@ async def test_zabbix_client_downtime_format():
     assert isinstance(downtime["period_to"], str)
 
 
+# ── Zabbix 7.0: offset не поддерживается для sla.get/service.get (2026-10-12) ──
+# Пагинации нет; вместо неё — узкий output и точечные запросы по id.
+
+
+async def _zabbix_client_with_fake_call(captured: dict):
+    """Вернуть ZabbixClient, у которого _call подменён на записывающий fake."""
+    from app.services.zabbix_client import ZabbixClient
+
+    client = ZabbixClient()
+
+    async def fake_call(method, params):
+        captured["method"] = method
+        captured["params"] = params
+        return captured.get("result", [])
+
+    client._call = fake_call  # type: ignore[method-assign]
+    return client
+
+
+@pytest.mark.asyncio
+async def test_zabbix_client_sla_get_narrow_output_no_downtimes():
+    """sla_get: узкий output; excluded_downtimes по умолчанию не тянем."""
+    captured: dict = {}
+    client = await _zabbix_client_with_fake_call(captured)
+    await client.sla_get()
+
+    assert captured["method"] == "sla.get"
+    assert captured["params"]["output"] == ["slaid", "name", "slo", "period"]
+    assert "selectExcludedDowntimes" not in captured["params"]
+    assert captured["params"]["selectServiceTags"] == "extend"
+
+
+@pytest.mark.asyncio
+async def test_zabbix_client_sla_get_with_downtimes_flag():
+    """sla_get(select_excluded_downtimes=True) добавляет selectExcludedDowntimes."""
+    captured: dict = {}
+    client = await _zabbix_client_with_fake_call(captured)
+    await client.sla_get(select_excluded_downtimes=True)
+
+    assert captured["params"]["selectExcludedDowntimes"] == "extend"
+
+
+@pytest.mark.asyncio
+async def test_zabbix_client_sla_get_by_id_filters_slaid():
+    """sla_get_by_id: точечный запрос по slaid (не выкачка всех SLA)."""
+    captured: dict = {"result": [{"slaid": "42", "name": "ERP", "excluded_downtimes": []}]}
+    client = await _zabbix_client_with_fake_call(captured)
+    sla = await client.sla_get_by_id("42")
+
+    assert sla["slaid"] == "42"
+    assert captured["params"]["slaids"] == ["42"]
+    assert captured["params"]["output"] == "extend"
+    assert captured["params"]["selectExcludedDowntimes"] == "extend"
+
+
+@pytest.mark.asyncio
+async def test_zabbix_client_sla_get_by_id_not_found(monkeypatch):
+    """sla_get_by_id: пустой ответ → ZabbixError."""
+    from app.services.zabbix_client import ZabbixError
+
+    captured: dict = {"result": []}
+    client = await _zabbix_client_with_fake_call(captured)
+
+    with pytest.raises(ZabbixError, match="не найден"):
+        await client.sla_get_by_id("404")
+
+
+@pytest.mark.asyncio
+async def test_zabbix_client_service_get_narrow_output():
+    """service_get: узкий output + selectTags/selectParents."""
+    captured: dict = {}
+    client = await _zabbix_client_with_fake_call(captured)
+    await client.service_get()
+
+    assert captured["method"] == "service.get"
+    assert captured["params"]["output"] == [
+        "serviceid", "name", "algorithm", "sortorder", "status",
+    ]
+    assert captured["params"]["selectTags"] == "extend"
+    assert captured["params"]["selectParents"] == "extend"
+
+
 # ── Время: единый UTC-формат (иначе браузер трактует naive-время как локальное) ──
 
 
