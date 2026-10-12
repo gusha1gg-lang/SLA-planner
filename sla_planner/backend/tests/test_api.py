@@ -541,7 +541,7 @@ async def test_graph_colors_defaults(auth_headers):
         response = await client.get("/api/graph/colors", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
-    assert data == {"sla": "#3B82F6", "service": "#8B5CF6"}
+    assert data == {"sla": "#3B82F6", "service": "#8B5CF6", "nodes": {}}
 
 
 @pytest.mark.asyncio
@@ -559,7 +559,7 @@ async def test_graph_colors_save_and_get(auth_headers):
 
         get = await client.get("/api/graph/colors", headers=auth_headers)
         assert get.status_code == 200
-        assert get.json() == {"sla": "#FF0000", "service": "#00FF00"}
+        assert get.json() == {"sla": "#FF0000", "service": "#00FF00", "nodes": {}}
 
 
 @pytest.mark.asyncio
@@ -577,7 +577,7 @@ async def test_graph_edit_requires_permission(plain_user, auth_headers):
         assert put.status_code == 403
         # цвета не изменились
         get = await client.get("/api/graph/colors", headers=auth_headers)
-        assert get.json() == {"sla": "#3B82F6", "service": "#8B5CF6"}
+        assert get.json() == {"sla": "#3B82F6", "service": "#8B5CF6", "nodes": {}}
 
 
 @pytest.mark.asyncio
@@ -593,6 +593,119 @@ async def test_graph_edit_granted_by_group(plain_user):
             json={"sla": "#112233", "service": "#445566"},
         )
         assert put.status_code == 200, put.text
+
+
+@pytest.mark.asyncio
+async def test_graph_node_color_save_get_reset(auth_headers):
+    """Индивидуальный цвет узла модели: сохранение, чтение и сброс к базовому."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        put = await client.put(
+            "/api/graph/colors/node",
+            headers=auth_headers,
+            json={"model": "1", "node_key": "svc:11", "color": "#AABBCC"},
+        )
+        assert put.status_code == 200, put.text
+        assert put.json() == {"saved": True}
+
+        get = await client.get("/api/graph/colors?model=1", headers=auth_headers)
+        assert get.status_code == 200
+        body = get.json()
+        assert body["nodes"] == {"svc:11": "#AABBCC"}
+        # базовые цвета типов не изменились
+        assert body["sla"] == "#3B82F6"
+        assert body["service"] == "#8B5CF6"
+
+        # цвет другой модели не затрагивается
+        other = await client.get("/api/graph/colors?model=2", headers=auth_headers)
+        assert other.json()["nodes"] == {}
+
+        reset = await client.delete(
+            "/api/graph/colors/node?model=1&node_key=svc:11", headers=auth_headers
+        )
+        assert reset.status_code == 200
+        assert reset.json() == {"cleared": True}
+
+        after = await client.get("/api/graph/colors?model=1", headers=auth_headers)
+        assert after.json()["nodes"] == {}
+
+
+@pytest.mark.asyncio
+async def test_graph_node_color_overrides_per_model(auth_headers):
+    """Цвет одного и того же узла свой у каждой модели (практики)."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        for model, color in (("1", "#111111"), ("2", "#222222")):
+            put = await client.put(
+                "/api/graph/colors/node",
+                headers=auth_headers,
+                json={"model": model, "node_key": "svc:11", "color": color},
+            )
+            assert put.status_code == 200, put.text
+
+        m1 = await client.get("/api/graph/colors?model=1", headers=auth_headers)
+        m2 = await client.get("/api/graph/colors?model=2", headers=auth_headers)
+    assert m1.json()["nodes"] == {"svc:11": "#111111"}
+    assert m2.json()["nodes"] == {"svc:11": "#222222"}
+
+
+@pytest.mark.asyncio
+async def test_graph_node_color_invalid_hex(auth_headers):
+    """Некорректный цвет отклоняется (422)."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        bad = await client.put(
+            "/api/graph/colors/node",
+            headers=auth_headers,
+            json={"model": "1", "node_key": "svc:11", "color": "red"},
+        )
+    assert bad.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_graph_node_color_requires_permission(plain_user):
+    """Пользователь без права graph.edit не может задать цвет узла (403)."""
+    await create_group("Наблюдатели", ["dashboard", "model"], [plain_user.id])
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        put = await client.put(
+            "/api/graph/colors/node",
+            headers=await user_headers(plain_user),
+            json={"model": "1", "node_key": "svc:11", "color": "#AABBCC"},
+        )
+    assert put.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_graph_node_color_model_scope(plain_user):
+    """Право graph.edit действует только на модели своей группы."""
+    await create_group(
+        "SAP", ["model", "graph.edit"], [plain_user.id], all_models=False, model_ids=["1"]
+    )
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        mine = await client.put(
+            "/api/graph/colors/node",
+            headers=await user_headers(plain_user),
+            json={"model": "1", "node_key": "svc:11", "color": "#AABBCC"},
+        )
+        alien = await client.put(
+            "/api/graph/colors/node",
+            headers=await user_headers(plain_user),
+            json={"model": "2", "node_key": "svc:22", "color": "#AABBCC"},
+        )
+        mine_get = await client.get(
+            "/api/graph/colors?model=1", headers=await user_headers(plain_user)
+        )
+        alien_get = await client.get(
+            "/api/graph/colors?model=2", headers=await user_headers(plain_user)
+        )
+    assert mine.status_code == 200, mine.text
+    assert mine_get.status_code == 200
+    assert alien.status_code == 403
+    assert alien_get.status_code == 403
 
 
 # ── Пользователи и группы (admin only) ──

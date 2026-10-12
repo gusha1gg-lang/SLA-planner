@@ -288,3 +288,72 @@ test('Анимации: модалка и карточки дашборда по
   expect(await overlay.evaluate(el => getComputedStyle(el).animationName)).toBe('overlay-in');
   expect(await panel.evaluate(el => getComputedStyle(el).animationName)).toBe('scale-in');
 });
+
+test('Модель здоровья: индивидуальный цвет узла (клик по узлу → пикер → сброс)', async ({ page }) => {
+  await page.goto('http://localhost:3000/');
+  await page.getByPlaceholder('admin / planner / viewer').fill('admin');
+  await page.getByPlaceholder('Пароль').fill('admin123');
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await page.getByRole('button', { name: 'Модель здоровья' }).click();
+  await expect(page.locator('canvas')).toBeVisible();
+
+  // Базовые цвета (fallback) видны в шапке
+  await expect(page.getByText('Цвет SLA по умолчанию')).toBeVisible();
+  await expect(page.getByText('Цвет услуг по умолчанию')).toBeVisible();
+
+  // Выбираем первую услугу в «Структуре модели» — появляется панель цвета узла
+  await page.locator('button[title*="(id="]').first().click();
+  const colorInput = page.getByTitle('Задать этому узлу свой цвет (только для текущей модели)');
+  await expect(colorInput).toBeVisible();
+  await expect(page.getByText('Базовый цвет (свой не задан)')).toBeVisible();
+
+  // Ставим индивидуальный цвет: ждём реальный PUT /api/graph/colors/node
+  const put = page.waitForResponse(
+    r => r.url().includes('/api/graph/colors/node') && r.request().method() === 'PUT'
+  );
+  await colorInput.evaluate((el: HTMLInputElement) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+    setter.call(el, '#ff0000');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  expect((await put).status(), 'индивидуальный цвет сохраняется на бэкенде').toBe(200);
+
+  const resetBtn = page.getByRole('button', { name: 'Сбросить цвет' });
+  try {
+    // Узел должен реально перекраситься на canvas графа (ищем красные пиксели)
+    const countRed = async () => {
+      const perCanvas = await page.locator('canvas').evaluateAll((cs) =>
+        cs.map((c) => {
+          const el = c as HTMLCanvasElement;
+          const ctx = el.getContext('2d');
+          if (!ctx || !el.width || !el.height) return 0;
+          const { data } = ctx.getImageData(0, 0, el.width, el.height);
+          let n = 0;
+          for (let i = 0; i < data.length; i += 4) {
+            if (data[i] > 200 && data[i + 1] < 80 && data[i + 2] < 80 && data[i + 3] > 200) n++;
+          }
+          return n;
+        })
+      );
+      return perCanvas.reduce((a, b) => a + b, 0);
+    };
+    await expect.poll(countRed, { message: 'узел перекрашен в красный на графе', timeout: 8000 })
+      .toBeGreaterThan(0);
+
+    await expect(resetBtn).toBeVisible();
+    await page.screenshot({ path: '/tmp/opencode/ui-verify/node-color.png' });
+
+    // Сброс к базовому цвету: ждём реальный DELETE
+    const del = page.waitForResponse(
+      r => r.url().includes('/api/graph/colors/node') && r.request().method() === 'DELETE'
+    );
+    await resetBtn.click();
+    expect((await del).status()).toBe(200);
+    await expect(page.getByText('Базовый цвет (свой не задан)')).toBeVisible();
+    await expect.poll(countRed, { message: 'базовый цвет вернулся', timeout: 8000 }).toBe(0);
+  } finally {
+    // страховка: не оставляем тестовый цвет на живом узле
+    if (await resetBtn.count()) await resetBtn.click().catch(() => {});
+  }
+});

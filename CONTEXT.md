@@ -49,6 +49,37 @@
 
 ## 3. Что уже сделано (история)
 
+### Цвет каждого узла — свой у каждой модели здоровья (2026-10-12)
+
+Переделан редактор цвета графа: раньше было два **глобальных** цвета (SLA/услуга) на все
+модели; теперь цвет можно задать **каждому узлу** (конкретной услуге и конкретному SLA),
+причём он **свой у каждой модели** (практики) — та же услуга в разных моделях может быть
+разного цвета («одна практика хочет один цвет, другая другой»). Базовые цвета типов остались
+как fallback для непокрашенных узлов.
+
+- **БД:** новая таблица `graph_node_colors` (`model_key`, `node_key` = `svc:<zabbix_serviceid>`
+  | `sla:<zabbix_slaid>`, `color`), unique `(model_key, node_key)` — ключи те же, что у
+  раскладки, поэтому цвета переживают ре-синк/prune. Миграция `006_graph_node_colors`
+  (идемпотентна: в dev таблицу мог завести `create_all`). `graph_node_styles` (базовые цвета)
+  не менялась.
+- **API** (`app/routers/graph.py`): `GET /api/graph/colors?model=<rootId>` теперь отдаёт
+  `{sla, service, nodes: {node_key: color}}` (без `model` — `nodes: {}`); `PUT /api/graph/colors`
+  — базовые цвета типов (без изменений); новые `PUT /api/graph/colors/node`
+  `{model, node_key, color}` и `DELETE /api/graph/colors/node?model=&node_key=` — право
+  `graph.edit` **и только на модели своей группы** (`can_edit_model`).
+- **Фронт:** `GraphPage` держит `nodeColors` (базовые) + `nodeColorOverrides` (Map для текущей
+  модели); цвета грузятся вместе с раскладкой (`getGraphPositions` + `getGraphColors(model)`),
+  перекраска идёт через `applyNodeColors(colors, overrides)`. UX (по выбору пользователя):
+  **клик по узлу → панель «Цвет …»** с color-input и «Сбросить цвет»; запись в БД — debounce
+  400 мс (`saveGraphNodeColor`/`clearGraphNodeColor`). Два верхних пикера подписаны
+  «по умолчанию» (fallback). Тип `GraphColors` в `types/index.ts`.
+- **Тесты:** pytest **59 passed** (+5: сохранение/чтение/сброс цвета узла, разные модели —
+  разные цвета, валидация `#RRGGBB` → 422, право `graph.edit` → 403, область модели → 403);
+  typecheck чист. ui-verify: новый E2E «индивидуальный цвет узла» (клик → пикер → PUT 200 →
+  проверка **красных пикселей на canvas** → сброс → DELETE 200 → цвет вернулся), весь набор
+  **11 passed**.
+- Коммит и пуш — см. ниже.
+
 ### Синк: bulk-upsert + связи O(N+M) + prune по ключам (2026-10-12)
 
 Пункты 3–5 плана оптимизации синка (см. ловушку №29): `app/services/sync.py` переписан.
@@ -782,6 +813,10 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
 - [x] **Переезд на PostgreSQL (2026-10-12)**: dev+прод на Postgres 16 (compose), миграции как
       источник истины, `asyncpg`, фикс boolean-дефолта в `005`, данные пересозданы синком
       (67/711/201). Резервная копия старой SQLite — `/tmp/opencode/db-backup/`.
+- [x] **Цвет каждого узла в модели здоровья (2026-10-12)**: индивидуальный цвет услуги/SLA,
+      свой у каждой модели (см. историю). Таблица `graph_node_colors`, миграция `006`,
+      `PUT/DELETE /api/graph/colors/node`, панель «клик по узлу → пикер» в `GraphPage`.
+      Базовые цвета SLA/услуг остались как fallback. pytest 59 passed; ui-verify 11 passed.
 - [x] **Оптимизация синхронизации (пункты 1–7, 2026-10-12)** — см. ловушку №29.
       Сделано: **3** (bulk-upsert `ON CONFLICT`), **4** (связи O(N+M)), **5** (prune по ключам +
       чанки) — синк 1.35 c → 0.28 c; **2** (пагинация невозможна для sla/service — Zabbix 7.0

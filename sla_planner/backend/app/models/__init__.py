@@ -7,6 +7,7 @@ from app.models.planned_work import PlannedWork
 from app.models.audit_log import AuditLog
 from app.models.graph_node_position import GraphNodePosition
 from app.models.graph_node_style import GraphNodeStyle
+from app.models.graph_node_color import GraphNodeColor
 
 __all__ = [
     "User",
@@ -19,4 +20,5 @@ __all__ = [
     "AuditLog",
     "GraphNodePosition",
     "GraphNodeStyle",
+    "GraphNodeColor",
 ]

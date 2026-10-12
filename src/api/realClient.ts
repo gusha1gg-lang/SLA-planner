@@ -5,7 +5,7 @@
 
 import {
   SLA, Service, PlannedWork, AuditLogEntry, User, Group, ExcludedDowntime,
-  ServiceConfig, SyncResult, SyncStatus,
+  ServiceConfig, SyncResult, SyncStatus, GraphColors,
 } from '../types';
 
 const API_BASE = '/api';
@@ -188,9 +188,10 @@ class RealApiClient {
     );
   }
 
-  // Graph node colors (цвета узлов SLA и услуг, общие для всех)
-  async getGraphColors(): Promise<{ sla: string; service: string }> {
-    return this.request<{ sla: string; service: string }>('/graph/colors');
+  // Graph node colors (базовые цвета типов + индивидуальные цвета узлов модели)
+  async getGraphColors(model?: string): Promise<GraphColors> {
+    const qs = model ? `?model=${encodeURIComponent(model)}` : '';
+    return this.request<GraphColors>(`/graph/colors${qs}`);
   }
 
   async saveGraphColors(colors: { sla: string; service: string }): Promise<{ saved: boolean }> {
@@ -198,6 +199,26 @@ class RealApiClient {
       method: 'PUT',
       body: JSON.stringify(colors),
     });
+  }
+
+  /** Задать цвет конкретного узла модели (node_key = "svc:..." | "sla:..."). */
+  async saveGraphNodeColor(
+    model: string,
+    nodeKey: string,
+    color: string
+  ): Promise<{ saved: boolean }> {
+    return this.request<{ saved: boolean }>('/graph/colors/node', {
+      method: 'PUT',
+      body: JSON.stringify({ model, node_key: nodeKey, color }),
+    });
+  }
+
+  /** Сбросить цвет узла к базовому. */
+  async clearGraphNodeColor(model: string, nodeKey: string): Promise<{ cleared: boolean }> {
+    return this.request<{ cleared: boolean }>(
+      `/graph/colors/node?model=${encodeURIComponent(model)}&node_key=${encodeURIComponent(nodeKey)}`,
+      { method: 'DELETE' }
+    );
   }
 
   // Users (admin)
@@ -351,12 +372,24 @@ export const api = {
     return await realApi.clearGraphPositions(model);
   },
 
-  async getGraphColors(): Promise<{ sla: string; service: string }> {
-    return await realApi.getGraphColors();
+  async getGraphColors(model?: string): Promise<GraphColors> {
+    return await realApi.getGraphColors(model);
   },
 
   async saveGraphColors(colors: { sla: string; service: string }): Promise<{ saved: boolean }> {
     return await realApi.saveGraphColors(colors);
+  },
+
+  async saveGraphNodeColor(
+    model: string,
+    nodeKey: string,
+    color: string
+  ): Promise<{ saved: boolean }> {
+    return await realApi.saveGraphNodeColor(model, nodeKey, color);
+  },
+
+  async clearGraphNodeColor(model: string, nodeKey: string): Promise<{ cleared: boolean }> {
+    return await realApi.clearGraphNodeColor(model, nodeKey);
   },
 
   async getUsers(): Promise<User[]> {

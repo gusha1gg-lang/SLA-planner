@@ -192,3 +192,13 @@ export interface SyncStatus {
   error: string | null;
   scheduler: SyncScheduler;
 }
+
+/** Цвета узлов графа: базовые (по типам) + индивидуальные цвета узлов модели. */
+export interface GraphColors {
+  /** Базовый цвет узлов SLA (по умолчанию для непокрашенных). */
+  sla: string;
+  /** Базовый цвет узлов услуг (по умолчанию для непокрашенных). */
+  service: string;
+  /** Индивидуальные цвета узлов: node_key ("svc:..." | "sla:...") → "#RRGGBB". */
+  nodes: Record<string, string>;
+}

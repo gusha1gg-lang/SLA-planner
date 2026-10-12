@@ -108,9 +108,14 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
   /** vis-id узла, выделенного в прошлый раз (чтобы снять подсветку при смене выбора). */
   const prevSelectedVisIdRef = useRef<string | null>(null);
 
-  /** Цвета узлов SLA и услуг (общие для всех моделей; настраивает admin). */
+  /** Базовые цвета узлов SLA/услуг (общие для всех моделей; fallback для узлов без своего цвета). */
   const [nodeColors, setNodeColors] = useState<NodeColors>({ sla: '#3B82F6', service: '#8B5CF6' });
+  /** Индивидуальные цвета узлов ТЕКУЩЕЙ модели: node_key ("svc:…"/"sla:…") → "#RRGGBB". */
+  const [nodeColorOverrides, setNodeColorOverrides] = useState<Map<string, string>>(new Map());
   const saveColorsTimer = useRef<number | null>(null);
+  /** Отложенная запись индивидуальных цветов узлов текущей модели (debounce). */
+  const pendingNodeColors = useRef<Map<string, string>>(new Map());
+  const saveNodeColorsTimer = useRef<number | null>(null);
 
   const editModeRef = useRef(false);
   useEffect(() => { editModeRef.current = editMode; }, [editMode]);
@@ -199,6 +204,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
     if (!modelId) {
       setSavedLayout(new Map());
       setSavedLayoutModel('');
+      setNodeColorOverrides(new Map());
       return;
     }
     let cancelled = false;
@@ -207,11 +213,19 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
     setSavedLayoutModel(modelId);
     setSavedLayout(null); // режим загрузки
     setEditMode(false);   // смена модели выходит из режима редактирования
-    api.getGraphPositions(modelId)
-      .then(list => {
+    setNodeColorOverrides(new Map()); // цвета прошлой модели не показываем
+    Promise.all([
+      api.getGraphPositions(modelId),
+      api.getGraphColors(modelId).catch(() => null),
+    ])
+      .then(([list, colors]) => {
         if (cancelled) return;
         setSavedLayoutModel(modelId);
         setSavedLayout(new Map(list.map(p => [p.node_key, { x: p.x, y: p.y }])));
+        if (colors) {
+          setNodeColors({ sla: colors.sla || '#3B82F6', service: colors.service || '#8B5CF6' });
+          setNodeColorOverrides(new Map(Object.entries(colors.nodes || {})));
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -353,8 +367,8 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
   // ── Перекраска существующего графа при загрузке/смене цветов ──
   // (renderGraph пересоздаёт сеть только по модели/раскладке; здесь докрашиваем узлы на лету)
   useEffect(() => {
-    applyNodeColors(nodeColors);
-  }, [nodeColors]); // eslint-disable-line react-hooks/exhaustive-deps
+    applyNodeColors(nodeColors, nodeColorOverrides);
+  }, [nodeColors, nodeColorOverrides]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadData = async () => {
     try {
@@ -437,18 +451,21 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
     showToast('success', `Раскладка «${scoped.model.rootName}» сброшена`);
   };
 
-  /** Перекрасить уже созданный граф без пересоздания сети (по vis-id узла). */
-  const applyNodeColors = (colors: NodeColors) => {
+  /** Перекрасить уже созданный граф без пересоздания сети (по vis-id узла).
+   *  Учитывает индивидуальные цвета узлов модели (overrides) поверх базовых. */
+  const applyNodeColors = (colors: NodeColors, overrides: Map<string, string>) => {
     const nodes = nodesRef.current;
     if (!nodes) return;
     nodes.getIds().forEach(id => {
       const node = nodes.get(id) as any;
       if (!node) return;
+      const key = idToKeyRef.current.get(String(id));
+      const custom = key ? overrides.get(key) : undefined;
       let color: ReturnType<typeof slaNodeColor | typeof serviceNodeColor>;
       if (String(id).startsWith('sla-')) {
-        color = slaNodeColor(colors.sla);
+        color = slaNodeColor(custom || colors.sla);
       } else if (String(id).startsWith('svc-')) {
-        color = serviceNodeColor(colors.service, node.shape === 'box');
+        color = serviceNodeColor(custom || colors.service, node.shape === 'box');
       } else {
         return;
       }
@@ -456,11 +473,26 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
     });
   };
 
-  /** Сменить цвет типа узла: мгновенно на графе, в БД — через debounce. */
+  /** Отправить накопленные индивидуальные цвета узлов (debounce). */
+  const flushNodeColors = async () => {
+    const model = scoped.model?.rootId;
+    if (!model) return;
+    const entries = [...pendingNodeColors.current.entries()];
+    pendingNodeColors.current.clear();
+    for (const [key, color] of entries) {
+      try {
+        await api.saveGraphNodeColor(model, key, color);
+      } catch {
+        showToast('error', 'Не удалось сохранить цвет узла');
+      }
+    }
+  };
+
+  /** Сменить БАЗОВЫЙ цвет типа узла: мгновенно на графе, в БД — через debounce. */
   const handleColorChange = (type: 'sla' | 'service', value: string) => {
     const next: NodeColors = { ...nodeColors, [type]: value };
     setNodeColors(next);
-    applyNodeColors(next);
+    applyNodeColors(next, nodeColorOverrides);
     if (saveColorsTimer.current) window.clearTimeout(saveColorsTimer.current);
     saveColorsTimer.current = window.setTimeout(async () => {
       try {
@@ -469,6 +501,34 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
         showToast('error', 'Не удалось сохранить цвета');
       }
     }, 400);
+  };
+
+  /** Задать индивидуальный цвет узла: мгновенно на графе, в БД — через debounce. */
+  const handleNodeColorChange = (nodeKey: string, value: string) => {
+    const next = new Map(nodeColorOverrides);
+    next.set(nodeKey, value);
+    setNodeColorOverrides(next);
+    applyNodeColors(nodeColors, next);
+    pendingNodeColors.current.set(nodeKey, value);
+    if (saveNodeColorsTimer.current) window.clearTimeout(saveNodeColorsTimer.current);
+    saveNodeColorsTimer.current = window.setTimeout(flushNodeColors, 400);
+  };
+
+  /** Сбросить индивидуальный цвет узла к базовому. */
+  const handleNodeColorReset = async (nodeKey: string) => {
+    const next = new Map(nodeColorOverrides);
+    next.delete(nodeKey);
+    setNodeColorOverrides(next);
+    applyNodeColors(nodeColors, next);
+    pendingNodeColors.current.delete(nodeKey);
+    const model = scoped.model?.rootId;
+    if (!model) return;
+    try {
+      await api.clearGraphNodeColor(model, nodeKey);
+      showToast('success', 'Цвет узла сброшен к базовому');
+    } catch {
+      showToast('error', 'Не удалось сбросить цвет узла');
+    }
   };
 
   /** Переключить выбранную услугу (из карточки конфигурации/связанных услуг) —
@@ -492,6 +552,19 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
     }
     return null;
   }, [selectedServiceId, selectedSlaId, scoped.slas, scoped.services]);
+
+  /** Выбранный узел для редактора цвета: node_key, подпись и тип. */
+  const selectedNode = useMemo(() => {
+    if (selectedServiceId) {
+      const svc = scoped.services.find(s => s.zabbix_serviceid === selectedServiceId);
+      if (svc) return { key: `svc:${svc.zabbix_serviceid}`, label: svc.name, type: 'service' as const };
+    }
+    if (selectedSlaId) {
+      const sla = scoped.slas.find(s => s.zabbix_slaid === selectedSlaId);
+      if (sla) return { key: `sla:${sla.zabbix_slaid}`, label: sla.name, type: 'sla' as const };
+    }
+    return null;
+  }, [selectedServiceId, selectedSlaId, scoped.services, scoped.slas]);
 
   /** Подсветить выбранный узел (толще обводка + тень), предыдущий — вернуть к обычному виду. */
   const applySelectionHighlight = (nextVisId: string | null) => {
@@ -593,7 +666,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
           // иначе после «Сохранить» узлы становятся fixed и перестают двигаться даже в редактировании.
           fixed: false,
           shape: 'box',
-          color: slaNodeColor(nodeColors.sla),
+          color: slaNodeColor(nodeColorOverrides.get(key) || nodeColors.sla),
           font: { color: '#ffffff', size: 14, face: 'Inter, sans-serif' },
           borderWidth: 2,
           _defaultBorderWidth: 2,
@@ -617,7 +690,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
           // fixed не ставим: см. комментарий выше (иначе после сохранения узлы «застывают»)
           fixed: false,
           shape: isRoot ? 'box' : 'ellipse',
-          color: serviceNodeColor(nodeColors.service, isRoot),
+          color: serviceNodeColor(nodeColorOverrides.get(key) || nodeColors.service, isRoot),
           font: { color: '#ffffff', size: isRoot ? 13 : 11, face: 'Inter, sans-serif' },
           borderWidth: isRoot ? 3 : 2,
           _defaultBorderWidth: isRoot ? 3 : 2,
@@ -707,6 +780,8 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
 
     // граф пересоздан — вернуть подсветку выбранного узла
     applySelectionHighlight(selectedVisId);
+    // и актуальные цвета (базовые + индивидуальные) для только что созданных узлов
+    applyNodeColors(nodeColors, nodeColorOverrides);
   };
 
   if (loading) {
@@ -734,8 +809,8 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
           </div>
           {canEditGraph && (
             <div className="flex items-center gap-3 border-l border-line pl-3">
-              <label className="flex items-center gap-1.5 text-sm text-muted" title="Цвет SLA — общий для всех моделей">
-                <span className="font-medium">Цвет SLA</span>
+              <label className="flex items-center gap-1.5 text-sm text-muted" title="Базовый цвет SLA — применяется к SLA без своего цвета (общий для всех моделей)">
+                <span className="font-medium">Цвет SLA по умолчанию</span>
                 <input
                   type="color"
                   value={nodeColors.sla}
@@ -743,8 +818,8 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
                   className="w-7 h-7 cursor-pointer rounded border border-line bg-surface"
                 />
               </label>
-              <label className="flex items-center gap-1.5 text-sm text-muted" title="Цвет услуг — общий для всех моделей">
-                <span className="font-medium">Цвет услуг</span>
+              <label className="flex items-center gap-1.5 text-sm text-muted" title="Базовый цвет услуг — применяется к услугам без своего цвета (общий для всех моделей)">
+                <span className="font-medium">Цвет услуг по умолчанию</span>
                 <input
                   type="color"
                   value={nodeColors.service}
@@ -846,6 +921,35 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
             )}
           </div>
 
+          {canEditGraph && selectedNode && (
+            <div className="flex items-center gap-3 flex-wrap bg-surface rounded-xl shadow-card border border-line px-3 py-2">
+              <span className="text-sm text-content">
+                Цвет {selectedNode.type === 'sla' ? 'SLA' : 'услуги'} «<b>{selectedNode.label}</b>»:
+              </span>
+              <input
+                type="color"
+                value={nodeColorOverrides.get(selectedNode.key)
+                  || (selectedNode.type === 'sla' ? nodeColors.sla : nodeColors.service)}
+                onChange={e => handleNodeColorChange(selectedNode.key, e.target.value)}
+                className="w-8 h-8 cursor-pointer rounded border border-line bg-surface"
+                title="Задать этому узлу свой цвет (только для текущей модели)"
+              />
+              {nodeColorOverrides.has(selectedNode.key) ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={Undo2}
+                  onClick={() => handleNodeColorReset(selectedNode.key)}
+                  title="Вернуть базовый цвет типа"
+                >
+                  Сбросить цвет
+                </Button>
+              ) : (
+                <span className="text-xs text-faint">Базовый цвет (свой не задан)</span>
+              )}
+            </div>
+          )}
+
           <p className="text-xs text-muted">
             {editMode ? (
               <>
@@ -855,7 +959,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
             ) : canEditGraph ? (
               <>
                 <Lock className="mr-1 text-faint" />
-                Граф в режиме просмотра. Нажмите «Редактировать граф», чтобы перемещать узлы.
+                Граф в режиме просмотра. Нажмите «Редактировать граф», чтобы перемещать узлы, либо кликните узел — чтобы задать ему свой цвет (у каждой модели цвета свои).
               </>
             ) : (
               <>
