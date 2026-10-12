@@ -70,7 +70,15 @@
 
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 
-  --animate-fade-in-up: fade-in-up 0.4s cubic-bezier(0.2, 0, 0, 1) both;
+  /*
+   * fill только `backwards`, не `both`: при `both` после окончания браузер удерживает
+   * итоговый `transform` (числовую матрицу, а не `none`) — и элемент становится содержащим
+   * блоком для `position: fixed` потомков. Обёртка страницы (`p-6 animate-fade-in-up`) так
+   * ломала модалки: оверлей `fixed inset-0` позиционировался относительно блока страницы,
+   * а не экрана, и панель «Создать работу» уходила верхом за край экрана.
+   * С `backwards` после анимации computed transform снова `none`. Ловушка №32, CONTEXT.md.
+   */
+  --animate-fade-in-up: fade-in-up 0.4s cubic-bezier(0.2, 0, 0, 1) backwards;
   --animate-fade-in: fade-in 0.24s cubic-bezier(0.2, 0, 0, 1) both;
   --animate-scale-in: scale-in 0.26s cubic-bezier(0.2, 0, 0, 1) both;
   --animate-overlay-in: overlay-in 0.22s ease-out both;
@@ -116,12 +124,18 @@
   --shadow-card-hover: 0 8px 20px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
   --shadow-pop: 0 20px 48px rgba(0, 0, 0, 0.6);
 
-  --animate-fade-in-up: fade-in-up 0.32s cubic-bezier(0.2, 0, 0, 1) both;
+  --animate-fade-in-up: fade-in-up 0.32s cubic-bezier(0.2, 0, 0, 1) backwards;
 }
 
+/*
+ * Конечный кадр — `transform: none` (без матрицы), а сама анимация объявлена с fill
+ * `backwards`, см. комментарий к `--animate-fade-in-up` выше: иначе после окончания у
+ * предка остаётся computed transform, и `position: fixed` внутри него (оверлей модалки)
+ * привязывается к блоку страницы, а не к экрану. Ловушка №32, CONTEXT.md.
+ */
 @keyframes fade-in-up {
   from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes fade-in {
@@ -208,10 +222,14 @@
   background-clip: padding-box;
 }
 
-/* Тосты и прочие появления. */
+/*
+ * Тосты и прочие появления.
+ * `.animate-slide-in` намеренно без fill-режима (по умолчанию `none`) — после окончания
+ * у элемента не остаётся transform, который ломал бы `position: fixed` у потомков (см. выше).
+ */
 @keyframes slide-in {
   from { opacity: 0; transform: translateX(16px); }
-  to { opacity: 1; transform: translateX(0); }
+  to { opacity: 1; transform: none; }
 }
 
 .animate-slide-in {
@@ -222,9 +240,11 @@
  * Каскадное появление содержимого: контейнеру `.stagger` — дети появляются по очереди.
  * Используется на карточках/списках (дашборд, работы), чтобы страница «оживала» мягко.
  * При `prefers-reduced-motion` глобальный слой обнуляет длительность.
+ * Fill `backwards`: хватает, чтобы держать `from` во время delay, но после окончания
+ * элемент возвращается к базовым стилям и не оставляет containing block для fixed.
  */
 .stagger > * {
-  animation: fade-in-up 0.4s cubic-bezier(0.2, 0, 0, 1) both;
+  animation: fade-in-up 0.4s cubic-bezier(0.2, 0, 0, 1) backwards;
 }
 
 .stagger > *:nth-child(1) { animation-delay: 0ms; }

@@ -548,3 +548,54 @@ test('Плановые работы: форма цикла (повтор еже�
 
   await page.screenshot({ path: '/tmp/opencode/ui-verify/work-series-form.png' });
 });
+
+test('Плановые работы: модалка создания целиком помещается в экран (ловушка №32)', async ({ page }) => {
+  // Короткий экран — именно на нём обрезалась шапка модалки.
+  await page.setViewportSize({ width: 1280, height: 640 });
+  await page.goto('http://localhost:3000/');
+  await page.getByPlaceholder('admin / planner / viewer').fill('admin');
+  await page.getByPlaceholder('Пароль').fill('admin123');
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await page.getByRole('button', { name: 'Плановые работы' }).click();
+  await expect(page.getByRole('heading', { name: 'Плановые работы', level: 1 })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Создать работу' }).click();
+  await expect(page.getByRole('heading', { name: 'Новая плановая работа' })).toBeVisible();
+
+  const overlay = page
+    .locator('div.fixed.inset-0')
+    .filter({ has: page.getByRole('heading', { name: 'Новая плановая работа' }) });
+  const panel = overlay.locator(':scope > div').first();
+
+  // Пока идёт анимация перехода страницы (fade-in-up), предок ещё держит transform, и
+  // fixed-оверлей временно считается от него. Ждём её конца, как это делает пользователь.
+  await page.waitForFunction(() => {
+    const wrapper = document.querySelector('.p-6.animate-fade-in-up');
+    return !wrapper || wrapper.getAnimations().every(a => a.playState === 'finished');
+  });
+
+  // Проверка геометрии: оверлей обязан ложиться ровно на экран (иначе fixed позиционируется
+  // от блока страницы), а панель — целиком попадать в него: шапка и подвал видны без прокрутки.
+  const expectInScreen = async (label: string) => {
+    const vp = page.viewportSize()!;
+    const ov = await overlay.boundingBox();
+    const pn = await panel.boundingBox();
+    expect(ov, `${label}: оверлей не найден`).not.toBeNull();
+    expect(pn, `${label}: панель не найдена`).not.toBeNull();
+    expect(Math.round(ov!.y), `${label}: оверлей не на весь экран`).toBe(0);
+    expect(Math.round(ov!.height), `${label}: оверлей не на весь экран`).toBe(vp.height);
+    expect(Math.round(pn!.y), `${label}: верх панели выше экрана`).toBeGreaterThanOrEqual(0);
+    expect(Math.round(pn!.y + pn!.height), `${label}: низ панели ниже экрана`).toBeLessThanOrEqual(vp.height);
+    expect(Math.round(pn!.x), `${label}: левый край панели`).toBeGreaterThanOrEqual(0);
+    expect(Math.round(pn!.x + pn!.width), `${label}: правый край панели`).toBeLessThanOrEqual(vp.width);
+  };
+
+  await expectInScreen('обычная форма');
+
+  // С формой цикла (дни недели/время/длительность) — тоже целиком.
+  await page.getByText('Повторять еженедельно (цикл)').click();
+  await expect(page.getByText('Дни недели *')).toBeVisible();
+  await expectInScreen('форма цикла');
+
+  await page.screenshot({ path: '/tmp/opencode/ui-verify/work-form-fit.png' });
+});
