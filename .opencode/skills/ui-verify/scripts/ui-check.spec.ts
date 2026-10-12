@@ -357,3 +357,72 @@ test('Модель здоровья: индивидуальный цвет уз�
     if (await resetBtn.count()) await resetBtn.click().catch(() => {});
   }
 });
+
+test('Модель здоровья: под услугой на графе виден статус (OK и критичность)', async ({ page }) => {
+  await page.goto('http://localhost:3000/');
+  await page.getByPlaceholder('admin / planner / viewer').fill('admin');
+  await page.getByPlaceholder('Пароль').fill('admin123');
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await page.getByRole('button', { name: 'Модель здоровья' }).click();
+
+  // Модель с известными проблемами в живом Zabbix (Q3MET ТЭСЦ-1: есть и OK, и «Высокая»).
+  const select = page.locator('select');
+  await expect(select).toBeVisible();
+  const options = select.locator('option');
+  let target: string | null = null;
+  for (let i = 0, n = await options.count(); i < n; i++) {
+    const text = (await options.nth(i).innerText()).trim();
+    if (text.startsWith('Q3MET ТЭСЦ-1 ')) { target = await options.nth(i).getAttribute('value'); break; }
+  }
+  expect(target, 'в списке моделей есть Q3MET ТЭСЦ-1').not.toBeNull();
+  await select.selectOption(target!);
+  await expect(page.locator('canvas')).toBeVisible();
+
+  // Строка статуса рисуется на canvas. Текст мелкий и антиалиасится о тёмный фон, поэтому
+  // проверяем адресно: приближаемся к каждому узлу-услуге и ищем пиксели цвета его статуса.
+  // Узлы берём из dev-хука графа (window.__graphNetwork — только в DEV).
+  const perNode = await page.evaluate(async () => {
+    const net = (window as any).__graphNetwork;
+    type Row = { label: string; boldColor?: string; green: number; red: number };
+    const rows: Row[] = [];
+    for (const id of Object.keys(net.body.nodes)) {
+      const node = net.body.nodes[id];
+      const label: string = node.options?.label ?? '';
+      if (label.includes('\n') === false) continue; // SLA-узлы статуса не несут
+      const pos = net.getPositions([id])[id];
+      net.moveTo({ position: { x: pos.x, y: pos.y }, scale: 2.5, animation: false });
+      await new Promise((r) => setTimeout(r, 140));
+      const c = net.canvas.frame.canvas as HTMLCanvasElement;
+      const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+      let green = 0;
+      let red = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3] < 200) continue;
+        const r = d[i], g = d[i + 1], b = d[i + 2];
+        if (Math.abs(r - 0x59) <= 50 && Math.abs(g - 0xdb) <= 50 && Math.abs(b - 0x8f) <= 50) green++;
+        if (Math.abs(r - 0xe9) <= 50 && Math.abs(g - 0x76) <= 50 && Math.abs(b - 0x59) <= 50) red++;
+      }
+      rows.push({ label, boldColor: node.labelModule?.fontOptions?.bold?.color, green, red });
+    }
+    return rows;
+  });
+
+  expect(perNode.length, 'в модели есть услуги со статусом').toBeGreaterThan(0);
+  let okCount = 0;
+  let problemCount = 0;
+  for (const row of perNode) {
+    if (row.label.includes('<b>OK</b>')) {
+      okCount++;
+      expect(row.boldColor, `цвет строки OK у «${row.label}»`).toBe('#59DB8F');
+      expect(row.green, `зелёная строка статуса видна у «${row.label}»`).toBeGreaterThan(0);
+    } else if (/<b>Высокая<\/b>/.test(row.label)) {
+      problemCount++;
+      expect(row.boldColor, `цвет строки «Высокая» у «${row.label}»`).toBe('#E97659');
+      expect(row.red, `красная строка статуса видна у «${row.label}»`).toBeGreaterThan(0);
+    }
+  }
+  expect(okCount, 'есть услуги в статусе OK').toBeGreaterThan(0);
+  expect(problemCount, 'есть услуги в статусе «Высокая»').toBeGreaterThan(0);
+
+  await page.screenshot({ path: '/tmp/opencode/ui-verify/node-status.png' });
+});

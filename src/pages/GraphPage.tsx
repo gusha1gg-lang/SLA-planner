@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, Lock, MousePointer2, Network as NetworkIcon, PenLine, Save, Undo2, X } from 'lucide-react';
 import { api } from '../api/client';
 import { SLA, Service } from '../types';
-import ServiceConfigCard from '../components/ServiceConfigCard';
+import ServiceConfigCard, { statusLabel, statusColor } from '../components/ServiceConfigCard';
 import SLADetailCard from '../components/SLADetailCard';
 import ModelTree from '../components/ModelTree';
 import { DataSet } from 'vis-data';
@@ -684,14 +684,28 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
         const savedPos = saved.get(key);
         return {
           id,
-          label: svc.name,
+          // Вторая строка — статус услуги (OK / степень критичности), как в дереве структуры модели:
+          // мельче и цветом критичности Zabbix (font.multi:'html', <b> выделяет строку статуса).
+          label: `${svc.name}\n<b>${statusLabel(svc.status)}</b>`,
           x: savedPos ? savedPos.x : posX.get(svc.zabbix_serviceid)!,
           y: savedPos ? savedPos.y : depth * spacingY,
           // fixed не ставим: см. комментарий выше (иначе после сохранения узлы «застывают»)
           fixed: false,
           shape: isRoot ? 'box' : 'ellipse',
           color: serviceNodeColor(nodeColorOverrides.get(key) || nodeColors.service, isRoot),
-          font: { color: '#ffffff', size: isRoot ? 13 : 11, face: 'Inter, sans-serif' },
+          font: {
+            color: '#ffffff',
+            size: isRoot ? 13 : 11,
+            face: 'Inter, sans-serif',
+            multi: 'html',
+            // Строка статуса (в <b>): мельче, по центру и цветом критичности.
+            bold: {
+              color: statusColor(svc.status),
+              size: isRoot ? 12 : 10,
+              face: 'Inter, sans-serif',
+              vadjust: 3,
+            },
+          },
           borderWidth: isRoot ? 3 : 2,
           _defaultBorderWidth: isRoot ? 3 : 2,
           shadow: true,
@@ -749,6 +763,7 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
 
     const network = new Network(containerRef.current, { nodes, edges }, options);
     networkRef.current = network;
+    if ((import.meta as any).env?.DEV) (window as any).__graphNetwork = network; // dev-хук для UI-тестов
     network.fit({ animation: false });
 
     network.on('click', (params: any) => {
