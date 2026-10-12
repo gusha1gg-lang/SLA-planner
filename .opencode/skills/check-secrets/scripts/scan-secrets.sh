@@ -19,6 +19,8 @@ SELF_NAME=$(basename "$0")
 for f in $STAGED; do
   # не сканируем сам скрипт сканера (его паттерны матчатся с собственным текстом)
   [ "$(basename "$f")" = "$SELF_NAME" ] && continue
+  # *.example (.env.example и т.п.) — заведомые плейсхолдеры: по правилам проекта их коммитим
+  case "$f" in *.example) continue;; esac
   if printf '%s' "$f" | grep -qE "$FORBIDDEN"; then
     echo "ЗАПРЕЩЁН к коммиту: $f (env/opencode.json/дамп)"
     FOUND=1

@@ -457,7 +457,10 @@ sla_get/service_get, slaids-фильтр, not-found).
   `scripts/zabbix_client.py` (creds из env/.env, вызовы service/host/trigger).
 - **check-secrets** — сканер staged-изменений перед коммитом (`scripts/scan-secrets.sh`):
   паттерны ключей/токенов + запрет на стейдж `.env`, `opencode.json`, `zabbix_dump.json`
-  (профилактика повторения инцидента с утёкшим API-ключом).
+  (профилактика повторения инцидента с утёкшим API-ключом). Файлы `*.example`
+  (в первую очередь `.env.example` с плейсхолдерами) не сканируются на паттерны — их
+  по правилам проекта коммитим; правка 2026-10-12 (раньше `ZABBIX_API_TOKEN=your-…`
+  давал ложное срабатывание).
 - **ui-verify** — Playwright E2E реального UI (`scripts/ui-check.spec.ts`): логин viewer →
   «Модель здоровья» → граф (canvas) → дерево → клик по узлу → детали, скриншот в
   `/tmp/opencode/ui-verify/model-health.png`; запуск `npx playwright test
