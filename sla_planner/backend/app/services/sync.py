@@ -23,10 +23,12 @@ import asyncio
 import json
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from sqlalchemy import delete, func, insert, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import async_session
 from app.models.sla import SLA
 from app.models.service import Service
 from app.models.sla_service_link import SlaServiceLink
@@ -317,3 +319,62 @@ async def full_sync(db: AsyncSession) -> dict:
         svc_count = await sync_services(db)
         link_count = await sync_sla_service_links(db)
     return {"slas": sla_count, "services": svc_count, "links": link_count}
+
+
+# ── Фоновый запуск полного синка (пункт 6 плана оптимизации) ──
+# POST /api/sync/full отвечает сразу (202), а сам синк выполняется в фоновой
+# asyncio-задаче с собственной сессией; прогресс отдаёт GET /api/sync/status.
+# Состояние держим на процесс (у нас один воркер uvicorn; межпроцессный
+# pg_advisory_lock защищает от параллельных синков между воркерами).
+_sync_task: asyncio.Task | None = None
+_sync_status: dict = {
+    "status": "idle",  # idle | running | ok | error | skipped
+    "started_at": None,
+    "finished_at": None,
+    "result": None,
+    "error": None,
+}
+
+
+def get_sync_status() -> dict:
+    """Копия статуса фонового синка (для GET /api/sync/status)."""
+    return dict(_sync_status)
+
+
+async def _run_background_sync() -> None:
+    """Выполнить полный синк в фоне: своя сессия, коммит в конце, статус в _sync_status."""
+    global _sync_status
+    _sync_status.update({
+        "status": "running",
+        "started_at": datetime.now(timezone.utc),
+        "finished_at": None,
+        "result": None,
+        "error": None,
+    })
+    try:
+        async with async_session() as session:
+            result = await full_sync(session)
+            await session.commit()
+        _sync_status["status"] = "ok"
+        _sync_status["result"] = result
+    except SyncInProgressError:
+        # Другой синк уже выполняется (например, ручной) — не ошибка, а пропуск.
+        _sync_status["status"] = "skipped"
+        _sync_status["error"] = "Синхронизация уже выполнялась"
+    except Exception as e:  # noqa: BLE001 — статусом фиксируем, наверх не пускаем
+        logger.exception("Background sync failed")
+        _sync_status["status"] = "error"
+        _sync_status["error"] = str(e)
+    finally:
+        _sync_status["finished_at"] = datetime.now(timezone.utc)
+
+
+def start_full_sync() -> bool:
+    """Запустить полный синк в фоне. True — синк стартовал; False — уже идёт."""
+    global _sync_task
+    task = _sync_task
+    if task and not task.done():
+        return False
+    task = asyncio.create_task(_run_background_sync())
+    _sync_task = task
+    return True

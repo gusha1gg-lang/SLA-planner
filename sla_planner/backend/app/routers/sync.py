@@ -1,25 +1,43 @@
-"""Sync router — полная синхронизация с Zabbix (SLA + Services + Links)."""
+"""Sync router — полная синхронизация с Zabbix (SLA + Services + Links).
 
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
+Полный синк выполняется в фоне: POST /full отвечает мгновенно (202), а прогресс
+и результат отдаёт GET /status. Параллельные синки отклоняются (409).
+"""
 
-from app.database import get_db
+from fastapi import APIRouter, Depends, HTTPException
+
 from app.models.user import User
 from app.permissions import P_SYNC, require_permission
-from app.services.sync import full_sync
+from app.services.sync import get_sync_status, start_full_sync
+from app.timeutil import iso_utc
 
 router = APIRouter()
 
 
-@router.post("/full")
+@router.post("/full", status_code=202)
 async def sync_full(
-    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission(P_SYNC)),
 ):
     """
-    Полная синхронизация с Zabbix: SLA → услуги → связи.
-    Только живые данные: пропавшее в Zabbix удаляется из БД.
+    Запустить полный синк с Zabbix в фоне: SLA → услуги → связи.
+    Ответ приходит сразу (202), результат ждите через GET /api/sync/status.
     Право: sync.run (у admin оно есть по умолчанию).
     """
-    result = await full_sync(db)
-    return result
+    if not start_full_sync():
+        raise HTTPException(status_code=409, detail="Синхронизация уже выполняется")
+    return {"status": "started"}
+
+
+@router.get("/status")
+async def sync_status(
+    current_user: User = Depends(require_permission(P_SYNC)),
+):
+    """
+    Статус фонового синка: idle | running | ok | error | skipped.
+    При ok — result {slas, services, links}; при error — текст ошибки.
+    Право: sync.run.
+    """
+    state = get_sync_status()
+    state["started_at"] = iso_utc(state["started_at"])
+    state["finished_at"] = iso_utc(state["finished_at"])
+    return state

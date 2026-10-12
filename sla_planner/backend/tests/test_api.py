@@ -962,8 +962,8 @@ async def test_zabbix_client_service_get_narrow_output():
 
 
 @pytest.mark.asyncio
-async def test_sync_full_409_when_already_running(auth_headers, monkeypatch):
-    """Параллельный full-синк отклоняется 409 (без ожидания); первый — 200."""
+async def test_sync_full_background_and_409(auth_headers, monkeypatch):
+    """Full-синк: POST → 202 + фон; статус running; параллельный запуск → 409; итог ok."""
     import asyncio
     from app.services import sync as sync_mod
 
@@ -983,18 +983,31 @@ async def test_sync_full_409_when_already_running(auth_headers, monkeypatch):
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        first = asyncio.create_task(client.post("/api/sync/full", headers=auth_headers))
-        try:
-            await asyncio.wait_for(entered.wait(), timeout=5)
-            second = await client.post("/api/sync/full", headers=auth_headers)
-        finally:
-            release.set()
-        first_resp = await first
+        # 1) Запуск: мгновенный 202, а сам синк выполняется в фоне
+        started = await client.post("/api/sync/full", headers=auth_headers)
+        assert started.status_code == 202
+        assert started.json() == {"status": "started"}
 
-    assert first_resp.status_code == 200
-    assert first_resp.json() == {"slas": 0, "services": 0, "links": 0}
-    assert second.status_code == 409
-    assert "уже выполняется" in second.json()["detail"]
+        await asyncio.wait_for(entered.wait(), timeout=5)
+
+        # 2) Пока синк идёт — статус running, повторный запуск отклоняется 409
+        running = await client.get("/api/sync/status", headers=auth_headers)
+        assert running.status_code == 200
+        assert running.json()["status"] == "running"
+        second = await client.post("/api/sync/full", headers=auth_headers)
+        assert second.status_code == 409
+
+        # 3) Даём синку завершиться и дожидаемся ok
+        release.set()
+        state = None
+        for _ in range(100):
+            state = (await client.get("/api/sync/status", headers=auth_headers)).json()
+            if state["status"] in ("ok", "error", "skipped"):
+                break
+            await asyncio.sleep(0.05)
+
+    assert state is not None and state["status"] == "ok"
+    assert state["result"] == {"slas": 0, "services": 0, "links": 0}
 
 
 # ── Время: единый UTC-формат (иначе браузер трактует naive-время как локальное) ──

@@ -3,7 +3,10 @@
  * Работает ТОЛЬКО с живыми данными: мок/seed-данные запрещены.
  */
 
-import { SLA, Service, PlannedWork, AuditLogEntry, User, Group, ExcludedDowntime, ServiceConfig } from '../types';
+import {
+  SLA, Service, PlannedWork, AuditLogEntry, User, Group, ExcludedDowntime,
+  ServiceConfig, SyncResult, SyncStatus,
+} from '../types';
 
 const API_BASE = '/api';
 
@@ -61,10 +64,22 @@ class RealApiClient {
     return this.request<{ sla_id: number; service_id: number }[]>('/sla/service-links');
   }
 
-  async syncFull(): Promise<{ slas: number; services: number; links: number }> {
-    return this.request<{ slas: number; services: number; links: number }>('/sync/full', {
-      method: 'POST',
-    });
+  /** Полный синк с Zabbix: запуск фоновый (202), результат ждём через /sync/status.
+   *  При уже идущем синке бэкенд отвечает 409 — ошибка с понятным текстом. */
+  async syncFull(): Promise<SyncResult> {
+    await this.request<{ status: 'started' }>('/sync/full', { method: 'POST' });
+    // Поллинг статуса фонового синка: до 5 минут по 1 с, дальше — таймаут.
+    for (let attempt = 0; attempt < 300; attempt++) {
+      const st = await this.request<SyncStatus>('/sync/status');
+      if (st.status === 'ok') {
+        return st.result ?? { slas: 0, services: 0, links: 0 };
+      }
+      if (st.status === 'error' || st.status === 'skipped') {
+        throw new Error(st.error || `Синхронизация завершилась: ${st.status}`);
+      }
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    throw new Error('Таймаут ожидания синхронизации');
   }
 
   // Excluded downtimes (живые данные из Zabbix)

@@ -101,16 +101,22 @@ test('Время: аудит-лог показывает московское в
   await page.getByRole('button', { name: 'Аудит-лог' }).click();
   await expect(page.getByRole('heading', { name: 'Аудит-лог', level: 1 })).toBeVisible();
 
+  // На свежей БД аудит-лог пуст — сверять нечего (тест данных-зависимый).
+  const token = await page.evaluate(() => localStorage.getItem('sla_token'));
+  const resp = await page.request.get('http://localhost:8000/api/audit/?limit=1', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const items = await resp.json();
+  if (!Array.isArray(items) || items.length === 0) {
+    test.skip(true, 'аудит-лог пуст — нет записей для сверки времени');
+  }
+
   // Сверяем время первой строки с ISO-моментом той же записи из API: в UI должно быть
   // МСК (UTC+3). До фикса бэкенд отдавал naive-UTC, и браузер показывал время на 3 ч назад.
   const firstRow = page.locator('table tbody tr').first();
   const displayed = (await firstRow.locator('td').nth(1).innerText()).trim();
 
-  const token = await page.evaluate(() => localStorage.getItem('sla_token'));
-  const resp = await page.request.get('http://localhost:8000/api/audit/?limit=1', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const iso: string = (await resp.json())[0].created_at;
+  const iso: string = items[0].created_at;
   // naive-строку (если бэкенд снова сломается) трактуем как UTC — так поймаем регресс.
   const isoUtc = /(Z|[+-]\d{2}:\d{2})$/.test(iso) ? iso : `${iso}Z`;
   const parts = new Intl.DateTimeFormat('en-GB', {

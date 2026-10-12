@@ -167,3 +167,20 @@ export interface ZabbixService {
   status: string;
   tags: { tag: string; value: string }[];
 }
+
+/** Результат полного синка Zabbix (см. GET /api/sync/status при status=ok). */
+export interface SyncResult {
+  slas: number;
+  services: number;
+  links: number;
+}
+
+/** Статус фонового полного синка. */
+export interface SyncStatus {
+  /** idle | running | ok | error | skipped */
+  status: 'idle' | 'running' | 'ok' | 'error' | 'skipped';
+  started_at: string | null;
+  finished_at: string | null;
+  result: SyncResult | null;
+  error: string | null;
+}
