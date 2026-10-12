@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { SLA, Service, PlannedWork } from '../types';
 import { useToast } from '../context/ToastContext';
 import { formatDate } from '../time';
+import WorksCalendar from '../components/WorksCalendar';
 
 interface DashboardPageProps {
   onNavigate: (page: string, params?: Record<string, string>) => void;
@@ -162,6 +163,12 @@ export default function DashboardPage({ onNavigate }: DashboardPageProps) {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Calendar of planned works */}
+      <div>
+        <h2 className="text-lg font-semibold mb-3">Календарь плановых работ</h2>
+        <WorksCalendar works={works} onWorkClick={() => onNavigate('works')} />
       </div>
 
       {/* SLA list */}

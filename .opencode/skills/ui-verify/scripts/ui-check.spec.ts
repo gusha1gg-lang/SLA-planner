@@ -470,3 +470,48 @@ test('Модель здоровья: SLA модели — в панели спр
 
   await page.screenshot({ path: '/tmp/opencode/ui-verify/sla-panel.png' });
 });
+
+test('Дашборд: календарь плановых работ (месяц, навигация, клик → работы)', async ({ page }) => {
+  await page.goto('http://localhost:3000/');
+  await page.getByPlaceholder('admin / planner / viewer').fill('admin');
+  await page.getByPlaceholder('Пароль').fill('admin123');
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await expect(page.getByRole('heading', { name: 'Дашборд', level: 1 })).toBeVisible();
+
+  // Блок календаря и сетка дней недели.
+  await expect(page.getByRole('heading', { name: 'Календарь плановых работ' })).toBeVisible();
+  for (const d of ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']) {
+    await expect(page.getByText(d, { exact: true })).toBeVisible();
+  }
+
+  // Навигация по месяцам: заголовок месяца (h3 рядом с кнопкой «назад») меняется.
+  const monthHeading = page.locator('button[aria-label="Предыдущий месяц"] + h3');
+  const before = await monthHeading.innerText();
+  await page.getByRole('button', { name: 'Следующий месяц' }).click();
+  await expect(monthHeading).not.toHaveText(before);
+
+  // Если в месяце есть работы — клик по работе ведёт на «Плановые работы».
+  const chips = page.locator('button[title^="Открыть в «Плановых работах»"]');
+  if (await chips.count() > 0) {
+    await chips.first().click();
+    await expect(page.getByRole('heading', { name: 'Плановые работы', level: 1 })).toBeVisible();
+  }
+
+  await page.screenshot({ path: '/tmp/opencode/ui-verify/dashboard-calendar.png' });
+});
+
+test('Плановые работы: режим «Календарь» (общий компонент WorksCalendar)', async ({ page }) => {
+  await page.goto('http://localhost:3000/');
+  await page.getByPlaceholder('admin / planner / viewer').fill('admin');
+  await page.getByPlaceholder('Пароль').fill('admin123');
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await page.getByRole('button', { name: 'Плановые работы' }).click();
+  await expect(page.getByRole('heading', { name: 'Плановые работы', level: 1 })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Календарь' }).click();
+  await expect(page.getByRole('button', { name: 'Предыдущий месяц' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Следующий месяц' })).toBeVisible();
+  await expect(page.getByText('Пн', { exact: true })).toBeVisible();
+
+  await page.screenshot({ path: '/tmp/opencode/ui-verify/works-calendar.png' });
+});

@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Calendar, ChevronLeft, ChevronRight, List, Loader2, Pencil, Plus, Trash2, UploadCloud, X } from 'lucide-react';
+import { AlertTriangle, Calendar, List, Loader2, Pencil, Plus, Trash2, UploadCloud, X } from 'lucide-react';
 import { api } from '../api/client';
 import { SLA, Service, PlannedWork, WorkStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { PERMISSIONS } from '../permissions';
 import { useToast } from '../context/ToastContext';
-import { formatDateTimeShort, toMskInputValue, mskInputToDate, mskDateKey } from '../time';
+import { formatDateTimeShort, toMskInputValue, mskInputToDate } from '../time';
 import ConfirmModal from '../components/ConfirmModal';
 import Pagination from '../components/Pagination';
+import WorksCalendar from '../components/WorksCalendar';
 import Button from '../components/ui/Button';
 import { useModalA11y } from '../hooks/useModalA11y';
 
@@ -69,22 +70,6 @@ export default function WorksPage() {
       await loadData();
     }
     setDeleteModal({ isOpen: false, workId: null });
-  };
-
-  // Calendar helpers
-  const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
-  const [calMonth, setCalMonth] = useState(new Date().getMonth());
-  const [calYear, setCalYear] = useState(new Date().getFullYear());
-  const daysInMonth = getDaysInMonth(calYear, calMonth);
-  const firstDayOfWeek = new Date(calYear, calMonth, 1).getDay() || 7;
-
-  const getWorksForDay = (day: number) => {
-    return works.filter(w => {
-      const key = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const start = mskDateKey(w.started_at);
-      const end = mskDateKey(w.ended_at);
-      return start !== '' && end !== '' && start <= key && key <= end;
-    });
   };
 
   if (loading) {
@@ -199,44 +184,7 @@ export default function WorksPage() {
         </div>
       ) : (
         /* Calendar View */
-        <div className="bg-surface rounded-xl shadow-card border border-line p-5">
-          <div className="flex items-center justify-between mb-4">
-            <button onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else setCalMonth(calMonth - 1); }}
-              className="p-2 hover:bg-surface-2 rounded-lg transition-colors"><ChevronLeft /></button>
-            <h3 className="text-lg font-semibold">
-              {new Date(calYear, calMonth).toLocaleString('ru-RU', { month: 'long', year: 'numeric' })}
-            </h3>
-            <button onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else setCalMonth(calMonth + 1); }}
-              className="p-2 hover:bg-surface-2 rounded-lg transition-colors"><ChevronRight /></button>
-          </div>
-          <div className="grid grid-cols-7 gap-px bg-line rounded-lg overflow-hidden">
-            {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(d => (
-              <div key={d} className="bg-surface-2 p-2 text-center text-xs font-medium text-muted">{d}</div>
-            ))}
-            {Array.from({ length: firstDayOfWeek - 1 }, (_, i) => (
-              <div key={`empty-${i}`} className="bg-surface-2 p-2 min-h-[80px]"></div>
-            ))}
-            {Array.from({ length: daysInMonth }, (_, i) => {
-              const day = i + 1;
-              const dayWorks = getWorksForDay(day);
-              const isToday = day === new Date().getDate() && calMonth === new Date().getMonth() && calYear === new Date().getFullYear();
-              return (
-                <div key={day} className={`bg-surface p-2 min-h-[80px] ${isToday ? 'ring-2 ring-brand-500 ring-inset' : ''}`}>
-                  <div className={`text-sm font-medium mb-1 ${isToday ? 'text-accent' : 'text-content'}`}>{day}</div>
-                  {dayWorks.slice(0, 2).map(w => (
-                    <div key={w.id} className={`text-xs px-1.5 py-0.5 rounded mb-0.5 truncate ${
-                      w.status === 'done' ? 'bg-ok-soft text-ok-fg' :
-                      w.status === 'planned' ? 'bg-accent-soft text-accent' :
-                      w.status === 'draft' ? 'bg-surface-2 text-muted' :
-                      'bg-warn-soft text-warn-fg'
-                    }`}>{w.title}</div>
-                  ))}
-                  {dayWorks.length > 2 && <div className="text-xs text-faint">+{dayWorks.length - 2} ещё</div>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <WorksCalendar works={works} />
       )}
 
       {/* Create/Edit Modal */}
