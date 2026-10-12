@@ -682,11 +682,13 @@ export default function GraphPage({ initialModelId, onModelChange }: GraphPagePr
         const key = `svc:${svc.zabbix_serviceid}`;
         idToKeyRef.current.set(id, key);
         const savedPos = saved.get(key);
+        // Вторая строка — статус услуги: «OK» для нормы, «Проблема: <критичность>» для проблемы.
+        const statusText = svc.status < 0 ? 'OK' : `Проблема: ${statusLabel(svc.status)}`;
         return {
           id,
-          // Вторая строка — статус услуги (OK / степень критичности), как в дереве структуры модели:
-          // мельче и цветом критичности Zabbix (font.multi:'html', <b> выделяет строку статуса).
-          label: `${svc.name}\n<b>${statusLabel(svc.status)}</b>`,
+          // Вторая строка — статус услуги, как в дереве структуры модели: мельче и цветом
+          // критичности Zabbix (font.multi:'html', <b> выделяет строку статуса).
+          label: `${svc.name}\n<b>${statusText}</b>`,
           x: savedPos ? savedPos.x : posX.get(svc.zabbix_serviceid)!,
           y: savedPos ? savedPos.y : depth * spacingY,
           // fixed не ставим: см. комментарий выше (иначе после сохранения узлы «застывают»)

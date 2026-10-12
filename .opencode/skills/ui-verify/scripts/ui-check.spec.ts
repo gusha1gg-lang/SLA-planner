@@ -415,9 +415,9 @@ test('Модель здоровья: под услугой на графе ви�
       okCount++;
       expect(row.boldColor, `цвет строки OK у «${row.label}»`).toBe('#59DB8F');
       expect(row.green, `зелёная строка статуса видна у «${row.label}»`).toBeGreaterThan(0);
-    } else if (/<b>Высокая<\/b>/.test(row.label)) {
+    } else if (/<b>Проблема: Высокая<\/b>/.test(row.label)) {
       problemCount++;
-      expect(row.boldColor, `цвет строки «Высокая» у «${row.label}»`).toBe('#E97659');
+      expect(row.boldColor, `цвет строки «Проблема: Высокая» у «${row.label}»`).toBe('#E97659');
       expect(row.red, `красная строка статуса видна у «${row.label}»`).toBeGreaterThan(0);
     }
   }
