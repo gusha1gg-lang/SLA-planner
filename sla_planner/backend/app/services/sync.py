@@ -9,11 +9,20 @@
   `service` у услуги со значениями service_tags у SLA.
 - Защита: если Zabbix вернул пустой список — prune пропускается,
   чтобы не стереть БД из-за ошибки API/прав доступа.
+
+Производительность (2026-10-12):
+- Upsert SLA/услуг — одним `INSERT ... ON CONFLICT DO UPDATE` порциями
+  (вместо SELECT + INSERT/UPDATE по каждому объекту — было N+1 запросов).
+- Связи SLA↔Service — через обратный индекс по значениям тега `service`
+  (O(суммарное число тегов), а не O(число SLA × число услуг)).
+- Prune — сравнение ключей в Python + порционные DELETE
+  (без гигантского NOT IN с тысячами параметров).
 """
 
 import json
 import logging
-from sqlalchemy import select, delete
+
+from sqlalchemy import delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sla import SLA
@@ -23,6 +32,10 @@ from app.models.planned_work import PlannedWork
 from app.services.zabbix_client import zabbix_client
 
 logger = logging.getLogger(__name__)
+
+# Размер порции для bulk INSERT/DELETE — не упираемся в лимит параметров
+# диалекта (SQLite ~32k, PostgreSQL 65535 параметров).
+_BULK_CHUNK = 500
 
 
 def sla_service_tags(sla: SLA) -> list[str]:
@@ -60,12 +73,12 @@ def sla_tag_values(sla: SLA) -> set[str]:
     return {v.lower() for v in sla_service_tags(sla)}
 
 
-def _service_tag_values(service: Service) -> set[str]:
-    """Значения тега `service` у услуги в нижнем регистре."""
-    if not service.tags:
+def _service_tag_values(tags_json: str | None) -> set[str]:
+    """Значения тега `service` у услуги (JSON из БД) в нижнем регистре."""
+    if not tags_json:
         return set()
     try:
-        tags = json.loads(service.tags)
+        tags = json.loads(tags_json)
     except (json.JSONDecodeError, TypeError):
         return set()
     return {
@@ -77,117 +90,133 @@ def _service_tag_values(service: Service) -> set[str]:
     }
 
 
+def _chunks(items: list, size: int = _BULK_CHUNK):
+    """Разбить список на порции заданного размера."""
+    for start in range(0, len(items), size):
+        yield items[start : start + size]
+
+
+def _upsert_stmt(bind, model, rows, conflict_cols, update_cols):
+    """
+    INSERT ... ON CONFLICT DO UPDATE для текущего диалекта (PostgreSQL/SQLite).
+
+    update_cols — колонки, обновляемые из `excluded` при конфликте;
+    `synced_at` дополнительно перебивается на now() (ORM-onupdate при
+    bulk-вставке не срабатывает).
+    """
+    if bind.dialect.name == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert as dialect_insert
+    else:
+        from sqlalchemy.dialects.sqlite import insert as dialect_insert
+
+    stmt = dialect_insert(model).values(rows)
+    set_ = {col: getattr(stmt.excluded, col) for col in update_cols}
+    set_["synced_at"] = func.now()
+    return stmt.on_conflict_do_update(index_elements=conflict_cols, set_=set_)
+
+
+async def _delete_by_ids(db: AsyncSession, model, column, ids):
+    """Порционное удаление строк по списку id (модель и колонка-фильтр)."""
+    for chunk in _chunks(list(ids)):
+        await db.execute(delete(model).where(column.in_(chunk)))
+
+
 async def sync_slas(db: AsyncSession) -> int:
-    """Синхронизировать SLA из Zabbix в БД + prune пропавших."""
+    """Синхронизировать SLA из Zabbix в БД (bulk-upsert) + prune пропавших."""
     zabbix_slas = await zabbix_client.sla_get()
-    count = 0
 
-    for zslA in zabbix_slas:
-        # Upsert
-        result = await db.execute(
-            select(SLA).where(SLA.zabbix_slaid == str(zslA["slaid"]))
-        )
-        existing = result.scalar_one_or_none()
+    rows = []
+    for zsla in zabbix_slas:
+        service_tags = zsla.get("service_tags", [])
+        rows.append({
+            "zabbix_slaid": str(zsla["slaid"]),
+            "name": zsla["name"],
+            "slo": float(zsla["slo"]),
+            "schedule_type": zsla.get("period", "24x7"),
+            "service_tags": json.dumps(service_tags) if service_tags else None,
+        })
 
-        # Сохраняем service_tags как JSON
-        service_tags = zslA.get("service_tags", [])
-        service_tags_json = json.dumps(service_tags) if service_tags else None
-
-        if existing:
-            existing.name = zslA["name"]
-            existing.slo = float(zslA["slo"])
-            existing.schedule_type = zslA.get("period", "24x7")
-            existing.service_tags = service_tags_json
-        else:
-            db.add(SLA(
-                zabbix_slaid=str(zslA["slaid"]),
-                name=zslA["name"],
-                slo=float(zslA["slo"]),
-                schedule_type=zslA.get("period", "24x7"),
-                service_tags=service_tags_json,
+    if rows:
+        bind = db.get_bind()
+        for chunk in _chunks(rows):
+            await db.execute(_upsert_stmt(
+                bind, SLA, chunk,
+                conflict_cols=["zabbix_slaid"],
+                update_cols=["name", "slo", "schedule_type", "service_tags"],
             ))
-        count += 1
 
     # ── Prune: удалить SLA, которых больше нет в Zabbix ──
     if zabbix_slas:
         keep = {str(z["slaid"]) for z in zabbix_slas}
-        stale = (await db.execute(
-            select(SLA).where(SLA.zabbix_slaid.notin_(keep))
-        )).scalars().all()
+        existing = (await db.execute(select(SLA.id, SLA.zabbix_slaid, SLA.name))).all()
+        stale = [(row.id, row.name) for row in existing if row.zabbix_slaid not in keep]
         if stale:
-            stale_ids = [s.id for s in stale]
-            await db.execute(delete(PlannedWork).where(PlannedWork.sla_id.in_(stale_ids)))
-            await db.execute(delete(SlaServiceLink).where(SlaServiceLink.sla_id.in_(stale_ids)))
-            await db.execute(delete(SLA).where(SLA.id.in_(stale_ids)))
+            stale_ids = [rid for rid, _ in stale]
+            await _delete_by_ids(db, PlannedWork, PlannedWork.sla_id, stale_ids)
+            await _delete_by_ids(db, SlaServiceLink, SlaServiceLink.sla_id, stale_ids)
+            await _delete_by_ids(db, SLA, SLA.id, stale_ids)
             logger.info(
                 "Pruned %d SLAs missing in Zabbix: %s",
-                len(stale), [s.name for s in stale],
+                len(stale), [name for _, name in stale],
             )
     else:
         logger.warning("Zabbix returned 0 SLAs — prune skipped (safety)")
 
-    await db.flush()
-    logger.info(f"Synced {count} SLAs from Zabbix")
-    return count
+    logger.info("Synced %d SLAs from Zabbix (bulk upsert)", len(rows))
+    return len(rows)
 
 
 async def sync_services(db: AsyncSession) -> int:
-    """Синхронизировать услуги из Zabbix в БД + prune пропавших."""
+    """Синхронизировать услуги из Zabbix в БД (bulk-upsert) + prune пропавших."""
     zabbix_services = await zabbix_client.service_get()
-    count = 0
 
+    rows = []
     for zsvc in zabbix_services:
-        result = await db.execute(
-            select(Service).where(Service.zabbix_serviceid == str(zsvc["serviceid"]))
-        )
-        existing = result.scalar_one_or_none()
-
-        tags_json = json.dumps(zsvc.get("tags", []))
-
         # Zabbix 7.0: иерархия через parents[], а не parent_serviceid.
         parents = zsvc.get("parents", []) or []
-        parent_zabbix_serviceid = str(parents[0]["serviceid"]) if parents else None
+        rows.append({
+            "zabbix_serviceid": str(zsvc["serviceid"]),
+            "name": zsvc["name"],
+            "parent_zabbix_serviceid": str(parents[0]["serviceid"]) if parents else None,
+            "algorithm": zsvc.get("algorithm", "0"),
+            "sortorder": int(zsvc.get("sortorder", 0)),
+            "status": int(zsvc.get("status", 0)),
+            "tags": json.dumps(zsvc.get("tags", [])),
+        })
 
-        if existing:
-            existing.name = zsvc["name"]
-            existing.algorithm = zsvc.get("algorithm", "0")
-            existing.sortorder = int(zsvc.get("sortorder", 0))
-            existing.status = int(zsvc.get("status", 0))
-            existing.tags = tags_json
-            existing.parent_zabbix_serviceid = parent_zabbix_serviceid
-        else:
-            db.add(Service(
-                zabbix_serviceid=str(zsvc["serviceid"]),
-                name=zsvc["name"],
-                parent_zabbix_serviceid=parent_zabbix_serviceid,
-                algorithm=zsvc.get("algorithm", "0"),
-                sortorder=int(zsvc.get("sortorder", 0)),
-                status=int(zsvc.get("status", 0)),
-                tags=tags_json,
+    if rows:
+        bind = db.get_bind()
+        for chunk in _chunks(rows):
+            await db.execute(_upsert_stmt(
+                bind, Service, chunk,
+                conflict_cols=["zabbix_serviceid"],
+                update_cols=[
+                    "name", "parent_zabbix_serviceid", "algorithm",
+                    "sortorder", "status", "tags",
+                ],
             ))
-        count += 1
 
     # ── Prune: удалить услуги, которых больше нет в Zabbix ──
     if zabbix_services:
         keep = {str(z["serviceid"]) for z in zabbix_services}
-        stale = (await db.execute(
-            select(Service).where(Service.zabbix_serviceid.notin_(keep))
-        )).scalars().all()
+        existing = (
+            await db.execute(select(Service.id, Service.zabbix_serviceid, Service.name))
+        ).all()
+        stale = [(row.id, row.name) for row in existing if row.zabbix_serviceid not in keep]
         if stale:
-            stale_ids = [s.id for s in stale]
-            await db.execute(delete(PlannedWork).where(PlannedWork.service_id.in_(stale_ids)))
-            await db.execute(delete(SlaServiceLink).where(SlaServiceLink.service_id.in_(stale_ids)))
-            await db.execute(delete(Service).where(Service.id.in_(stale_ids)))
+            stale_ids = [rid for rid, _ in stale]
+            await _delete_by_ids(db, PlannedWork, PlannedWork.service_id, stale_ids)
+            await _delete_by_ids(db, SlaServiceLink, SlaServiceLink.service_id, stale_ids)
+            await _delete_by_ids(db, Service, Service.id, stale_ids)
             logger.info(
                 "Pruned %d services missing in Zabbix: %s",
-                len(stale), [s.name for s in stale],
+                len(stale), [name for _, name in stale],
             )
     else:
         logger.warning("Zabbix returned 0 services — prune skipped (safety)")
 
-    await db.flush()
-    logger.info(f"Synced {count} services from Zabbix")
-    return count
+    logger.info("Synced %d services from Zabbix (bulk upsert)", len(rows))
+    return len(rows)
 
 
 async def sync_sla_service_links(db: AsyncSession) -> int:
@@ -198,30 +227,37 @@ async def sync_sla_service_links(db: AsyncSession) -> int:
     - у SLA: значения service_tags (тег `service`);
     - у услуги: значение тега `service`;
     - если совпали → связь.
+
+    Строим обратный индекс «значение тега → id услуг» — O(суммарно тегов),
+    вместо вложенных циклов по всем SLA × всем услугам.
     """
     # Очистить старые связи — перестраиваем с нуля
     await db.execute(delete(SlaServiceLink))
 
     slas = (await db.execute(select(SLA))).scalars().all()
-    services = (await db.execute(select(Service))).scalars().all()
+    services = (await db.execute(select(Service.id, Service.tags))).all()
 
-    # Заранее собираем теги услуг
-    service_tags = {s.id: _service_tag_values(s) for s in services}
+    # Обратный индекс: значение тега `service` (lower) → id услуг.
+    by_tag: dict[str, list[int]] = {}
+    for sid, tags in services:
+        for value in _service_tag_values(tags):
+            by_tag.setdefault(value, []).append(sid)
 
-    count = 0
+    rows: list[dict] = []
     for sla in slas:
         sla_tags = sla_tag_values(sla)
         if not sla_tags:
             continue
-        for service in services:
-            svc_tags = service_tags[service.id]
-            if svc_tags and svc_tags & sla_tags:
-                db.add(SlaServiceLink(sla_id=sla.id, service_id=service.id))
-                count += 1
+        matched: set[int] = set()
+        for value in sla_tags:
+            matched.update(by_tag.get(value, ()))
+        rows.extend({"sla_id": sla.id, "service_id": sid} for sid in matched)
 
-    await db.flush()
-    logger.info(f"Built {count} SLA-Service links via tags")
-    return count
+    for chunk in _chunks(rows):
+        await db.execute(insert(SlaServiceLink).values(chunk))
+
+    logger.info("Built %d SLA-Service links via tags", len(rows))
+    return len(rows)
 
 
 async def full_sync(db: AsyncSession) -> dict:
