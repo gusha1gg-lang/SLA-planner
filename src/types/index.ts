@@ -117,6 +117,7 @@ export interface PlannedWork {
   started_at: string;
   ended_at: string;
   status: WorkStatus;
+  series_id?: number | null;
   downtime_marker: string;
   downtime_period_from: number;
   downtime_period_to: number;
@@ -125,6 +126,22 @@ export interface PlannedWork {
   updated_by: number;
   created_at: string;
   updated_at: string;
+  service_name?: string;
+  sla_name?: string;
+}
+
+export interface WorkSeries {
+  id: number;
+  title: string;
+  description: string;
+  service_id: number;
+  sla_id: number;
+  weekdays: number[];      // 0=Пн .. 6=Вс
+  start_time: string;      // "HH:MM" (МСК)
+  duration_minutes: number;
+  active: boolean;
+  occurrence_count: number;
+  created_at: string;
   service_name?: string;
   sla_name?: string;
 }

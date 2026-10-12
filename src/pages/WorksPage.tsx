@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Calendar, List, Loader2, Pencil, Plus, Trash2, UploadCloud, X } from 'lucide-react';
 import { api } from '../api/client';
-import { SLA, Service, PlannedWork, WorkStatus } from '../types';
+import { SLA, Service, PlannedWork, WorkSeries, WorkStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { PERMISSIONS } from '../permissions';
 import { useToast } from '../context/ToastContext';
@@ -12,18 +12,30 @@ import WorksCalendar from '../components/WorksCalendar';
 import Button from '../components/ui/Button';
 import { useModalA11y } from '../hooks/useModalA11y';
 
+const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+/** Человекочитаемое расписание серии: «Сб в 13:00 (60 мин)». */
+function formatSchedule(s: WorkSeries): string {
+  const days = s.weekdays.map(d => WEEKDAY_LABELS[d] ?? d).join(', ');
+  return `${days} в ${s.start_time} (${s.duration_minutes} мин)`;
+}
+
 export default function WorksPage() {
   const { showToast } = useToast();
   const { can } = useAuth();
   const [works, setWorks] = useState<PlannedWork[]>([]);
   const [slas, setSlas] = useState<SLA[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [seriesList, setSeriesList] = useState<WorkSeries[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingWork, setEditingWork] = useState<PlannedWork | null>(null);
+  const [editingSeries, setEditingSeries] = useState<WorkSeries | null>(null);
   const [filter, setFilter] = useState<WorkStatus | 'all'>('all');
   const [view, setView] = useState<'table' | 'calendar'>('table');
-  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; workId: number | null }>({ isOpen: false, workId: null });
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; workId: number | null; seriesId: number | null; seriesTitle: string }>(
+    { isOpen: false, workId: null, seriesId: null, seriesTitle: '' }
+  );
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -31,8 +43,10 @@ export default function WorksPage() {
 
   const loadData = async () => {
     try {
-      const [w, s, svc] = await Promise.all([api.getPlannedWorks(), api.getSLAs(), api.getServices()]);
-      setWorks(w); setSlas(s); setServices(svc);
+      const [w, s, svc, ser] = await Promise.all([
+        api.getPlannedWorks(), api.getSLAs(), api.getServices(), api.getWorkSeries(),
+      ]);
+      setWorks(w); setSlas(s); setServices(svc); setSeriesList(ser);
     } finally { setLoading(false); }
   };
 
@@ -44,6 +58,21 @@ export default function WorksPage() {
   const statusLabels: Record<string, string> = {
     draft: 'Черновик', planned: 'Запланировано', active: 'Активно',
     done: 'Завершено', cancelled: 'Отменено', sync_error: 'Ошибка отправки',
+  };
+
+  const openEdit = (work: PlannedWork) => {
+    if (work.series_id) {
+      const series = seriesList.find(s => s.id === work.series_id);
+      if (series) {
+        setEditingSeries(series);
+        setEditingWork(null);
+        setShowForm(true);
+        return;
+      }
+    }
+    setEditingSeries(null);
+    setEditingWork(work);
+    setShowForm(true);
   };
 
   const filteredWorks = filter === 'all' ? works : works.filter(w => w.status === filter);
@@ -59,17 +88,24 @@ export default function WorksPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    setDeleteModal({ isOpen: true, workId: id });
+  const handleDelete = (work: PlannedWork) => {
+    if (work.series_id) {
+      setDeleteModal({ isOpen: true, workId: null, seriesId: work.series_id, seriesTitle: work.title });
+    } else {
+      setDeleteModal({ isOpen: true, workId: work.id, seriesId: null, seriesTitle: '' });
+    }
   };
 
   const confirmDelete = async () => {
-    if (deleteModal.workId) {
+    if (deleteModal.seriesId) {
+      await api.deleteWorkSeries(deleteModal.seriesId);
+      showToast('success', 'Циклическая серия удалена');
+    } else if (deleteModal.workId) {
       await api.deletePlannedWork(deleteModal.workId);
       showToast('success', 'Плановая работа удалена');
-      await loadData();
     }
-    setDeleteModal({ isOpen: false, workId: null });
+    setDeleteModal({ isOpen: false, workId: null, seriesId: null, seriesTitle: '' });
+    await loadData();
   };
 
   if (loading) {
@@ -93,12 +129,48 @@ export default function WorksPage() {
             </button>
           </div>
           {can(PERMISSIONS.worksEdit) && (
-            <Button icon={Plus} onClick={() => { setEditingWork(null); setShowForm(true); }}>
+            <Button icon={Plus} onClick={() => { setEditingWork(null); setEditingSeries(null); setShowForm(true); }}>
               Создать работу
             </Button>
           )}
         </div>
       </div>
+
+      {/* Циклические работы (серии) */}
+      {seriesList.length > 0 && (
+        <div className="bg-surface rounded-xl shadow-card border border-line p-4">
+          <h3 className="text-sm font-semibold mb-3">Циклические работы</h3>
+          <div className="space-y-2">
+            {seriesList.map(s => (
+              <div key={s.id} className="flex items-center justify-between gap-3 text-sm">
+                <div className="min-w-0">
+                  <div className="font-medium text-content truncate">
+                    {s.title}
+                    <span className="ml-2 text-xs text-faint">{formatSchedule(s)}</span>
+                  </div>
+                  <div className="text-xs text-faint truncate">
+                    {s.sla_name} / {s.service_name} · вхождений: {s.occurrence_count}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {can(PERMISSIONS.worksEdit) && (
+                    <button onClick={() => { setEditingSeries(s); setEditingWork(null); setShowForm(true); }}
+                      className="text-muted hover:text-content transition-colors" title="Редактировать серию">
+                      <Pencil />
+                    </button>
+                  )}
+                  {can(PERMISSIONS.worksDelete) && (
+                    <button onClick={() => setDeleteModal({ isOpen: true, workId: null, seriesId: s.id, seriesTitle: s.title })}
+                      className="text-danger-fg hover:text-danger-fg transition-colors" title="Удалить серию">
+                      <Trash2 />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex gap-2 flex-wrap">
@@ -129,7 +201,14 @@ export default function WorksPage() {
               {paginatedWorks.map(work => (
                 <tr key={work.id} className="hover:bg-surface-2">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-content">{work.title}</div>
+                    <div className="font-medium text-content flex items-center gap-2">
+                      {work.title}
+                      {work.series_id && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-accent-soft text-accent" title="Вхождение цикла">
+                          цикл
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-faint mt-0.5">{work.downtime_marker}</div>
                   </td>
                   <td className="px-4 py-3">
@@ -154,14 +233,16 @@ export default function WorksPage() {
                         </button>
                       )}
                       {can(PERMISSIONS.worksEdit) && (
-                        <button onClick={() => { setEditingWork(work); setShowForm(true); }}
-                          className="text-muted hover:text-content transition-colors" title="Редактировать">
+                        <button onClick={() => openEdit(work)}
+                          className="text-muted hover:text-content transition-colors"
+                          title={work.series_id ? 'Редактировать серию' : 'Редактировать'}>
                           <Pencil />
                         </button>
                       )}
                       {can(PERMISSIONS.worksDelete) && (
-                        <button onClick={() => handleDelete(work.id)}
-                          className="text-danger-fg hover:text-danger-fg transition-colors" title="Удалить">
+                        <button onClick={() => handleDelete(work)}
+                          className="text-danger-fg hover:text-danger-fg transition-colors"
+                          title={work.series_id ? 'Удалить серию' : 'Удалить'}>
                           <Trash2 />
                         </button>
                       )}
@@ -191,9 +272,10 @@ export default function WorksPage() {
       {showForm && (
         <WorkFormModal
           work={editingWork}
+          series={editingSeries}
           slas={slas}
           services={services}
-          onClose={() => setShowForm(false)}
+          onClose={() => { setShowForm(false); setEditingSeries(null); }}
           onSave={async (data) => {
             try {
               if (editingWork) {
@@ -209,37 +291,63 @@ export default function WorksPage() {
               showToast('error', err?.message || 'Ошибка сохранения работы');
             }
           }}
+          onSaveSeries={async (data) => {
+            try {
+              if (editingSeries) {
+                const updated = await api.updateWorkSeries(editingSeries.id, data);
+                showToast('success', `Серия обновлена (вхождений: ${updated.occurrence_count ?? 0})`);
+              } else {
+                const created = await api.createWorkSeries(data);
+                showToast('success', `Серия создана (вхождений: ${created.occurrence_count ?? 0})`);
+              }
+              setShowForm(false);
+              setEditingSeries(null);
+              await loadData();
+            } catch (err: any) {
+              showToast('error', err?.message || 'Ошибка сохранения серии');
+            }
+          }}
         />
       )}
 
       {/* Delete Confirmation Modal */}
       <ConfirmModal
         isOpen={deleteModal.isOpen}
-        title="Удалить плановую работу?"
-        message="Это действие нельзя отменить. Все связанные данные будут удалены."
+        title={deleteModal.seriesId ? 'Удалить циклическую работу?' : 'Удалить плановую работу?'}
+        message={deleteModal.seriesId
+          ? `Будет удалена вся серия «${deleteModal.seriesTitle}» и все её вхождения (включая окна в Zabbix). Это действие нельзя отменить.`
+          : 'Это действие нельзя отменить. Все связанные данные будут удалены.'}
         confirmText="Удалить"
         cancelText="Отмена"
         type="danger"
         onConfirm={confirmDelete}
-        onCancel={() => setDeleteModal({ isOpen: false, workId: null })}
+        onCancel={() => setDeleteModal({ isOpen: false, workId: null, seriesId: null, seriesTitle: '' })}
       />
     </div>
   );
 }
 
-function WorkFormModal({ work, slas, services, onClose, onSave }: {
+function WorkFormModal({ work, series, slas, services, onClose, onSave, onSaveSeries }: {
   work: PlannedWork | null;
+  series: WorkSeries | null;
   slas: SLA[];
   services: Service[];
   onClose: () => void;
   onSave: (data: Partial<PlannedWork>) => Promise<void>;
+  onSaveSeries: (data: Partial<WorkSeries>) => Promise<void>;
 }) {
-  const [title, setTitle] = useState(work?.title || '');
-  const [description, setDescription] = useState(work?.description || '');
-  const [slaId, setSlaId] = useState(work?.sla_id?.toString() || '');
-  const [serviceId, setServiceId] = useState(work?.service_id?.toString() || '');
+  const isSeries = !!series;
+  const [recurring, setRecurring] = useState(isSeries);
+  const [title, setTitle] = useState(work?.title || series?.title || '');
+  const [description, setDescription] = useState(work?.description || series?.description || '');
+  const [slaId, setSlaId] = useState((work?.sla_id ?? series?.sla_id)?.toString() || '');
+  const [serviceId, setServiceId] = useState((work?.service_id ?? series?.service_id)?.toString() || '');
   const [startDate, setStartDate] = useState(work?.started_at ? toMskInputValue(work.started_at) : '');
   const [endDate, setEndDate] = useState(work?.ended_at ? toMskInputValue(work.ended_at) : '');
+  const [weekdays, setWeekdays] = useState<number[]>(series?.weekdays || []);
+  const [startTime, setStartTime] = useState(series?.start_time || '13:00');
+  const [duration, setDuration] = useState((series?.duration_minutes ?? 60).toString());
+  const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [filteredServices, setFilteredServices] = useState<Service[]>([]);
 
@@ -277,8 +385,45 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
     }
   }, [slaId, slas, services]);
 
+  const toggleWeekday = (day: number) => {
+    setWeekdays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day].sort((a, b) => a - b)
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
+    if (recurring) {
+      if (weekdays.length === 0) {
+        setError('Выберите хотя бы один день недели');
+        return;
+      }
+      const dur = parseInt(duration);
+      if (!/^\d{1,2}:\d{2}$/.test(startTime)) {
+        setError('Укажите время начала в формате ЧЧ:ММ');
+        return;
+      }
+      if (!Number.isFinite(dur) || dur <= 0) {
+        setError('Укажите длительность в минутах');
+        return;
+      }
+      setSaving(true);
+      try {
+        await onSaveSeries({
+          title, description,
+          sla_id: parseInt(slaId), service_id: parseInt(serviceId),
+          weekdays, start_time: startTime, duration_minutes: dur,
+          sla_name: slas.find(s => s.id === parseInt(slaId))?.name,
+          service_name: filteredServices.find(s => s.id === parseInt(serviceId))?.name,
+        });
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     setSaving(true);
     try {
       const start = mskInputToDate(startDate);
@@ -306,7 +451,7 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
         className="bg-surface rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in outline-none"
       >
         <div className="p-5 border-b border-line flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{work ? 'Редактировать работу' : 'Новая плановая работа'}</h2>
+          <h2 className="text-lg font-semibold">{isSeries ? 'Редактировать циклическую работу' : work ? 'Редактировать работу' : 'Новая плановая работа'}</h2>
           <button onClick={onClose} className="text-faint hover:text-muted transition-colors" title="Закрыть"><X /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
@@ -322,6 +467,13 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
               className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
               placeholder="Детали работы..." />
           </div>
+          {!isSeries && (
+            <label className="flex items-center gap-2 text-sm text-content cursor-pointer select-none">
+              <input type="checkbox" checked={recurring} onChange={e => setRecurring(e.target.checked)}
+                className="rounded border-line-strong" />
+              Повторять еженедельно (цикл)
+            </label>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-content mb-1">SLA *</label>
@@ -360,24 +512,56 @@ function WorkFormModal({ work, slas, services, onClose, onSave }: {
               )}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-content mb-1">Начало (МСК) *</label>
-              <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} required
-                className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
+          {recurring ? (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-content mb-1">Дни недели *</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {WEEKDAY_LABELS.map((label, idx) => (
+                    <button key={idx} type="button" onClick={() => toggleWeekday(idx)}
+                      className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${weekdays.includes(idx) ? 'bg-brand-600 text-white border-brand-600' : 'bg-surface border-line text-muted hover:bg-surface-2'}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-content mb-1">Время начала (МСК) *</label>
+                  <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} required
+                    className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-content mb-1">Длительность, мин *</label>
+                  <input type="number" min={1} max={1440} value={duration} onChange={e => setDuration(e.target.value)} required
+                    className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
+                </div>
+              </div>
+              <p className="text-xs text-faint">
+                Вхождения создаются на 8 недель вперёд и продлеваются автоматически.
+              </p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-content mb-1">Окончание (МСК) *</label>
-              <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} required
-                className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-content mb-1">Начало (МСК) *</label>
+                <input type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} required
+                  className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-content mb-1">Окончание (МСК) *</label>
+                <input type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} required
+                  className="w-full px-3 py-2 border border-line-strong rounded-lg focus:ring-2 focus:ring-brand-500 outline-none" />
+              </div>
             </div>
-          </div>
+          )}
+          {error && <p className="text-xs text-danger-fg">{error}</p>}
           <div className="flex justify-end gap-3 pt-4 border-t border-line">
             <Button variant="ghost" onClick={onClose}>
               Отмена
             </Button>
             <Button type="submit" loading={saving}>
-              {work ? 'Обновить' : 'Создать'}
+              {recurring ? (isSeries ? 'Сохранить серию' : 'Создать серию') : work ? 'Обновить' : 'Создать'}
             </Button>
           </div>
         </form>

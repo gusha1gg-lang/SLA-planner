@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.database import init_db
 from app.services.sync import SyncInProgressError, start_auto_sync, stop_auto_sync
+from app.services.recurrence import start_series_scheduler, stop_series_scheduler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -21,7 +22,9 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     await init_db()
     start_auto_sync()
+    start_series_scheduler()
     yield
+    await stop_series_scheduler()
     await stop_auto_sync()
     logger.info("Shutting down")
 
@@ -86,12 +89,13 @@ async def zabbix_status():
 
 
 # ── Routers ──
-from app.routers import auth, sla, services, planned_works, audit, users, sync, graph, groups
+from app.routers import auth, sla, services, planned_works, audit, users, sync, graph, groups, work_series
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(sla.router, prefix="/api/sla", tags=["sla"])
 app.include_router(services.router, prefix="/api/services", tags=["services"])
 app.include_router(planned_works.router, prefix="/api/works", tags=["planned_works"])
+app.include_router(work_series.router, prefix="/api/work-series", tags=["work_series"])
 app.include_router(audit.router, prefix="/api/audit", tags=["audit"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(groups.router, prefix="/api/groups", tags=["groups"])

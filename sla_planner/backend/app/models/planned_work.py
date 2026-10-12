@@ -15,6 +15,7 @@ class PlannedWork(Base):
     started_at = Column(DateTime(timezone=True), nullable=False)
     ended_at = Column(DateTime(timezone=True), nullable=False)
     status = Column(String(20), default="draft")  # draft→planned→active→done→cancelled→sync_error
+    series_id = Column(Integer, ForeignKey("work_series.id"), nullable=True)  # вхождение серии
     downtime_marker = Column(String(100), nullable=True)  # "SLA Planner #<id>"
     downtime_period_from = Column(String(20), nullable=True)  # unixtime строкой
     downtime_period_to = Column(String(20), nullable=True)    # unixtime строкой

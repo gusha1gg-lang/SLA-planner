@@ -1185,3 +1185,109 @@ async def test_audit_and_user_timestamps_are_utc(auth_headers):
         users = (await client.get("/api/users/", headers=auth_headers)).json()
     assert logs and all(l["created_at"].endswith("+00:00") for l in logs)
     assert users and all(u["created_at"].endswith("+00:00") for u in users)
+
+
+# ── Цикличные плановые работы (серии) ──
+
+@pytest.mark.asyncio
+async def test_occurrence_starts_weekly_saturday():
+    """occurrence_starts: еженедельно по субботам 13:00 МСК → моменты в UTC."""
+    from datetime import datetime, timedelta, timezone
+    from app.services.recurrence import occurrence_starts
+    from app.models.work_series import WorkSeries
+
+    msk = timezone(timedelta(hours=3))
+    series = WorkSeries(weekdays="5", start_time="13:00", duration_minutes=60)
+    now = datetime(2026, 10, 12, 0, 0, tzinfo=timezone.utc)  # понедельник
+
+    starts = occurrence_starts(series, now=now, horizon_weeks=2)
+    keys = [s.astimezone(msk).strftime("%Y-%m-%d %H:%M") for s in starts]
+
+    assert "2026-10-17 13:00" in keys   # ближайшая суббота
+    assert "2026-10-24 13:00" in keys   # следующая
+    assert all(s.astimezone(msk).weekday() == 5 for s in starts)
+    # 13:00 МСК = 10:00 UTC
+    assert starts[0].astimezone(timezone.utc).strftime("%H:%M") == "10:00"
+
+
+@pytest.mark.asyncio
+async def test_create_series_generates_occurrences_and_pushes(auth_headers, monkeypatch):
+    """POST /api/work-series создаёт вхождения на горизонт и пушит их в Zabbix;
+    удаление серии убирает все вхождения."""
+    from datetime import datetime, timedelta, timezone
+    from app.services.zabbix_client import zabbix_client
+
+    await _seed_sla_service()
+
+    added = []
+
+    async def fake_remove(slaid, downtime_name):
+        pass
+
+    async def fake_add(slaid, name, period_from, period_to):
+        added.append(name)
+
+    monkeypatch.setattr(zabbix_client, "remove_excluded_downtime", fake_remove)
+    monkeypatch.setattr(zabbix_client, "add_excluded_downtime", fake_add)
+
+    msk = timezone(timedelta(hours=3))
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/work-series/", headers=auth_headers, json={
+            "title": "Перезапуск БД",
+            "description": "еженедельно",
+            "sla_id": 1,
+            "service_id": 1,
+            "weekdays": [5],
+            "start_time": "13:00",
+            "duration_minutes": 60,
+        })
+        assert resp.status_code == 201, resp.text
+        series = resp.json()
+        assert series["created_occurrences"] >= 1
+        assert len(added) == series["created_occurrences"]
+        assert len(set(added)) == len(added)                    # имена уникальны
+        assert all(n.startswith("Перезапуск БД (") for n in added)
+
+        works = (await client.get("/api/works/", headers=auth_headers)).json()
+        occ = [w for w in works if w["series_id"] == series["id"]]
+        assert len(occ) == series["created_occurrences"]
+        assert all(w["status"] == "planned" for w in occ)
+        for w in occ:
+            dt = datetime.fromisoformat(w["started_at"]).astimezone(msk)
+            assert dt.weekday() == 5            # суббота
+            assert (dt.hour, dt.minute) == (13, 0)
+
+        # удаление серии убирает вхождения
+        resp = await client.delete(f"/api/work-series/{series['id']}", headers=auth_headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["removed_occurrences"] == len(occ)
+
+        works = (await client.get("/api/works/", headers=auth_headers)).json()
+        assert [w for w in works if w["series_id"] == series["id"]] == []
+
+
+@pytest.mark.asyncio
+async def test_create_series_requires_works_edit(plain_user):
+    """Создание серии без права works.edit — 403."""
+    await _seed_sla_service()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/work-series/", headers=await user_headers(plain_user), json={
+            "title": "X", "sla_id": 1, "service_id": 1,
+            "weekdays": [5], "start_time": "13:00", "duration_minutes": 60,
+        })
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_create_series_validates_weekdays(auth_headers):
+    """Серия без дней недели отклоняется (400)."""
+    await _seed_sla_service()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post("/api/work-series/", headers=auth_headers, json={
+            "title": "X", "sla_id": 1, "service_id": 1,
+            "weekdays": [], "start_time": "13:00", "duration_minutes": 60,
+        })
+    assert resp.status_code == 400

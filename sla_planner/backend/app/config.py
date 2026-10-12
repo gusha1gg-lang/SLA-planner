@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     SYNC_AUTO_ENABLED: bool = True
     SYNC_AUTO_INTERVAL_MINUTES: int = 60  # 0 или ENABLED=false — выключить
 
+    # Цикличные плановые работы (серии): горизонт генерации и фоновое продление
+    WORK_SERIES_ENABLED: bool = True
+    WORK_SERIES_INTERVAL_MINUTES: int = 60  # 0 или ENABLED=false — выключить
+    WORK_SERIES_HORIZON_WEEKS: int = 8      # на сколько недель вперёд держать вхождения
+
     # Timezone
     DEFAULT_TIMEZONE: str = "Europe/Moscow"
 

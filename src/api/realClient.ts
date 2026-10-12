@@ -4,7 +4,7 @@
  */
 
 import {
-  SLA, Service, PlannedWork, AuditLogEntry, User, Group, ExcludedDowntime,
+  SLA, Service, PlannedWork, WorkSeries, AuditLogEntry, User, Group, ExcludedDowntime,
   ServiceConfig, SyncResult, SyncStatus, GraphColors,
 } from '../types';
 
@@ -157,6 +157,29 @@ class RealApiClient {
 
   async deletePlannedWork(id: number): Promise<void> {
     await this.request<void>(`/works/${id}`, { method: 'DELETE' });
+  }
+
+  // Цикличные плановые работы (серии)
+  async getWorkSeries(): Promise<WorkSeries[]> {
+    return this.request<WorkSeries[]>('/work-series/');
+  }
+
+  async createWorkSeries(data: Partial<WorkSeries>): Promise<WorkSeries> {
+    return this.request<WorkSeries>('/work-series/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateWorkSeries(id: number, data: Partial<WorkSeries>): Promise<WorkSeries> {
+    return this.request<WorkSeries>(`/work-series/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteWorkSeries(id: number): Promise<void> {
+    await this.request<void>(`/work-series/${id}`, { method: 'DELETE' });
   }
 
   // Audit
@@ -351,6 +374,22 @@ export const api = {
 
   async deletePlannedWork(id: number): Promise<void> {
     return await realApi.deletePlannedWork(id);
+  },
+
+  async getWorkSeries(): Promise<WorkSeries[]> {
+    return await realApi.getWorkSeries();
+  },
+
+  async createWorkSeries(data: Partial<WorkSeries>): Promise<WorkSeries> {
+    return await realApi.createWorkSeries(data);
+  },
+
+  async updateWorkSeries(id: number, data: Partial<WorkSeries>): Promise<WorkSeries> {
+    return await realApi.updateWorkSeries(id, data);
+  },
+
+  async deleteWorkSeries(id: number): Promise<void> {
+    return await realApi.deleteWorkSeries(id);
   },
 
   async getAuditLogs(): Promise<AuditLogEntry[]> {

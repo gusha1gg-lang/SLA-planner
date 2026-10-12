@@ -14,6 +14,7 @@ from app.models.sla import SLA
 from app.models.user import User
 from app.permissions import P_WORKS, P_WORKS_DELETE, P_WORKS_EDIT, require_permission
 from app.services.zabbix_client import zabbix_client, ZabbixError
+from app.services.work_push import reconcile_zabbix_window
 from app.timeutil import iso_utc, parse_utc
 
 router = APIRouter()
@@ -78,27 +79,8 @@ async def create_work(
 
 
 async def _reconcile_zabbix_window(work: PlannedWork, sla: SLA, stale_names: list[str] | None = None) -> None:
-    """Идемпотентно синхронизировать окно работы в Zabbix.
-
-    Удаляет устаревшие записи (маркер `SLA Planner #<id>` + переданные имена,
-    например старый заголовок после переименования) и добавляет актуальное окно
-    с текущим заголовком работы.
-    """
-    await zabbix_client.remove_excluded_downtime(
-        slaid=sla.zabbix_slaid,
-        downtime_name=work.downtime_marker,
-    )
-    for stale in stale_names or []:
-        await zabbix_client.remove_excluded_downtime(
-            slaid=sla.zabbix_slaid,
-            downtime_name=stale,
-        )
-    await zabbix_client.add_excluded_downtime(
-        slaid=sla.zabbix_slaid,
-        name=work.title,
-        period_from=work.downtime_period_from,
-        period_to=work.downtime_period_to,
-    )
+    """Обёртка для обратной совместимости (логика — в services/work_push.py)."""
+    await reconcile_zabbix_window(work, sla, stale_names=stale_names)
 
 
 @router.put("/{work_id}")
@@ -290,6 +272,7 @@ def work_to_dict(w: PlannedWork) -> dict:
         "started_at": iso_utc(w.started_at),
         "ended_at": iso_utc(w.ended_at),
         "status": w.status,
+        "series_id": w.series_id,
         "downtime_marker": w.downtime_marker,
         "downtime_period_from": w.downtime_period_from,
         "downtime_period_to": w.downtime_period_to,

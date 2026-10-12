@@ -515,3 +515,36 @@ test('Плановые работы: режим «Календарь» (общи
 
   await page.screenshot({ path: '/tmp/opencode/ui-verify/works-calendar.png' });
 });
+
+test('Плановые работы: форма цикла (повтор еженедельно)', async ({ page }) => {
+  await page.goto('http://localhost:3000/');
+  await page.getByPlaceholder('admin / planner / viewer').fill('admin');
+  await page.getByPlaceholder('Пароль').fill('admin123');
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await page.getByRole('button', { name: 'Плановые работы' }).click();
+  await expect(page.getByRole('heading', { name: 'Плановые работы', level: 1 })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Создать работу' }).click();
+  await expect(page.getByRole('heading', { name: 'Новая плановая работа' })).toBeVisible();
+
+  // По умолчанию — обычные даты начала/окончания.
+  await expect(page.getByText('Начало (МСК) *')).toBeVisible();
+
+  // Включаем цикл: появляются дни недели, время и длительность, даты исчезают.
+  await page.getByText('Повторять еженедельно (цикл)').click();
+  await expect(page.getByText('Дни недели *')).toBeVisible();
+  await expect(page.getByText('Время начала (МСК) *')).toBeVisible();
+  await expect(page.getByText('Длительность, мин *')).toBeVisible();
+  await expect(page.getByText('Начало (МСК) *')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Создать серию' })).toBeVisible();
+
+  // Выбор субботы подсвечивает кнопку.
+  await page.getByRole('button', { name: 'Сб', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Сб', exact: true })).toHaveClass(/bg-brand-600/);
+
+  // Выключение цикла возвращает поля дат.
+  await page.getByText('Повторять еженедельно (цикл)').click();
+  await expect(page.getByText('Начало (МСК) *')).toBeVisible();
+
+  await page.screenshot({ path: '/tmp/opencode/ui-verify/work-series-form.png' });
+});
