@@ -55,7 +55,9 @@ SLA Planner — мост между специалистами и системо
 ### Frontend (корень репозитория)
 - React 18 + TypeScript + Vite 6 + Tailwind CSS 4
 - vis-network (граф), recharts (отчёты), react-router-dom
-- `npm run dev` → **:3000**, Vite-прокси `/api` и `/health` → `localhost:8000`
+- `npm run dev` → **:3000**, Vite-прокси `/api` и `/health` → `localhost:${API_PORT:-8000}`
+  (порт бэкенда — env `API_PORT`; если :8000 занят чужим сервисом, dev поднимают на :8001 —
+  ловушка №33 в `CONTEXT.md`)
 
 ### Backend
 - Python 3.11+ (проверено на 3.14), FastAPI, SQLAlchemy (async)

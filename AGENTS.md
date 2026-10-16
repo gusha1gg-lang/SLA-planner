@@ -12,8 +12,8 @@
 
 | Компонент | Технология | Порт | Запуск |
 |---|---|---|---|
-| Frontend | React + Vite + TypeScript | :3000 | `npm run dev` (vite, proxy `/api` → :8000) |
-| Backend | Python + FastAPI + SQLAlchemy (async) | :8000 | `venv/bin/uvicorn app.main:app --reload` (из `sla_planner/backend`) |
+| Frontend | React + Vite + TypeScript | :3000 | `npm run dev` (vite, прокси `/api` → `http://localhost:${API_PORT}`, default :8000) |
+| Backend | Python + FastAPI + SQLAlchemy (async) | :8000 (`$API_PORT`; **сейчас dev на :8001** — :8000 занят чужим Django PortalProstoev) | `venv/bin/uvicorn app.main:app --reload --port $API_PORT` (из `sla_planner/backend`) |
 | Тестовый Zabbix | Zabbix 7.0 (docker) | :8080 | стартует сам |
 | БД сайта (dev) | PostgreSQL 16 (docker compose) | :5432 | `docker compose up -d postgres` (из `sla_planner/`) |
 | БД тестов | SQLite (`:memory:`/файл) | — | тесты сами ставят `DATABASE_URL` |
@@ -58,15 +58,28 @@
 ## 3. Поднять dev-среду (после перезагрузки машины)
 
 ```bash
+# Рекомендуется: идемпотентный скрипт (не трогает уже работающие процессы)
+cd /opt/sla_planner1 && bash .opencode/skills/dev-env-up/scripts/env-up.sh
+
+# Порт бэкенда = $API_PORT (default :8000). Если :8000 занят чужим сервисом
+# (Django PortalProstoev) — поднять SLA Planner на :8001 (ловушка №33 в CONTEXT.md):
+API_PORT=8001 bash .opencode/skills/dev-env-up/scripts/env-up.sh
+```
+
+Вручную (эквивалент скрипта):
+
+```bash
 # 1) БД: Postgres для dev (в проде — тот же сервис в compose)
 cd /opt/sla_planner1/sla_planner && docker compose up -d postgres
 # 2) backend (читает DATABASE_URL из sla_planner/backend/.env → Postgres)
-cd /opt/sla_planner1/sla_planner/backend && venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &
-# 3) frontend
-cd /opt/sla_planner1 && npm run dev &
+cd /opt/sla_planner1/sla_planner/backend && API_PORT=${API_PORT:-8000} venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port ${API_PORT:-8000} &
+# 3) frontend — vite ОБЯЗАН получить тот же порт, иначе /api уйдёт на чужой сервис
+cd /opt/sla_planner1 && API_PORT=${API_PORT:-8000} npm run dev &
 ```
 
-Проверка: `curl -s localhost:3000` и `curl -s localhost:8000/health` дают 200.
+Проверка: `curl -s localhost:3000` и `curl -s localhost:${API_PORT:-8000}/health` дают 200;
+сквозная — `curl -s localhost:3000/health` возвращает `{"status":"ok"}` (прокси дошёл до нашего
+бэкенда; если отвечает чужой сервис — см. ловушку №33).
 Логи: `/tmp/opencode/uvicorn.log`, `/tmp/opencode/vite.log`.
 Если БД пустая (после перезагрузки/пересоздания): `venv/bin/python -m app.seed` (пользователи/группы),
 затем полный синк из Zabbix кнопкой admin или `POST /api/sync/full`.

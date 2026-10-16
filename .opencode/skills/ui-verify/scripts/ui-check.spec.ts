@@ -103,8 +103,10 @@ test('Время: аудит-лог показывает московское в
   await expect(page.getByRole('heading', { name: 'Аудит-лог', level: 1 })).toBeVisible();
 
   // На свежей БД аудит-лог пуст — сверять нечего (тест данных-зависимый).
+  // Ходим через :3000 (прокси vite → $API_PORT), а не напрямую на бэкенд: порт бэкенда
+  // не фиксирован (ловушка №33) и на :8000 может слушать чужой сервис.
   const token = await page.evaluate(() => localStorage.getItem('sla_token'));
-  const resp = await page.request.get('http://localhost:8000/api/audit/?limit=1', {
+  const resp = await page.request.get('http://localhost:3000/api/audit/?limit=1', {
     headers: { Authorization: `Bearer ${token}` },
   });
   const items = await resp.json();

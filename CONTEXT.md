@@ -49,6 +49,25 @@
 
 ## 3. Что уже сделано (история)
 
+### Dev-среда: бэкенд перенесён на :8001 — :8000 занят чужим проектом (2026-10-16)
+
+Пользователь: «запусти сайт». На :8000 уже слушал **другой проект** — Django `/opt/PortalProstoev`
+(`manage.py runserver 0.0.0.0:8000`, запущен 16.10 в 11:31). Его не стали убивать (не наш проект,
+по согласованию) — SLA Planner поднят на **:8001**.
+
+- **`vite.config.js`**: цели прокси `/api` и `/health` — `http://localhost:${API_PORT || 8000}`.
+  vite читает env **при старте**, поэтому uvicorn и vite должны запускаться с одним `API_PORT`
+  (рассинхрон ⇒ /api уходит на чужой сервис и возвращает HTML вместо JSON).
+- **`dev-env-up/scripts/env-up.sh`**: выбор порта (явный `API_PORT` → уже поднятый наш бэкенд
+  8000/8001 → 8000), health-проверка теперь «наш» бэкенд (`/health` содержит `"status"`) — раньше
+  обычный `curl` без `-f` считал чужой 404 здоровьем и скрипт писал «backend уже работает»;
+  если порт занят чужим процессом — варнинг с PID и подсказка `API_PORT=8001`, запуск vite с тем же
+  `API_PORT`, сквозная проверка `localhost:3000/health`.
+- **Состояние:** uvicorn `:8001` (логи `/tmp/opencode/uvicorn.log`), vite `:3000` (прокси →8001),
+  Postgres и Zabbix-контейнеры healthy; логин через прокси отдаёт `access_token`, смоук в браузере —
+  дашборд открывается, ошибок 0. Порт :8000 не тронут (PortalProstoev отвечает как раньше).
+- `AGENTS.md` §1/§3 переведены на `API_PORT`; детали — ловушка №33.
+
 ### Модалка «Создать работу» больше не обрезается сверху (ловушка №32) (2026-10-12)
 
 Пользователь: при нажатии «Создать работу» модалка поднималась вверх и была видна не полностью
@@ -1001,7 +1020,13 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
 7. Лог OpenCode: `~/.local/share/opencode/log/opencode.log`.
 8. Для ручных вызовов Zabbix API удобно писать скрипты на `venv/bin/python` с `urllib` (примеры были в истории).
 9. **Фронтенд без моков:** если в localStorage залёг `mock-token`/`mock-jwt-token`, AuthContext вычистит его при старте — будет страница логина. Без доступного бэкенда сайт не работает (это норма, а не баг).
-10. **После перезагрузки машины vite/uvicorn умирают** (docker-Zabbix при этом стартует сам). Поднять: `cd sla_planner/backend && venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &`, в корне репо `npm run dev &`. Логи: `/tmp/opencode/uvicorn.log`, `/tmp/opencode/vite.log`. Проверка: достпно ли `curl localhost:3000` и `curl localhost:8000/health`.
+10. **После перезагрузки машины vite/uvicorn умирают** (docker-Zabbix при этом стартует сам). Поднять:
+    `bash .opencode/skills/dev-env-up/scripts/env-up.sh` (скрипт сам выберет порт; при занятом
+    :8000 чужим сервисом — `API_PORT=8001 bash …`, см. ловушку №33). Вручную:
+    `cd sla_planner/backend && API_PORT=${API_PORT:-8000} venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port ${API_PORT:-8000} &`,
+    в корне репо `API_PORT=${API_PORT:-8000} npm run dev &` (**vite обязан получить тот же порт**).
+    Логи: `/tmp/opencode/uvicorn.log`, `/tmp/opencode/vite.log`. Проверка: `curl localhost:3000` и
+    `curl localhost:${API_PORT:-8000}/health` → 200; сквозная `curl localhost:3000/health` → `{"status":"ok"}`.
 11. **Факты Zabbix 7.0** (проверены на живом 7.0.31): `service.get` НЕ отдаёт `parent_serviceid` — только `parents`/`children` через `selectParents`/`selectChildren`; `service.update` принимает `parents: [{"serviceid":...}]` (массив объектов); `service.create` требует `name`, `algorithm`, `sortorder` (tags опционально), `uuid` задаётся явно; `sla.create` требует name/slo/period/timezone/effective_date/status/service_tags/excluded_downtimes; `sla.update` ПЕРЕЗАПИСЫВАЕТ excluded_downtimes целиком (read-modify-write, учтено в push); значения period_from/to — строки unixtime UTC; авторизация `Authorization: Bearer <token>` (поле `auth` в теле не работает); `apiinfo.version` нельзя вызывать с токеном.
 12. **Скрипты переноса (корень репо):** `import_test.py`, `fix_tree_uuid.py`, `delete_all_services.py` — закоммичены. `zabbix_dump.json` в .gitignore. Повторный `import_test.py` создаст дубли — не запускать без `delete_all_services.py`. `fix_tree.py` (старая версия, матч по имени) удалён 2026-10-10 — вместо него `fix_tree_uuid.py`.
 13. **Кнопка «Синхр. с Zabbix»** после успешного синка перезагружает страницу (`onSync` → `window.location.reload()` в `App.tsx`) — модель здоровья/списки сразу актуализируются, без ручной смены страницы. Кнопка видна только admin.
@@ -1189,6 +1214,15 @@ Test SLA v3→Test Service 1, ERP→СКУД/EWM/MES, «1С»→1С, «SAP»→S
     `to { transform: none }` само по себе НЕ спасает. Диагностика: в консоли браузера
     `getComputedStyle(предок).transform !== 'none'` при `getAnimations()` в состоянии `finished`.
     Учитывать и для новых анимаций на обёртках страниц/карточек.
+33. **`:8000` может занять чужой сервис; uvicorn и vite живут на одном `$API_PORT`.** С 16.10.2026
+    на :8000 слушает Django-проект `/opt/PortalProstoev` (свой `runserver`) — его не убивать без
+    спроса, SLA Planner dev поднят на **:8001**. Прокси vite (`/api`, `/health`) берёт порт из env
+    `API_PORT` при старте ⇒ запускать бэкенд и vite с одинаковым значением:
+    `API_PORT=8001 bash .opencode/skills/dev-env-up/scripts/env-up.sh` (скрипт сам выберет порт и
+    предупредит, если он занят чужим PID). Ловушка старого скрипта: health-проверка была обычным
+    `curl` без `-f` — чужой 404 на :8000 считался «backend работает»; теперь `/health` должен
+    содержать `"status"` (наш ответ — `{"status":"ok"}`). Симптом рассинхрона портов: логин/запросы
+    через :3000 возвращают HTML Django («Page not found») вместо JSON FastAPI.
 
 ---
 
